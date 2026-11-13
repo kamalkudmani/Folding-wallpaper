@@ -47,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -85,7 +87,17 @@ fun GeneratingScreen(vm: MainViewModel, onReady: (String) -> Unit, onEdit: () ->
         for (stage in PipelineStage.entries) {
             val done = j != null && (stage in j.completed || j.status == JobStatus.READY)
             val current = j?.stage == stage && j.isRunning
-            Row(Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            val stateText = stringResource(
+                when {
+                    done -> R.string.a11y_stage_done
+                    current -> R.string.a11y_stage_running
+                    else -> R.string.a11y_stage_waiting
+                },
+            )
+            Row(
+                Modifier.padding(vertical = 9.dp).semantics(mergeDescendants = true) { stateDescription = stateText },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                     when {
                         done -> Icon(Icons.Filled.Check, contentDescription = null, tint = FmColors.Teal)

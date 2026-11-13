@@ -27,7 +27,11 @@ motion when the phone opens or closes.
 - **Official apply path** through the system live-wallpaper preview; success is verified on return.
 - **Library** (created / imported / applied), share and import `.foldpack` files.
 - **Fold Lab**: the proof-of-concept instrument. Logs engine lifecycle, surface sizes, display ids,
-  hinge angle and state decisions; exports a trace for the Fold7 feasibility report.
+  hinge angle, state decisions and frame pacing; a built-in analyzer answers the feasibility
+  questions (does the engine survive the switch, how early can the motion start, jank) with
+  provisional GO/NO-GO marks, and exports everything for the Fold7 report.
+- **Reference photo, colours only**: the photo is read once on the phone, its dominant colours
+  become the scene palette, and nothing of the photo is stored or sent.
 - Arabic and English, RTL, cover and main layouts. No INTERNET permission, no account, no analytics.
 
 Not in v0.1 (waiting for owner decisions, see the review §6): cloud AI generation, public gallery,
@@ -38,13 +42,14 @@ accounts, moderation.
 - [Blueprint review v1.1 (Arabic)](docs/BLUEPRINT_REVIEW_v1.1.md) — corrections, additions, status, open decisions.
 - [FoldPack manifest JSON Schema](docs/schema/foldpack-manifest.v1.schema.json)
 - [API contract draft (OpenAPI)](docs/api/openapi.yaml)
+- [POC report template (Arabic)](docs/POC_REPORT_TEMPLATE.md)
 
 ## Build
 
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 81 tests, Robolectric with real Skia rendering
+./gradlew :core:test :app:testDebugUnitTest   # 97 tests, Robolectric with real Skia rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ```
 

@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.LocaleManager
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.os.LocaleList
@@ -24,6 +25,8 @@ import com.foldmotion.core.scene.PromptAnalyzer
 import com.foldmotion.core.scene.PromptCheck
 import com.foldmotion.core.scene.PromptInterpretation
 import com.foldmotion.core.scene.PromptRules
+import com.foldmotion.core.scene.ReferenceColors
+import com.foldmotion.core.scene.ReferencePalette
 import com.foldmotion.core.scene.SceneFamily
 import com.foldmotion.wallpapers.AppContainer
 import com.foldmotion.wallpapers.apply.ApplyOutcome
@@ -59,6 +62,8 @@ data class CreateForm(
     val family: SceneFamily? = null,
     val intensity: MotionIntensity = MotionIntensity.LOW,
     val ideaId: String = IdeaBank.ideas.first().id,
+    /** Colours taken from a reference photo; the photo itself is not kept. */
+    val reference: ReferenceColors? = null,
     val error: Int? = null,
 ) {
     val interpretation: PromptInterpretation get() = PromptAnalyzer.analyze(prompt)
@@ -160,6 +165,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 family = if (f.mode == GenerationMode.CUSTOM) f.family else null,
                 motionIntensity = f.intensity,
                 seed = random.nextLong(),
+                reference = if (f.mode == GenerationMode.CUSTOM) f.reference else null,
             ),
             profile,
         )
@@ -170,6 +176,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _form.update { it.copy(mode = GenerationMode.RANDOM, ideaId = ideaId) }
         return generate()
     }
+
+    /**
+     * Reads the picked photo once at about 96 px and keeps only its dominant colours. The photo
+     * is never copied, stored, or sent anywhere.
+     */
+    fun setReferencePhoto(uri: Uri) {
+        viewModelScope.launch {
+            val colors = withContext(Dispatchers.Default) {
+                try {
+                    val source = ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
+                    val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                        val w = info.size.width.coerceAtLeast(1)
+                        val h = info.size.height.coerceAtLeast(1)
+                        val scale = REFERENCE_SAMPLE_PX.toFloat() / maxOf(w, h)
+                        if (scale < 1f) decoder.setTargetSize((w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1))
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    }
+                    val pixels = IntArray(bitmap.width * bitmap.height)
+                    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                    bitmap.recycle()
+                    ReferencePalette.extract(pixels)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (colors == null) emit(com.foldmotion.wallpapers.R.string.reference_failed)
+            _form.update { it.copy(reference = colors ?: it.reference) }
+        }
+    }
+
+    fun clearReferencePhoto() = _form.update { it.copy(reference = null) }
 
     fun cancelGeneration() = container.generation.cancel()
     fun dismissJob() = container.generation.dismiss()
@@ -266,6 +303,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        const val REFERENCE_SAMPLE_PX = 96
+
         fun rejectReason(codes: List<ValidationCode>): Int {
             val c = codes.firstOrNull()
             return when (c) {

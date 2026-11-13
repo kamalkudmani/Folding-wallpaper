@@ -100,7 +100,13 @@ class UiScreenshotTest {
         }
         shoot("${prefix}_01_home")
         rule.runOnUiThread {
-            vm.updateForm { it.copy(prompt = if (prefix.contains("ar")) "جبال ليلية تحت هلال ونجوم" else "Night mountains under a crescent moon with stars") }
+            val photo = IntArray(4000) { i -> if (i < 2400) 0xFF46144A.toInt() else if (i < 3400) 0xFF1E0A28.toInt() else 0xFFFA8C3C.toInt() }
+            vm.updateForm {
+                it.copy(
+                    prompt = if (prefix.contains("ar")) "جبال ليلية تحت هلال ونجوم" else "Night mountains under a crescent moon with stars",
+                    reference = com.foldmotion.core.scene.ReferencePalette.extract(photo),
+                )
+            }
             nav.navigate(Routes.CREATE)
         }
         shoot("${prefix}_02_create")

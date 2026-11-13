@@ -123,4 +123,6 @@ data class GenerationRecipe(
     val family: String? = null,
     val promptSha256: String? = null,
     val mode: String = "CUSTOM",
+    /** "CURATED" or "REFERENCE_IMAGE" (colours extracted on the device; the photo is not kept). */
+    val paletteSource: String = "CURATED",
 )

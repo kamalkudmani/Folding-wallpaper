@@ -312,6 +312,7 @@ class LocalPackGenerator(
                 // Only a hash is kept: the prompt text itself never leaves the generation call.
                 promptSha256 = if (prompt.isEmpty()) null else Sha256.of(prompt),
                 mode = request.mode.name,
+                paletteSource = if (request.reference != null && request.mode == GenerationMode.CUSTOM) "REFERENCE_IMAGE" else "CURATED",
             ),
             tags = spec.tags,
         )

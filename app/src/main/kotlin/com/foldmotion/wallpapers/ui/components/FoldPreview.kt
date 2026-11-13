@@ -30,6 +30,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.foldmotion.wallpapers.R
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -128,6 +132,7 @@ fun SceneFrame(
     val spec = profile.screen(kind)
     val shape = RoundedCornerShape(if (kind == ScreenKind.MAIN) 18.dp else 22.dp)
     val view = remember { mutableStateOf<ScenePreviewView?>(null) }
+    val frameLabel = stringResource(if (kind == ScreenKind.MAIN) R.string.a11y_frame_main else R.string.a11y_frame_cover)
     Box(
         modifier
             .testTag("frame_${kind.name.lowercase()}")
@@ -139,7 +144,8 @@ fun SceneFrame(
         AndroidView(
             factory = { ctx -> ScenePreviewView(ctx).also { view.value = it } },
             update = { v -> if (v.scene !== scene) v.scene = scene },
-            modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(3.dp).clip(RoundedCornerShape(15.dp)),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(3.dp).clip(RoundedCornerShape(15.dp))
+                .semantics { contentDescription = frameLabel },
         )
         if (kind == ScreenKind.MAIN && showCrease) {
             Box(

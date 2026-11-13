@@ -70,7 +70,8 @@
         "seed": { "type": "integer" },
         "family": { "type": ["string", "null"] },
         "promptSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-        "mode": { "enum": ["CUSTOM", "RANDOM"] }
+        "mode": { "enum": ["CUSTOM", "RANDOM"] },
+        "paletteSource": { "enum": ["CURATED", "REFERENCE_IMAGE"], "default": "CURATED" }
       },
       "required": ["provider", "providerVersion", "seed"]
     },

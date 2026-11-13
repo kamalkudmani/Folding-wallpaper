@@ -17,6 +17,8 @@ data class GenerationRequest(
     val family: SceneFamily? = null,
     val motionIntensity: MotionIntensity = MotionIntensity.LOW,
     val seed: Long,
+    /** Colours from a reference photo; only the colours, never the photo. CUSTOM mode only. */
+    val reference: ReferenceColors? = null,
 )
 
 data class ComposedScene(
@@ -57,8 +59,10 @@ object SceneComposer {
 
         val seen = PromptAnalyzer.analyze(request.prompt)
         val family = request.family ?: seen.family ?: random.pick(SceneFamily.entries)
-        val time = seen.timeOfDay ?: defaultTime(family, seen, random)
-        val palette = Palettes.choose(family, time, seen.hue, random.fork(1))
+        val fromPhoto = request.reference?.let { ReferencePalette.toPalette(it) }
+        val time = seen.timeOfDay ?: fromPhoto?.second ?: defaultTime(family, seen, random)
+        // A reference photo decides the colours; otherwise the curated palettes do.
+        val palette = fromPhoto?.first ?: Palettes.choose(family, time, seen.hue, random.fork(1))
         val celestial = seen.celestial ?: defaultCelestial(family, time, random.fork(2))
         val night = time == TimeOfDay.NIGHT
         val stars = when {
@@ -89,7 +93,7 @@ object SceneComposer {
             focusY = focusY(family, random),
             titleAr = "${familyAr(family)} · ${timeAr(time, family)}",
             titleEn = "${familyEn(family)} · ${timeEn(time, family)}",
-            tags = listOf(family.name.lowercase(), time.name.lowercase(), palette.id),
+            tags = listOfNotNull(family.name.lowercase(), time.name.lowercase(), palette.id, if (fromPhoto != null) "reference-colors" else null),
         )
         return ComposedScene(spec, seen, null)
     }

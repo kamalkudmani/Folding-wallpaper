@@ -206,4 +206,15 @@
     <string name="lab_q2">هل تبدأ الحركة مبكراً بما يكفي بعد الطي؟</string>
     <string name="lab_q3">هل يجهز المشهد في الوقت المناسب؟</string>
     <string name="lab_q4">هل الحركة سلسة؟</string>
+    <string name="reference_title">صورة مرجعية (للألوان فقط)</string>
+    <string name="reference_pick">اختر صورة</string>
+    <string name="reference_remove">إزالة</string>
+    <string name="reference_in_use">سيستخدم المشهد هذه الألوان من صورتك.</string>
+    <string name="reference_note">تُقرأ الصورة مرة واحدة على هذا الهاتف لاستخراج ألوانها الرئيسية. لا تُحفظ ولا تُنسخ ولا تُرفع، ولا يُرسم المشهد من محتواها.</string>
+    <string name="reference_failed">تعذّرت قراءة هذه الصورة. جرّب صورة أخرى.</string>
+    <string name="a11y_stage_done">اكتملت</string>
+    <string name="a11y_stage_running">قيد التنفيذ</string>
+    <string name="a11y_stage_waiting">بالانتظار</string>
+    <string name="a11y_frame_cover">معاينة الشاشة الخارجية</string>
+    <string name="a11y_frame_main">معاينة الشاشة الداخلية</string>
 </resources>

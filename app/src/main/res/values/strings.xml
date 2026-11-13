@@ -217,4 +217,15 @@
     <string name="lab_q2">Does the motion start early enough after a fold?</string>
     <string name="lab_q3">Is the scene ready in time?</string>
     <string name="lab_q4">Is the motion smooth?</string>
+    <string name="reference_title">Reference photo (colours only)</string>
+    <string name="reference_pick">Choose a photo</string>
+    <string name="reference_remove">Remove</string>
+    <string name="reference_in_use">The scene will use these colours from your photo.</string>
+    <string name="reference_note">The photo is read once on this phone to take its main colours. It is not saved, copied or uploaded, and the scene is not drawn from its content.</string>
+    <string name="reference_failed">This photo could not be read. Try another one.</string>
+    <string name="a11y_stage_done">done</string>
+    <string name="a11y_stage_running">in progress</string>
+    <string name="a11y_stage_waiting">waiting</string>
+    <string name="a11y_frame_cover">Cover screen preview</string>
+    <string name="a11y_frame_main">Main screen preview</string>
 </resources>

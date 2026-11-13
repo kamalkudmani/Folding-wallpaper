@@ -711,21 +711,43 @@ class SceneArtist(private val spec: SceneSpec) {
             val f = r.range(1.6f, 3.2f)
             val ph = r.range(0f, 6.28f)
             val thick = r.range(0.04f, 0.09f)
-            val path = Path()
-            var x = worldLeft
             fun yAt(xx: Float) = centre + amp * sin(xx * f + ph) + 0.04f * (ValueNoise.fbm(xx * 1.5f, seedInt + i * 13, 3) - 0.5f)
             fun tAt(xx: Float) = thick * (0.6f + 0.4f * sin(xx * f * 0.7f + ph * 1.3f))
-            path.moveTo(x, yAt(x) - tAt(x))
-            while (x <= worldRight) {
-                path.lineTo(x, yAt(x) - tAt(x)); x += 0.008f
+            fun band(scale: Float): Path {
+                val path = Path()
+                var x = worldLeft
+                path.moveTo(x, yAt(x) - tAt(x) * scale)
+                while (x <= worldRight) {
+                    path.lineTo(x, yAt(x) - tAt(x) * scale); x += 0.008f
+                }
+                while (x >= worldLeft) {
+                    path.lineTo(x, yAt(x) + tAt(x) * scale); x -= 0.008f
+                }
+                path.close()
+                return path
             }
-            while (x >= worldLeft) {
-                path.lineTo(x, yAt(x) + tAt(x)); x -= 0.008f
-            }
-            path.close()
             val (a, b) = pairs[i]
-            p.shader = LinearGradient(-1.2f, 0f, 1.2f, 0f, intArrayOf(withAlpha(a, 0.75f), withAlpha(b, 0.85f), withAlpha(a, 0.7f)), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.MIRROR)
-            c.drawPath(path, p)
+            // Silk: a wide faint halo, a softer body and a denser core give soft edges without blur.
+            for ((scale, strength) in listOf(1.9f to 0.18f, 1.3f to 0.4f, 1f to 0.85f)) {
+                p.shader = LinearGradient(
+                    -1.2f, 0f, 1.2f, 0f,
+                    intArrayOf(withAlpha(a, 0.8f * strength), withAlpha(b, strength), withAlpha(a, 0.75f * strength)),
+                    floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.MIRROR,
+                )
+                c.drawPath(band(scale), p)
+            }
+            // A fine sheen along the middle of the ribbon.
+            val sheen = Path()
+            var x = worldLeft
+            sheen.moveTo(x, yAt(x) - tAt(x) * 0.35f)
+            while (x <= worldRight) {
+                sheen.lineTo(x, yAt(x) - tAt(x) * 0.35f); x += 0.008f
+            }
+            c.drawPath(sheen, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = max(px * 1.2f, 0.0012f)
+                color = withAlpha(pal.glow, 0.35f)
+            })
         }
     }
 

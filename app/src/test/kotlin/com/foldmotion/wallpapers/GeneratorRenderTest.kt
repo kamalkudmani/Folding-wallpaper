@@ -75,6 +75,24 @@ class GeneratorRenderTest {
     }
 
     @Test
+    fun `reference photo colours produce a valid pack in those colours`() {
+        fun rgb(r: Int, g: Int, b: Int) = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        // A dusky magenta/orange "photo" and a bright teal/sand "photo".
+        val dusk = IntArray(9000) { i -> if (i < 5000) rgb(70, 20, 70) else if (i < 7500) rgb(30, 10, 40) else rgb(250, 140, 60) }
+        val beach = IntArray(9000) { i -> if (i < 5000) rgb(60, 190, 200) else if (i < 7500) rgb(240, 225, 190) else rgb(30, 90, 120) }
+        val sheets = ArrayList<Bitmap>()
+        for ((name, pixels) in listOf("dusk photo + mountains" to dusk, "beach photo + ocean" to beach)) {
+            val ref = com.foldmotion.core.scene.ReferencePalette.extract(pixels)!!
+            val prompt = if (name.contains("mountains")) "mountains with stars" else "ocean at sunrise"
+            val id = generate(GenerationRequest("ref-$name", fold7.id, GenerationMode.CUSTOM, prompt = prompt, seed = 11L, reference = ref))
+            val pack = container.packStore.get(id)!!
+            assertEquals("REFERENCE_IMAGE", pack.manifest.generation?.paletteSource)
+            sheets += contactSheet(pack.dir, name)
+        }
+        writeGrid(sheets, File(outDir, "pack_reference.png"))
+    }
+
+    @Test
     fun `transition frames go from wide to rest without exposing the background`() {
         val id = generate(GenerationRequest("t1", fold7.id, GenerationMode.RANDOM, ideaId = "indigo_valley", seed = 5L, motionIntensity = MotionIntensity.MEDIUM))
         val dir = container.packStore.dir(id)
