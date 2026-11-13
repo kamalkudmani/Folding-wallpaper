@@ -1,0 +1,125 @@
+package com.foldmotion.core.fold
+
+import com.foldmotion.core.device.ScreenKind
+
+/**
+ * Phases from blueprint section 07. They describe what the wallpaper is doing, which is not the
+ * same thing as the physical hinge posture or the surface state.
+ */
+enum class FoldPhase {
+    UNKNOWN,
+    COVER_STABLE,
+    OPEN_PENDING,
+    MAIN_ENTER,
+    MAIN_STABLE,
+    CLOSE_PENDING,
+    COVER_ENTER,
+    SUSPENDED,
+    SURFACE_LOST,
+}
+
+enum class TransitionKind { OPEN, CLOSE }
+
+/** Why a running transition was cut short. Recorded in the diagnostic trace. */
+enum class CutReason {
+    SURFACE_DESTROYED,
+    VISIBILITY_LOST,
+    PROFILE_CHANGED,
+    POWER_SAVE,
+    REDUCED_MOTION,
+    PACK_CHANGED,
+}
+
+data class SurfaceInfo(val width: Int, val height: Int, val kind: ScreenKind)
+
+/** Everything that can veto or shape a transition, supplied by the platform layer. */
+data class MotionPolicy(
+    val reducedMotion: Boolean = false,
+    val powerSave: Boolean = false,
+    /**
+     * A transition only makes sense close to the fold moment. If the new screen first becomes
+     * visible later than this after the posture change, the end state is shown without motion.
+     */
+    val freshnessWindowMs: Long = DEFAULT_FRESHNESS_MS,
+) {
+    val motionAllowed: Boolean get() = !reducedMotion && !powerSave
+
+    companion object {
+        const val DEFAULT_FRESHNESS_MS = 3_000L
+    }
+}
+
+data class FoldState(
+    val phase: FoldPhase = FoldPhase.UNKNOWN,
+    val surface: SurfaceInfo? = null,
+    /** Panel of the most recent surface, remembered across surface loss to detect a switch. */
+    val lastSurfaceKind: ScreenKind? = null,
+    val visible: Boolean = false,
+    /** Scene whose assets are loaded for the current pack. */
+    val readyScene: ScreenKind? = null,
+    /** Scene currently being loaded, to avoid issuing the same load twice. */
+    val loadingScene: ScreenKind? = null,
+    /** Last screen kind a frame was actually presented for. Null until the first frame. */
+    val lastShown: ScreenKind? = null,
+    /** Monotonic time of the last cover/main switch, if known. */
+    val postureChangedAtMs: Long? = null,
+    val activeTransition: TransitionKind? = null,
+    val policy: MotionPolicy = MotionPolicy(),
+    /** System wallpaper picker preview: plays the entry motion once as a demonstration. */
+    val isPreview: Boolean = false,
+    val previewDemoPlayed: Boolean = false,
+)
+
+sealed interface FoldEvent {
+    /** Monotonic milliseconds. Never wall-clock, so time changes cannot distort animation. */
+    val atMs: Long
+
+    data class SurfaceCreated(override val atMs: Long) : FoldEvent
+
+    data class SurfaceChanged(
+        override val atMs: Long,
+        val width: Int,
+        val height: Int,
+        val kind: ScreenKind,
+    ) : FoldEvent
+
+    data class SurfaceDestroyed(override val atMs: Long) : FoldEvent
+
+    data class VisibilityChanged(
+        override val atMs: Long,
+        val visible: Boolean,
+        /** Process-wide hints, needed when the system uses one engine per panel. */
+        val sessionLastShown: ScreenKind? = null,
+        val sessionPostureChangedAtMs: Long? = null,
+    ) : FoldEvent
+
+    data class SceneReady(override val atMs: Long, val kind: ScreenKind) : FoldEvent
+    data class SceneFailed(override val atMs: Long, val kind: ScreenKind) : FoldEvent
+    data class TransitionFinished(override val atMs: Long) : FoldEvent
+    data class PolicyChanged(override val atMs: Long, val policy: MotionPolicy) : FoldEvent
+    data class PackChanged(override val atMs: Long) : FoldEvent
+}
+
+sealed interface FoldCommand {
+    /** Load (or fetch from cache) the assets of a scene, then report SceneReady/SceneFailed. */
+    data class LoadScene(val kind: ScreenKind) : FoldCommand
+
+    /** Draw the best frame available while assets load: previous scene, preview, or flat colour. */
+    data class DrawPlaceholder(val kind: ScreenKind) : FoldCommand
+
+    /** Draw the resting pose once. No frame loop. */
+    data class DrawStatic(val kind: ScreenKind) : FoldCommand
+
+    data class StartTransition(val kind: TransitionKind, val screen: ScreenKind) : FoldCommand
+
+    /** Stop the running transition immediately; a later command decides what to draw. */
+    data class CutTransition(val reason: CutReason) : FoldCommand
+
+    /** Cancel all scheduled frames and timers. */
+    data object StopFrames : FoldCommand
+
+    /** Record that this screen kind has now been shown to the user. */
+    data class MarkShown(val kind: ScreenKind) : FoldCommand
+}
+
+data class Reduction(val state: FoldState, val commands: List<FoldCommand>)

@@ -1,0 +1,257 @@
+package com.foldmotion.core.fold
+
+import com.foldmotion.core.device.ScreenKind
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class FoldStateReducerTest {
+
+    private val cover = ScreenKind.COVER
+    private val main = ScreenKind.MAIN
+
+    /** Runs events in order and keeps every command emitted. */
+    private class Harness(initial: FoldState = FoldState()) {
+        var state = initial
+        val log = ArrayList<FoldCommand>()
+
+        fun send(e: FoldEvent): List<FoldCommand> {
+            val r = FoldStateReducer.reduce(state, e)
+            state = r.state
+            log += r.commands
+            return r.commands
+        }
+
+        /** Simulates the engine answering every LoadScene immediately. */
+        fun sendAndLoad(e: FoldEvent): List<FoldCommand> {
+            val out = ArrayList(send(e))
+            val loads = out.filterIsInstance<FoldCommand.LoadScene>()
+            for (l in loads) out += send(FoldEvent.SceneReady(e.atMs, l.kind))
+            return out
+        }
+    }
+
+    private fun boot(h: Harness, kind: ScreenKind, at: Long = 0) {
+        h.send(FoldEvent.SurfaceCreated(at))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(at, if (kind == cover) 1080 else 1968, if (kind == cover) 2520 else 2184, kind))
+        h.sendAndLoad(FoldEvent.VisibilityChanged(at, true))
+    }
+
+    @Test
+    fun `first appearance draws statically without motion`() {
+        val h = Harness()
+        boot(h, cover)
+        assertEquals(FoldPhase.COVER_STABLE, h.state.phase)
+        assertTrue(h.log.none { it is FoldCommand.StartTransition })
+        assertTrue(h.log.contains(FoldCommand.DrawStatic(cover)))
+        assertEquals(cover, h.state.lastShown)
+    }
+
+    @Test
+    fun `opening on the same surface plays the open transition once`() {
+        val h = Harness()
+        boot(h, cover)
+        val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main)))
+        assertEquals(FoldPhase.MAIN_ENTER, h.state.phase)
+
+        h.send(FoldEvent.TransitionFinished(1_500))
+        assertEquals(FoldPhase.MAIN_STABLE, h.state.phase)
+        assertNull(h.state.activeTransition)
+    }
+
+    @Test
+    fun `closing plays the close transition`() {
+        val h = Harness()
+        boot(h, main)
+        val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1080, 2520, cover))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.CLOSE, cover)))
+        assertEquals(FoldPhase.COVER_ENTER, h.state.phase)
+    }
+
+    @Test
+    fun `switch via a new surface and late visibility still animates within the window`() {
+        val h = Harness()
+        boot(h, cover)
+        h.send(FoldEvent.VisibilityChanged(900, false))
+        h.send(FoldEvent.SurfaceDestroyed(910))
+        h.send(FoldEvent.SurfaceCreated(950))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(960, 1968, 2184, main))
+        val out = h.sendAndLoad(FoldEvent.VisibilityChanged(1_200, true))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main)))
+    }
+
+    @Test
+    fun `a stale switch shows the end state without motion`() {
+        val h = Harness()
+        boot(h, cover)
+        h.send(FoldEvent.VisibilityChanged(900, false))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        // User opened the phone on another app and only reached Home much later.
+        val out = h.sendAndLoad(FoldEvent.VisibilityChanged(60_000, true))
+        assertTrue(out.none { it is FoldCommand.StartTransition })
+        assertTrue(out.contains(FoldCommand.DrawStatic(main)))
+        assertEquals(FoldPhase.MAIN_STABLE, h.state.phase)
+    }
+
+    @Test
+    fun `returning home on the same screen never replays the transition`() {
+        val h = Harness()
+        boot(h, main)
+        repeat(5) { i ->
+            h.send(FoldEvent.VisibilityChanged(1_000L + i * 100, false))
+            val out = h.sendAndLoad(FoldEvent.VisibilityChanged(1_050L + i * 100, true))
+            assertTrue(out.none { it is FoldCommand.StartTransition })
+        }
+    }
+
+    @Test
+    fun `rotation of the same panel is a relayout not a fold`() {
+        val h = Harness()
+        boot(h, main)
+        val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 2184, 1968, main))
+        assertTrue(out.none { it is FoldCommand.StartTransition })
+        assertTrue(out.contains(FoldCommand.DrawStatic(main)))
+    }
+
+    @Test
+    fun `replayed events are idempotent`() {
+        val h = Harness()
+        boot(h, cover)
+        val e = FoldEvent.SurfaceChanged(1_000, 1968, 2184, main)
+        val first = h.sendAndLoad(e)
+        val second = h.sendAndLoad(e)
+        assertEquals(1, first.count { it is FoldCommand.StartTransition })
+        assertTrue(second.isEmpty())
+        val dupFinish = h.send(FoldEvent.TransitionFinished(1_600))
+        assertFalse(dupFinish.isEmpty())
+        assertTrue(h.send(FoldEvent.TransitionFinished(1_601)).isEmpty())
+        assertTrue(h.send(FoldEvent.VisibilityChanged(1_700, true)).isEmpty())
+    }
+
+    @Test
+    fun `losing visibility mid transition cuts it and stops frames`() {
+        val h = Harness()
+        boot(h, cover)
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        val out = h.send(FoldEvent.VisibilityChanged(1_100, false))
+        assertTrue(out.contains(FoldCommand.CutTransition(CutReason.VISIBILITY_LOST)))
+        assertTrue(out.contains(FoldCommand.StopFrames))
+        assertEquals(FoldPhase.SUSPENDED, h.state.phase)
+        assertNull(h.state.activeTransition)
+    }
+
+    @Test
+    fun `surface destroyed mid transition releases everything`() {
+        val h = Harness()
+        boot(h, cover)
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        val out = h.send(FoldEvent.SurfaceDestroyed(1_100))
+        assertTrue(out.contains(FoldCommand.CutTransition(CutReason.SURFACE_DESTROYED)))
+        assertEquals(FoldPhase.SURFACE_LOST, h.state.phase)
+        // Destroy twice: no exception, no command.
+        assertTrue(h.send(FoldEvent.SurfaceDestroyed(1_101)).isEmpty())
+    }
+
+    @Test
+    fun `rapid fold flapping never runs two transitions at once`() {
+        val h = Harness()
+        boot(h, cover)
+        var t = 1_000L
+        repeat(100) { i ->
+            val kind = if (i % 2 == 0) main else cover
+            h.sendAndLoad(FoldEvent.SurfaceChanged(t, if (kind == cover) 1080 else 1968, if (kind == cover) 2520 else 2184, kind))
+            t += 37
+        }
+        // Each StartTransition is preceded by a cut of the previous one.
+        var running = 0
+        for (c in h.log) {
+            when (c) {
+                is FoldCommand.StartTransition -> { running++; assertTrue(running <= 1) }
+                is FoldCommand.CutTransition -> running = 0
+                else -> Unit
+            }
+        }
+        h.send(FoldEvent.TransitionFinished(t))
+        assertNull(h.state.activeTransition)
+    }
+
+    @Test
+    fun `reduced motion draws the end state directly`() {
+        val h = Harness(FoldState(policy = MotionPolicy(reducedMotion = true)))
+        boot(h, cover)
+        val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        assertTrue(out.none { it is FoldCommand.StartTransition })
+        assertTrue(out.contains(FoldCommand.DrawStatic(main)))
+    }
+
+    @Test
+    fun `power save during a transition cuts it`() {
+        val h = Harness()
+        boot(h, cover)
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        val out = h.send(FoldEvent.PolicyChanged(1_050, MotionPolicy(powerSave = true)))
+        assertTrue(out.contains(FoldCommand.CutTransition(CutReason.POWER_SAVE)))
+        assertTrue(out.contains(FoldCommand.DrawStatic(main)))
+    }
+
+    @Test
+    fun `scene not ready shows a placeholder then the scene`() {
+        val h = Harness()
+        h.send(FoldEvent.SurfaceCreated(0))
+        h.send(FoldEvent.SurfaceChanged(0, 1080, 2520, cover))
+        val shown = h.send(FoldEvent.VisibilityChanged(5, true))
+        assertTrue(shown.contains(FoldCommand.DrawPlaceholder(cover)))
+        assertEquals(1, h.log.count { it is FoldCommand.LoadScene })
+        val ready = h.send(FoldEvent.SceneReady(80, cover))
+        assertTrue(ready.contains(FoldCommand.DrawStatic(cover)))
+    }
+
+    @Test
+    fun `a failed scene load keeps the placeholder and does not crash`() {
+        val h = Harness()
+        h.send(FoldEvent.SurfaceCreated(0))
+        h.send(FoldEvent.SurfaceChanged(0, 1080, 2520, cover))
+        h.send(FoldEvent.VisibilityChanged(5, true))
+        val out = h.send(FoldEvent.SceneFailed(10, cover))
+        assertTrue(out.contains(FoldCommand.DrawPlaceholder(cover)))
+        assertNull(h.state.loadingScene)
+    }
+
+    @Test
+    fun `system preview demonstrates the entry motion once`() {
+        val h = Harness(FoldState(isPreview = true))
+        h.send(FoldEvent.SurfaceCreated(0))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(0, 1968, 2184, main))
+        val out = h.sendAndLoad(FoldEvent.VisibilityChanged(10, true))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main)))
+        h.send(FoldEvent.TransitionFinished(600))
+        h.send(FoldEvent.VisibilityChanged(700, false))
+        val again = h.sendAndLoad(FoldEvent.VisibilityChanged(800, true))
+        assertTrue(again.none { it is FoldCommand.StartTransition })
+    }
+
+    @Test
+    fun `session hints from another engine let a fresh engine animate`() {
+        // One engine per display: the main-screen engine never saw the cover.
+        val h = Harness()
+        h.send(FoldEvent.SurfaceCreated(1_000))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        val out = h.sendAndLoad(
+            FoldEvent.VisibilityChanged(1_100, true, sessionLastShown = cover, sessionPostureChangedAtMs = 1_000),
+        )
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main)))
+    }
+
+    @Test
+    fun `pack change reloads and redraws`() {
+        val h = Harness()
+        boot(h, main)
+        val out = h.send(FoldEvent.PackChanged(5_000))
+        assertTrue(out.contains(FoldCommand.LoadScene(main)))
+        val ready = h.send(FoldEvent.SceneReady(5_050, main))
+        assertTrue(ready.contains(FoldCommand.DrawStatic(main)))
+    }
+}
