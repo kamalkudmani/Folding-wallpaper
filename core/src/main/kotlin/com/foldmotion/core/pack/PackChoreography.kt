@@ -5,6 +5,7 @@ import com.foldmotion.core.device.DeviceProfileRegistry
 import com.foldmotion.core.motion.Choreography
 import com.foldmotion.core.motion.ChoreoInput
 import com.foldmotion.core.motion.ChoreographyComposer
+import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.motion.MotionLayer
 import com.foldmotion.core.scene.Celestial
 import com.foldmotion.core.scene.SceneFamily
@@ -25,7 +26,20 @@ object PackChoreography {
     fun needsUpgrade(manifest: FoldPackManifest): Boolean =
         manifest.ambient == null || manifest.rendererVersion.min < 2
 
-    fun upgrade(manifest: FoldPackManifest): Resolved {
+    /**
+     * Packs this app generated before fold styles existed (0.3 and older) all moved alike. Their
+     * motion is recomputed in memory with the style their scene would get today; packs from
+     * anywhere else keep exactly the motion they declare.
+     */
+    fun wantsStyleUpgrade(manifest: FoldPackManifest, storedStyle: String?): Boolean =
+        manifest.creationSource == FoldPackManifest.SOURCE_LOCAL && manifest.motionStyle == null && storedStyle == null
+
+    /** The style a pack plays, or what AUTO would pick for it when it records none. */
+    fun styleOf(manifest: FoldPackManifest): FoldStyle =
+        FoldStyle.parse(manifest.motionStyle)?.takeIf { it != FoldStyle.AUTO }
+            ?: FoldStyle.resolve(FoldStyle.AUTO, familyOf(manifest), seedOf(manifest))
+
+    fun upgrade(manifest: FoldPackManifest, style: FoldStyle = FoldStyle.AUTO): Resolved {
         val profile = DeviceProfileRegistry.byId(manifest.profileIds.firstOrNull()) ?: DeviceProfileRegistry.fold7
         val frames = framesFor(manifest, profile)
         val family = familyOf(manifest)
@@ -46,9 +60,9 @@ object PackChoreography {
             coverLayers = layers(manifest.scenes.cover),
             glow = parseHex(manifest.colors.primary, 0xFFFFFFFF.toInt()),
             accent = parseHex(manifest.colors.secondary, 0xFF19B5B0.toInt()),
-            seed = manifest.generation?.seed ?: manifest.id.hashCode().toLong(),
+            seed = seedOf(manifest),
         )
-        return Resolved(ChoreographyComposer.compose(input), frames)
+        return Resolved(ChoreographyComposer.compose(input, style), frames)
     }
 
     /** Recovers the world windows from the profile and the recorded focus of the main scene. */
@@ -67,6 +81,8 @@ object PackChoreography {
         val fy = mainRect.top + main.focusY * mainRect.height
         return SceneGeometry.frames(profile, fx, fy)
     }
+
+    private fun seedOf(m: FoldPackManifest): Long = m.generation?.seed ?: m.id.hashCode().toLong()
 
     private fun familyOf(m: FoldPackManifest): SceneFamily {
         val name = m.generation?.family ?: m.tags.firstOrNull()

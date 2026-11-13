@@ -30,6 +30,8 @@ data class MotionSpec(
     val reveal: RevealSpec? = null,
     /** v2: short-lived light particles that belong to this transition. */
     val particles: List<ParticleBurst> = emptyList(),
+    /** v3: the [FoldStyle] this transition was designed as (never AUTO); null for older packs. */
+    val style: String? = null,
 ) {
     val pivotX: Float get() = pivot.getOrElse(0) { 0.5f }
     val pivotY: Float get() = pivot.getOrElse(1) { 0.5f }
@@ -107,9 +109,17 @@ data class SpringSpec(
 }
 
 /**
- * UNFOLD: [from] is the rect [l,t,r,b] the scene starts from (the slice the cover was showing);
- * it widens to the whole frame. IRIS: [from] is [cx, cy, radius] in the frame (radius as a
- * fraction of the frame diagonal) growing until the frame is uncovered.
+ * How the scene is uncovered. [from] depends on [type]:
+ *  - UNFOLD: rect [l,t,r,b] the scene starts from (the slice the cover was showing); it widens to
+ *    the whole frame.
+ *  - IRIS: [cx, cy, radius] (radius as a fraction of the frame diagonal) growing until the frame
+ *    is uncovered.
+ *  - SWEEP (v3): [angleDeg], the direction a band of light travels (0 = left to right, 90 = top
+ *    to bottom); the scene is lit behind the band.
+ *  - TILES (v3): [cols, rows, originX, originY, axis]; the scene is cut into tiles that flip into
+ *    place in a wave spreading from the origin, around the vertical (axis 0) or horizontal (1) axis.
+ *  - BOOK (v3): [hingeX, startAngleDeg]; everything right of the hinge is a page that swings
+ *    flat from startAngle, in perspective, like the phone's own panel.
  */
 @Serializable
 data class RevealSpec(
@@ -129,22 +139,53 @@ data class RevealSpec(
     /** Reveal progress uses Material's emphasised deceleration: fast start, gentle landing. */
     fun progress(p: Float): Float {
         val span = (end - start).coerceAtLeast(0.05f)
-        // The unfold snaps open like a hinge; the iris breathes open more evenly.
-        val curve = if (type == IRIS) STANDARD else EMPHASIZED
+        // The unfold snaps open like a hinge; the iris and the tile wave breathe open evenly;
+        // the sweep keeps a steady pace like a scanning light.
+        val curve = when (type) {
+            IRIS, TILES -> STANDARD
+            SWEEP -> SWEEP_CURVE
+            BOOK -> PAGE_CURVE
+            // A cover-wide slice snaps open like a hinge; a thin seam opens evenly, or it would
+            // be gone in a frame or two.
+            UNFOLD -> if (from.size == 4 && from[2] - from[0] < 0.2f) STANDARD else EMPHASIZED
+            else -> EMPHASIZED
+        }
         return curve.ease(((p - start) / span).coerceIn(0f, 1f))
+    }
+
+    /** Checks the shape of [from] for [type]; unknown types are invalid. */
+    fun isWellFormed(): Boolean = when (type) {
+        UNFOLD -> from.size == 4 && from.all { it in 0f..1f } && from[2] > from[0] && from[3] > from[1]
+        IRIS -> from.size == 3 && from.all { it in 0f..1.5f }
+        SWEEP -> from.size == 1 && from[0] in -360f..360f
+        TILES -> from.size == 5 && from[0] in 1f..MAX_TILES_PER_SIDE.toFloat() && from[1] in 1f..MAX_TILES_PER_SIDE.toFloat() &&
+            from[0] == kotlin.math.floor(from[0]) && from[1] == kotlin.math.floor(from[1]) &&
+            from[2] in 0f..1f && from[3] in 0f..1f && (from[4] == 0f || from[4] == 1f)
+        BOOK -> from.size == 2 && from[0] in 0f..0.9f && from[1] in 10f..170f
+        else -> false
     }
 
     companion object {
         const val UNFOLD = "UNFOLD"
         const val IRIS = "IRIS"
+        const val SWEEP = "SWEEP"
+        const val TILES = "TILES"
+        const val BOOK = "BOOK"
+        const val MAX_TILES_PER_SIDE = 12
         val EMPHASIZED = EasingSpec(0.05f, 0.7f, 0.1f, 1f)
         val STANDARD = EasingSpec(0.4f, 0f, 0.2f, 1f)
+        val SWEEP_CURVE = EasingSpec(0.3f, 0.12f, 0.3f, 1f)
+        /** A page falls slowly at first, then gathers speed and lands softly. */
+        val PAGE_CURVE = EasingSpec(0.32f, 0f, 0.12f, 1f)
     }
 }
 
 /**
- * BURST: particles fly out from [origin]. CONVERGE: they spiral into it. Positions in the
- * normalised frame; [spread] and sizes are fractions of the frame diagonal and of its short side.
+ * BURST: particles fly out from [origin]. CONVERGE: they spiral into it. STREAK (v3): lines of
+ * light rush outwards from it, longer the faster they go, like stars at light speed. RISE (v3):
+ * motes float up from a band centred on [origin], [spread] wide, like embers or bubbles.
+ * Positions in the normalised frame; [spread] and sizes are fractions of the frame diagonal (of
+ * the frame width for RISE) and of its short side.
  */
 @Serializable
 data class ParticleBurst(
@@ -163,6 +204,9 @@ data class ParticleBurst(
     companion object {
         const val BURST = "BURST"
         const val CONVERGE = "CONVERGE"
+        const val STREAK = "STREAK"
+        const val RISE = "RISE"
+        val MODES = setOf(BURST, CONVERGE, STREAK, RISE)
     }
 }
 
@@ -203,7 +247,17 @@ data class MotionTrack(
     val target: String,
     val from: TrackPose,
     val to: TrackPose = TrackPose(),
-)
+    /** v3: progress at which this track starts moving, so layers can arrive one after another. */
+    val delay: Float = 0f,
+    /** v3: share of the transition this track takes; delay + span never exceeds 1. */
+    val span: Float = 1f,
+) {
+    /** The track's own progress in [0,1] for the transition's linear progress [p]. */
+    fun local(p: Float): Float {
+        if (delay <= 0f && span >= 1f) return p
+        return ((p - delay) / span.coerceAtLeast(0.01f)).coerceIn(0f, 1f)
+    }
+}
 
 /**
  * For layers: scale about the pivot, then translate by (tx, ty) in frame fractions.
@@ -236,7 +290,9 @@ object MotionSampler {
         val track = spec?.tracks?.firstOrNull { it.target == target }
             ?: return if (target.startsWith(MotionSpec.TARGET_LAYER_PREFIX)) TrackPose.REST else TrackPose.HIDDEN
         // Overlays (glow, dim) always use the curve: a spring overshoot on opacity looks like flicker.
-        val eased = if (target.startsWith(MotionSpec.TARGET_LAYER_PREFIX)) spec.ease(linearProgress) else spec.easing.ease(linearProgress)
+        // A delayed track runs its spring in its own (shorter) window, so it still settles.
+        val local = track.local(linearProgress)
+        val eased = if (target.startsWith(MotionSpec.TARGET_LAYER_PREFIX)) spec.ease(local) else spec.easing.ease(local)
         return track.from.lerp(track.to, eased)
     }
 

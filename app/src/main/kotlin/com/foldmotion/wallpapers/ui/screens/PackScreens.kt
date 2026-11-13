@@ -48,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldmotion.core.device.DeviceProfileRegistry
 import com.foldmotion.core.device.ScreenKind
+import com.foldmotion.core.motion.FoldStyle
+import com.foldmotion.core.pack.PackChoreography
 import com.foldmotion.core.scene.JobStatus
 import com.foldmotion.core.scene.PipelineStage
 import com.foldmotion.wallpapers.R
@@ -85,6 +88,8 @@ import com.foldmotion.wallpapers.ui.components.PillToggle
 import com.foldmotion.wallpapers.ui.components.ReadableColumn
 import com.foldmotion.wallpapers.ui.components.SceneFrame
 import com.foldmotion.wallpapers.ui.components.SectionTitle
+import com.foldmotion.wallpapers.ui.components.StylePicker
+import com.foldmotion.wallpapers.ui.components.foldStyleLabel
 import com.foldmotion.wallpapers.ui.components.SideBySide
 import com.foldmotion.wallpapers.ui.components.errorLabel
 import com.foldmotion.wallpapers.ui.components.intensityLabel
@@ -251,10 +256,21 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
     }
     val profile = DeviceProfileRegistry.byId(pack.manifest.profileIds.firstOrNull()) ?: device.active
     val longSide = with(LocalDensity.current) { 900.dp.roundToPx() }
-    val (cover, main) = rememberPackScenes(pack.dir, longSide)
     var mode by remember { mutableStateOf(PreviewMode.DEMO) }
     var playCover by remember { mutableIntStateOf(0) }
     var playMain by remember { mutableIntStateOf(0) }
+    val (cover, main) = rememberPackScenes(pack.dir, longSide, pack.manifest.packageVersion)
+    val restyling by vm.restyling.collectAsStateWithLifecycle()
+    val style = remember(pack.id, pack.manifest.packageVersion) { PackChoreography.styleOf(pack.manifest) }
+    // Replay as soon as a restyled pack has loaded (the 3D demo restarts by itself).
+    var loadedOnce by remember(pack.id) { mutableStateOf(false) }
+    LaunchedEffect(cover, main) {
+        if (cover == null || main == null) return@LaunchedEffect
+        if (loadedOnce && !reduced) {
+            if (mode == PreviewMode.COVER) playCover++ else playMain++
+        }
+        loadedOnce = true
+    }
     var confirmDelete by remember { mutableStateOf(false) }
     val report = remember(pack.id, pack.manifest.packageVersion) { vm.validate(pack.id) }
 
@@ -333,6 +349,21 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
                 GradientButton(stringResource(R.string.action_apply), ::apply, Modifier.fillMaxWidth(), leading = Icons.Filled.Check, height = 60.dp)
 
+                SectionTitle(stringResource(R.string.style_title))
+                Text(
+                    stringResource(if (restyling == pack.id) R.string.style_working else R.string.style_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (restyling == pack.id) FmColors.Aurora else FmColors.TextMuted,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                StylePicker(
+                    styles = FoldStyle.CONCRETE,
+                    selected = style,
+                    onSelect = { if (it != style) vm.restyle(pack.id, it) },
+                    animate = !reduced,
+                    enabled = restyling == null,
+                )
+
                 SectionTitle(stringResource(R.string.preview_details))
                 GlassCard(Modifier.fillMaxWidth()) {
                     DetailRow(stringResource(R.string.preview_check), if (report.passed) stringResource(R.string.preview_check_passed) else stringResource(R.string.preview_check_failed, report.codes.joinToString()))
@@ -341,6 +372,7 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
                         stringResource(R.string.preview_motion),
                         stringResource(R.string.preview_motion_value, intensityLabel(pack.manifest.motionIntensity), main?.entryMotion?.durationMs ?: pack.manifest.transitions.open.durationMs, cover?.entryMotion?.durationMs ?: pack.manifest.transitions.close.durationMs),
                     )
+                    DetailRow(stringResource(R.string.style_title), foldStyleLabel(style))
                     DetailRow(stringResource(R.string.preview_size), stringResource(R.string.preview_size_value, pack.sizeBytes / 1_048_576f))
                     DetailRow(stringResource(R.string.preview_source), stringResource(if (pack.imported) R.string.source_imported else R.string.source_created), last = true)
                 }

@@ -5,6 +5,9 @@ import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
@@ -114,6 +117,8 @@ class UiScreenshotTest {
             nav.navigate(Routes.CREATE)
         }
         shoot("${prefix}_02_create")
+        rule.onNodeWithTag("generate_button").performScrollTo()
+        shoot("${prefix}_02b_create_style")
         rule.runOnUiThread { vm.startRandom("golden_dunes") }
         shoot("${prefix}_03_create_random")
         rule.runOnUiThread { nav.navigate(Routes.preview(ids.first())) }
@@ -123,6 +128,21 @@ class UiScreenshotTest {
             val nodes = rule.onAllNodesWithTag(tag).fetchSemanticsNodes()
             nodes.forEach { println("BOUNDS $prefix $tag ${it.boundsInRoot}") }
         }
+        // Change the fold animation from the preview: the stored pack is rewritten in place.
+        val store = AppContainer.get(app).packStore
+        val before = store.get(ids.first())!!.manifest
+        val target = if (before.motionStyle == "BOOK") "warp" else "book"
+        rule.onNodeWithTag("style_$target").performScrollTo()
+        rule.onNodeWithTag("style_$target").performClick()
+        val deadline = System.currentTimeMillis() + 15_000
+        while (store.get(ids.first())!!.manifest.packageVersion == before.packageVersion && System.currentTimeMillis() < deadline) {
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(100)
+        }
+        val after = store.get(ids.first())!!.manifest
+        org.junit.Assert.assertEquals(target.uppercase(), after.motionStyle)
+        org.junit.Assert.assertEquals(before.packageVersion + 1, after.packageVersion)
+        shoot("${prefix}_04b_preview_style")
         rule.runOnUiThread { nav.navigate(Routes.LIBRARY) }
         shoot("${prefix}_05_library")
         rule.runOnUiThread { nav.navigate(Routes.SETTINGS) }

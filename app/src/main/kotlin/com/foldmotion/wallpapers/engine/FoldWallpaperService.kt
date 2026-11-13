@@ -154,6 +154,11 @@ class FoldWallpaperService : WallpaperService() {
                     refreshAmbient()
                 }
                 AppSettings.KEY_LIVING, AppSettings.KEY_TILT -> refreshAmbient()
+                // The pack on screen got new fold animations: drop the decoded scenes and reload.
+                AppSettings.KEY_UPDATED -> if (settings.updatedPackId == packId && packId != null) {
+                    trace("PACK_RELOAD", PocEvents.detail("pack" to packId))
+                    switchPack(packId)
+                }
             }
         }
 

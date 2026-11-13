@@ -15,6 +15,7 @@ import androidx.lifecycle.viewModelScope
 import com.foldmotion.core.device.DeviceProfile
 import com.foldmotion.core.device.DeviceProfileRegistry
 import com.foldmotion.core.device.ScreenKind
+import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.motion.MotionIntensity
 import com.foldmotion.core.pack.ValidationCode
 import com.foldmotion.core.pack.ValidationReport
@@ -35,9 +36,13 @@ import com.foldmotion.wallpapers.data.AppSettings
 import com.foldmotion.wallpapers.data.LivingMotion
 import com.foldmotion.wallpapers.data.ApplyRecord
 import com.foldmotion.wallpapers.device.DeviceSnapshot
+import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.pack.ImportResult
+import com.foldmotion.wallpapers.pack.RestyleResult
 import com.foldmotion.wallpapers.pack.StoredPack
 import com.foldmotion.wallpapers.render.SceneLoader
+import com.foldmotion.wallpapers.telemetry.PocTrace
+import com.foldmotion.wallpapers.ui.components.foldStyleLabelRes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,6 +70,8 @@ data class CreateForm(
     val ideaId: String = IdeaBank.ideas.first().id,
     /** Colours taken from a reference photo; the photo itself is not kept. */
     val reference: ReferenceColors? = null,
+    /** Fold animation; AUTO lets the scene choose. */
+    val style: FoldStyle = FoldStyle.AUTO,
     val error: Int? = null,
 ) {
     val interpretation: PromptInterpretation get() = PromptAnalyzer.analyze(prompt)
@@ -177,6 +184,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 motionIntensity = f.intensity,
                 seed = random.nextLong(),
                 reference = if (f.mode == GenerationMode.CUSTOM) f.reference else null,
+                motionStyle = f.style,
             ),
             profile,
         )
@@ -218,6 +226,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearReferencePhoto() = _form.update { it.copy(reference = null) }
+
+    private val _restyling = MutableStateFlow<String?>(null)
+
+    /** Id of the pack whose fold animation is being rewritten, if any. */
+    val restyling: StateFlow<String?> = _restyling.asStateFlow()
+
+    /** Gives a stored pack new fold animations; the live wallpaper reloads it if it is on screen. */
+    fun restyle(id: String, style: FoldStyle) {
+        if (_restyling.value != null) return
+        val pack = pack(id) ?: return
+        _restyling.value = id
+        viewModelScope.launch {
+            val profileId = pack.manifest.profileIds.firstOrNull() ?: profile.id
+            val result = withContext(Dispatchers.IO) { container.packStore.restyle(id, style, container.validator, profileId) }
+            _restyling.value = null
+            when (result) {
+                is RestyleResult.Restyled -> emit(R.string.style_changed, getApplication<Application>().getString(foldStyleLabelRes(result.style)))
+                is RestyleResult.Failed -> {
+                    PocTrace.log("library", "RESTYLE_FAILED", result.codes.joinToString())
+                    emit(R.string.style_failed)
+                }
+            }
+        }
+    }
 
     fun cancelGeneration() = container.generation.cancel()
     fun dismissJob() = container.generation.dismiss()

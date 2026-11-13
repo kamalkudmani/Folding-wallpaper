@@ -245,4 +245,25 @@
     <string name="settings_tilt_body">Near layers follow the phone gently as you tilt it.</string>
     <string name="onboarding_cta">Get started</string>
     <string name="gen_shaping">Shaping your scene</string>
+    <string name="style_title">Fold animation</string>
+    <string name="style_hint">Tap a style to try it on this wallpaper. It plays when you open and close the phone.</string>
+    <string name="style_auto">Auto</string>
+    <string name="style_unfold">Unfold</string>
+    <string name="style_book">Book</string>
+    <string name="style_rise">Rise</string>
+    <string name="style_warp">Warp</string>
+    <string name="style_tiles">Tiles</string>
+    <string name="style_sweep">Sweep</string>
+    <string name="style_iris">Iris</string>
+    <string name="style_auto_desc">Picks a style that suits the scene, so your wallpapers don\'t all move alike.</string>
+    <string name="style_unfold_desc">The scene opens outwards from the slice the outer screen was showing, with light on both edges.</string>
+    <string name="style_book_desc">The right half swings down flat in 3D like a page. On the outer screen the scene swings shut like a door.</string>
+    <string name="style_rise_desc">The scene wakes from the dark and its layers rise into place one after another, with embers floating up.</string>
+    <string name="style_warp_desc">A jump out of light speed: stars streak past and the layers fly in from close up.</string>
+    <string name="style_tiles_desc">The scene assembles from tiles flipping over in a wave. On the outer screen they flip row by row.</string>
+    <string name="style_sweep_desc">A band of light crosses the screen and the scene appears behind it.</string>
+    <string name="style_iris_desc">Light gathers at the focal point, then the scene opens from it in a circle.</string>
+    <string name="style_changed">Fold animation: %1$s</string>
+    <string name="style_failed">Couldn\'t change the animation. The wallpaper is unchanged.</string>
+    <string name="style_working">Changing the animation…</string>
 </resources>

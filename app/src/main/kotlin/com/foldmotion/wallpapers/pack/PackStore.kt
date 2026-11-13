@@ -1,12 +1,20 @@
 package com.foldmotion.wallpapers.pack
 
 import android.content.Context
+import com.foldmotion.core.CoreInfo
+import com.foldmotion.core.motion.AmbientSpec
+import com.foldmotion.core.motion.FoldStyle
+import com.foldmotion.core.motion.MotionSpec
+import com.foldmotion.core.pack.Checksums
 import com.foldmotion.core.pack.FoldPackArchive
 import com.foldmotion.core.pack.FoldPackManifest
 import com.foldmotion.core.pack.FoldPackValidator
 import com.foldmotion.core.pack.PackArchiveException
+import com.foldmotion.core.pack.PackChoreography
+import com.foldmotion.core.pack.Transitions
 import com.foldmotion.core.pack.ValidationCode
 import com.foldmotion.core.pack.ValidationReport
+import com.foldmotion.core.pack.VersionRange
 import com.foldmotion.wallpapers.data.AppSettings
 import com.foldmotion.wallpapers.render.SceneLoader
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +32,11 @@ data class StoredPack(
     val imported: Boolean,
     val sizeBytes: Long,
 )
+
+sealed interface RestyleResult {
+    data class Restyled(val pack: StoredPack, val style: FoldStyle) : RestyleResult
+    data class Failed(val codes: List<ValidationCode>, val detail: String) : RestyleResult
+}
 
 sealed interface ImportResult {
     data class Imported(val pack: StoredPack) : ImportResult
@@ -66,7 +79,7 @@ class PackStore(context: Context, private val settings: AppSettings) {
     }
 
     fun list(): List<StoredPack> =
-        (root.listFiles()?.filter { it.isDirectory } ?: emptyList())
+        (root.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") } ?: emptyList())
             .mapNotNull { get(it.name) }
             .sortedByDescending { it.manifest.createdAt }
 
@@ -80,6 +93,70 @@ class PackStore(context: Context, private val settings: AppSettings) {
         }
         _revision.value++
         return get(manifest.id) ?: throw IllegalStateException("pack vanished after commit")
+    }
+
+    /**
+     * Gives a stored pack new fold animations in [style] (AUTO picks one for its scene). The pack
+     * is copied to staging, its motion files and manifest rewritten, checksums recomputed and the
+     * whole pack validated again before it replaces the old one; on any failure nothing changes.
+     * The package version goes up so a shared copy is recognised as newer.
+     */
+    fun restyle(id: String, style: FoldStyle, validator: FoldPackValidator, profileId: String): RestyleResult {
+        val current = get(id) ?: return RestyleResult.Failed(listOf(ValidationCode.INVALID_MANIFEST), "missing")
+        val stage = newStagingDir()
+        try {
+            current.dir.copyRecursively(stage, overwrite = true)
+            val manifest = current.manifest
+            val choreo = PackChoreography.upgrade(manifest, style).choreography
+            val json = CoreInfo.json
+            File(stage, manifest.transitions.open.file).writeText(json.encodeToString(MotionSpec.serializer(), choreo.open))
+            File(stage, manifest.transitions.close.file).writeText(json.encodeToString(MotionSpec.serializer(), choreo.close))
+            val ambientPath = manifest.ambient ?: AmbientSpec.FILE.also {
+                File(stage, it).apply { parentFile?.mkdirs() }.writeText(json.encodeToString(AmbientSpec.serializer(), choreo.ambient))
+            }
+            val next = manifest.copy(
+                packageVersion = manifest.packageVersion + 1,
+                rendererVersion = VersionRange(CoreInfo.RENDERER_VERSION, maxOf(manifest.rendererVersion.max, CoreInfo.RENDERER_VERSION)),
+                transitions = Transitions(
+                    open = manifest.transitions.open.copy(durationMs = choreo.open.durationMs),
+                    close = manifest.transitions.close.copy(durationMs = choreo.close.durationMs),
+                ),
+                ambient = ambientPath,
+                motionStyle = choreo.style.name,
+            )
+            File(stage, FoldPackManifest.FILE_NAME).writeText(json.encodeToString(FoldPackManifest.serializer(), next))
+            Checksums.write(stage)
+            val report = validator.validate(stage, profileId)
+            if (!report.passed) {
+                return RestyleResult.Failed(report.codes, report.issues.joinToString { "${it.code}: ${it.detail}" })
+            }
+            swapIn(stage, id)
+            _revision.value++
+            settings.updatedPackId = id
+            val stored = get(id) ?: return RestyleResult.Failed(listOf(ValidationCode.INVALID_MANIFEST), "vanished")
+            return RestyleResult.Restyled(stored, choreo.style)
+        } catch (e: Exception) {
+            return RestyleResult.Failed(listOf(ValidationCode.INVALID_MOTION), e.message ?: e.javaClass.simpleName)
+        } finally {
+            stage.deleteRecursively()
+        }
+    }
+
+    /** Replaces dir(id) with [stage]: the old folder is moved aside first and removed last. */
+    private fun swapIn(stage: File, id: String) {
+        val target = dir(id)
+        val old = File(root, ".old-$id-${UUID.randomUUID()}")
+        if (target.exists() && !target.renameTo(old)) throw IllegalStateException("cannot move old pack aside")
+        try {
+            if (!stage.renameTo(target)) {
+                stage.copyRecursively(target, overwrite = true)
+            }
+        } catch (e: Exception) {
+            target.deleteRecursively()
+            old.renameTo(target)
+            throw e
+        }
+        old.deleteRecursively()
     }
 
     /** Deletes a pack. The active pack is protected so the wallpaper never loses its files. */
@@ -131,6 +208,7 @@ class PackStore(context: Context, private val settings: AppSettings) {
     /** Removes leftovers of interrupted generations or imports. */
     fun cleanTemporary() {
         staging.deleteRecursively()
+        root.listFiles()?.filter { it.name.startsWith(".old-") }?.forEach { it.deleteRecursively() }
         quarantine.deleteRecursively()
         exportDir.listFiles()?.forEach { it.delete() }
     }

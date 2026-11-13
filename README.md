@@ -9,6 +9,12 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**Seven fold animation styles** (each with an unfold and a fold variant; chosen automatically per
+scene, picked when creating, or changed on any pack from its preview):
+[comparison video](docs/motion/fold-styles-0.4.mp4)
+
+![fold styles](docs/screenshots/fold-styles.jpg)
+
 Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.3-showreel.mp4) ·
 [aurora](docs/motion/aurora-peaks.mp4) · [ocean](docs/motion/teal-horizon.mp4) · [desert](docs/motion/desert-crescent.mp4) · [abstract](docs/motion/brand-flow.mp4)
 
@@ -16,7 +22,7 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
 |---|---|---|---|
 | ![home](docs/screenshots/cover-ar-01-home.jpg) | ![create](docs/screenshots/cover-ar-02-create.jpg) | ![generating](docs/screenshots/cover-en-08-generated.jpg) | ![home wide](docs/screenshots/main-en-01-home.jpg) |
 
-## What v0.1 does
+## What it does
 
 - **Live wallpaper engine** (`WallpaperService`) driven by a pure, unit-tested fold state machine.
   The cover shows a window onto the same picture the main screen shows in full, at the same
@@ -24,6 +30,12 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
 - **Fold choreography**: on unfold the scene opens outwards from exactly the slice the cover was
   showing, with a light blade on the moving edge, spring-settled depth layers and a burst of light;
   on fold, light spirals into the focal point and the scene opens from it as an iris.
+- **Seven fold styles** (0.4): Unfold, Book (the right half swings flat in real perspective; the
+  cover swings shut like a door), Rise (layers rise out of the dark one after another), Warp
+  (stars streak, layers fly in), Tiles (tiles flip over in a wave; split-flap rows on the cover),
+  Sweep (a band of light uncovers the scene) and Iris. Auto picks per scene and alternates by
+  seed; any stored pack can be restyled in place (staged, re-validated, atomically swapped, the
+  live wallpaper reloads).
 - **Living motion** between folds: twinkling stars and shooting stars, glints on water, fireflies,
   drifting sand, flowing light, a breathing halo, layer sway and tilt parallax. 30 fps cap, stops
   when hidden, in power saving and with reduced motion; Full / Subtle / Off in Settings.
@@ -58,7 +70,7 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 109 tests, Robolectric with real Skia rendering
+./gradlew :core:test :app:testDebugUnitTest   # 119 tests, Robolectric with real Skia rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ```
 

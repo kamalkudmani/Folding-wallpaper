@@ -54,10 +54,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldmotion.core.device.ScreenKind
+import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.motion.MotionIntensity
 import com.foldmotion.core.scene.GenerationMode
 import com.foldmotion.core.scene.IdeaBank
@@ -76,6 +78,7 @@ import com.foldmotion.wallpapers.ui.components.PillToggle
 import com.foldmotion.wallpapers.ui.components.ReadableColumn
 import com.foldmotion.wallpapers.ui.components.ScreenTitle
 import com.foldmotion.wallpapers.ui.components.SectionTitle
+import com.foldmotion.wallpapers.ui.components.StylePicker
 import com.foldmotion.wallpapers.ui.components.conceptLabel
 import com.foldmotion.wallpapers.ui.components.familyLabel
 import com.foldmotion.wallpapers.ui.components.intensityLabel
@@ -138,13 +141,23 @@ private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGen
         )
         Text(stringResource(R.string.create_motion_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
 
+        SectionTitle(stringResource(R.string.style_title))
+        val reduced by vm.reducedMotion.collectAsStateWithLifecycle()
+        StylePicker(
+            styles = FoldStyle.entries,
+            selected = form.style,
+            onSelect = { style -> vm.updateForm { it.copy(style = style) } },
+            animate = !reduced,
+            enabled = !busy,
+        )
+
         Spacer(Modifier.height(24.dp))
         GradientButton(
             stringResource(R.string.action_generate),
             onClick = { if (vm.generate()) onGenerate() },
             enabled = !busy,
             leading = Icons.Filled.Star,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("generate_button"),
             height = 60.dp,
         )
         Spacer(Modifier.height(12.dp))

@@ -234,4 +234,25 @@
     <string name="settings_tilt_body">تتبع الطبقات القريبة حركة الهاتف بلطف عند إمالته.</string>
     <string name="onboarding_cta">ابدأ</string>
     <string name="gen_shaping">نُشكّل مشهدك</string>
+    <string name="style_title">حركة الطي</string>
+    <string name="style_hint">اضغط على حركة لتجربتها على هذه الخلفية. تعمل عند فتح الهاتف وإغلاقه.</string>
+    <string name="style_auto">تلقائي</string>
+    <string name="style_unfold">انفتاح</string>
+    <string name="style_book">كتاب</string>
+    <string name="style_rise">صعود</string>
+    <string name="style_warp">قفزة ضوئية</string>
+    <string name="style_tiles">فسيفساء</string>
+    <string name="style_sweep">مسح ضوئي</string>
+    <string name="style_iris">قزحية</string>
+    <string name="style_auto_desc">يختار حركة تناسب المشهد، حتى لا تتحرك كل خلفياتك بالطريقة نفسها.</string>
+    <string name="style_unfold_desc">ينفتح المشهد من الشريط الذي كانت تعرضه الشاشة الخارجية، مع ضوء على الحافتين.</string>
+    <string name="style_book_desc">ينزل النصف الأيمن مسطحًا بمنظور ثلاثي الأبعاد كصفحة كتاب، وعلى الشاشة الخارجية يُغلق المشهد كباب.</string>
+    <string name="style_rise_desc">يستيقظ المشهد من الظلام وتصعد طبقاته إلى مكانها واحدة تلو الأخرى، مع جمرات تتطاير إلى الأعلى.</string>
+    <string name="style_warp_desc">قفزة من سرعة الضوء: نجوم تمر كخطوط مضيئة وتطير الطبقات إلى مكانها.</string>
+    <string name="style_tiles_desc">يتكوّن المشهد من مربعات تنقلب في موجة، وعلى الشاشة الخارجية تنقلب صفًا بعد صف.</string>
+    <string name="style_sweep_desc">يعبر شريط من الضوء الشاشة ويظهر المشهد خلفه.</string>
+    <string name="style_iris_desc">يتجمع الضوء في نقطة التركيز ثم ينفتح المشهد منها كدائرة.</string>
+    <string name="style_changed">حركة الطي: %1$s</string>
+    <string name="style_failed">تعذّر تغيير الحركة، ولم يتغير شيء في الخلفية.</string>
+    <string name="style_working">جارٍ تغيير الحركة…</string>
 </resources>

@@ -79,6 +79,14 @@ class AppSettings(context: Context) {
         }
         set(v) = prefs.edit().putString(KEY_HISTORY, CoreInfo.json.encodeToString(ListSerializer(ApplyRecord.serializer()), v.take(20))).apply()
 
+    /**
+     * Id of the last pack whose files were rewritten in place (a new fold style). Written with a
+     * timestamp so the same pack changing twice still notifies the wallpaper engines.
+     */
+    var updatedPackId: String?
+        get() = prefs.getString(KEY_UPDATED, null)?.substringBefore('|')
+        set(v) = prefs.edit().putString(KEY_UPDATED, v?.let { "$it|${System.nanoTime()}" }).apply()
+
     fun recordApply(record: ApplyRecord) {
         applyHistory = listOf(record) + applyHistory.filterNot { it.packId == record.packId }
     }
@@ -102,5 +110,6 @@ class AppSettings(context: Context) {
         const val KEY_HISTORY = "apply_history"
         const val KEY_LIVING = "living_motion"
         const val KEY_TILT = "tilt_parallax"
+        const val KEY_UPDATED = "pack_updated"
     }
 }

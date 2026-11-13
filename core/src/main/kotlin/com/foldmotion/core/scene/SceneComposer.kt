@@ -19,6 +19,8 @@ data class GenerationRequest(
     val seed: Long,
     /** Colours from a reference photo; only the colours, never the photo. CUSTOM mode only. */
     val reference: ReferenceColors? = null,
+    /** Fold animation style; AUTO lets the scene decide. */
+    val motionStyle: com.foldmotion.core.motion.FoldStyle = com.foldmotion.core.motion.FoldStyle.AUTO,
 )
 
 data class ComposedScene(

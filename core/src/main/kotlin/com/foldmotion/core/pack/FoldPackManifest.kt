@@ -33,6 +33,8 @@ data class FoldPackManifest(
     val transitions: Transitions,
     /** v2: motion/ambient.json, the motion that runs between folds. */
     val ambient: String? = null,
+    /** v3: the fold style of motion/open.json and close.json (a [com.foldmotion.core.motion.FoldStyle] name, never AUTO). */
+    val motionStyle: String? = null,
     val previews: Previews,
     val colors: PackColors,
     val generation: GenerationRecipe? = null,

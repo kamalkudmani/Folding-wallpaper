@@ -200,14 +200,25 @@ class ScenePreviewView(context: Context) : View(context) {
 
 /** Loads both scenes of a pack for previewing and frees them when the composable leaves. */
 @Composable
-fun rememberPackScenes(packDir: File?, longSidePx: Int): Pair<LoadedScene?, LoadedScene?> {
+fun rememberPackScenes(packDir: File?, longSidePx: Int, revision: Int = 0): Pair<LoadedScene?, LoadedScene?> {
     var scenes by remember(packDir) { mutableStateOf<Pair<LoadedScene?, LoadedScene?>>(null to null) }
-    LaunchedEffect(packDir, longSidePx) {
+    LaunchedEffect(packDir, longSidePx, revision) {
         if (packDir == null) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) {
             SceneLoader.load(packDir, ScreenKind.COVER, longSidePx) to SceneLoader.load(packDir, ScreenKind.MAIN, longSidePx)
         }
+        val previous = scenes
         scenes = loaded
+        // A new revision (new fold style) replaces scenes still on screen: free the old bitmaps
+        // only once the views have drawn the new ones.
+        if (previous.first != null || previous.second != null) {
+            try {
+                kotlinx.coroutines.delay(600)
+            } finally {
+                previous.first?.recycle()
+                previous.second?.recycle()
+            }
+        }
     }
     DisposableEffect(packDir) {
         onDispose {

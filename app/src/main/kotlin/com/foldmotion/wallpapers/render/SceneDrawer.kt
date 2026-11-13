@@ -5,6 +5,7 @@ import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
@@ -23,6 +24,7 @@ import com.foldmotion.core.pack.FoldPackManifest
 import com.foldmotion.core.pack.LayerEntry
 import com.foldmotion.core.scene.WorldRect
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
@@ -98,6 +100,8 @@ class SceneDrawer {
 
     private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    /** Solid fills only; overlayPaint keeps full alpha because its alpha would scale its shaders. */
+    private val fillPaint = Paint()
     private val spritePaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply { blendMode = BlendMode.PLUS }
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; style = Paint.Style.STROKE }
     private val dst = RectF()
@@ -109,6 +113,9 @@ class SceneDrawer {
     private val poseScale = HashMap<String, Float>()
     private val poseTx = HashMap<String, Float>()
     private val poseTy = HashMap<String, Float>()
+    private val poseAlpha = HashMap<String, Float>()
+    private val matrix = Matrix()
+    private val cell = RectF()
     private var pivotX = 0.5f
     private var pivotY = 0.5f
     /** Size of the area being drawn; the canvas may be translated (fold demo halves). */
@@ -129,40 +136,23 @@ class SceneDrawer {
         pivotY = motion?.pivotY ?: scene.focusY
         val p = progress ?: 1f
         val ambient = if (state.ambient) scene.ambient else null
+        val reveal = motion?.reveal
+        val rp = reveal?.progress(p) ?: 1f
+        val revealing = reveal != null && rp < 0.999f
 
-        for ((layer, bitmap) in scene.layers) {
-            if (bitmap.isRecycled) continue
-            val pose = if (motion == null) TrackPose.REST else MotionSampler.poseFor(motion, MotionSampler.layerTarget(layer.id), p)
-            var tx = pose.tx
-            var ty = pose.ty
-            if (ambient != null && layer.depth > 0f) {
-                val t = state.timeMs / ambient.swayPeriodMs.toFloat() * 2f * PI.toFloat()
-                tx += ambient.sway * layer.depth * sin(t + layer.depth * 1.7f) + ambient.tilt * layer.depth * state.tiltX
-                ty += ambient.sway * 0.5f * layer.depth * cos(t * 0.8f + layer.depth) + ambient.tilt * 0.6f * layer.depth * state.tiltY
-            }
-            poseScale[layer.id] = pose.scale
-            poseTx[layer.id] = tx
-            poseTy[layer.id] = ty
-            val l = pivotX + pose.scale * (layer.left - pivotX) + tx
-            val r = pivotX + pose.scale * (layer.right - pivotX) + tx
-            val t = pivotY + pose.scale * (layer.top - pivotY) + ty
-            val b = pivotY + pose.scale * (layer.bottom - pivotY) + ty
-            dst.set(frame.left + l * frame.width(), frame.top + t * frame.height(), frame.left + r * frame.width(), frame.top + b * frame.height())
-            bitmapPaint.alpha = (255 * pose.alpha.coerceIn(0f, 1f)).toInt()
-            canvas.drawBitmap(bitmap, null, dst, bitmapPaint)
-
-            if (ambient != null) {
-                if (layer.id == "far") ambient.halo?.let { drawHalo(canvas, scene, it, state.timeMs) }
-                for (system in ambient.systems) if (system.after == layer.id) drawSystem(canvas, scene, system, state, layer.id)
-            }
+        if (revealing && reveal!!.type == RevealSpec.BOOK) {
+            drawBook(canvas, scene, motion!!, p, ambient, state, reveal, rp)
+        } else {
+            drawLayers(canvas, scene, motion, p, ambient, state)
         }
 
         if (motion != null) {
+            if (revealing && reveal!!.type == RevealSpec.TILES) drawTiles(canvas, scene, reveal, rp)
             // Order matters: darken, cover what is not uncovered yet, then add light on top, so
             // gathering particles and the bloom glow in the dark instead of being hidden by it.
             val dim = MotionSampler.poseFor(motion, MotionSpec.TARGET_DIM, p)
             if (dim.alpha > 0.003f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, dim.alpha))
-            motion.reveal?.let { drawReveal(canvas, it, p, scene.glow) }
+            if (revealing && reveal!!.type != RevealSpec.BOOK && reveal.type != RevealSpec.TILES) drawReveal(canvas, reveal, rp, scene.glow)
             val glow = MotionSampler.poseFor(motion, MotionSpec.TARGET_GLOW, p)
             if (glow.alpha > 0.003f) {
                 val cx = frame.left + pivotX * frame.width()
@@ -182,6 +172,48 @@ class SceneDrawer {
         }
     }
 
+    /**
+     * Every depth layer with its transition pose plus sway and tilt; ambient systems slot in after
+     * the layer they belong to. Remembers each layer's pose for the ambient systems and the tiles.
+     */
+    private fun drawLayers(canvas: Canvas, scene: LoadedScene, motion: MotionSpec?, p: Float, ambient: AmbientSpec?, state: FrameState) {
+        for ((layer, bitmap) in scene.layers) {
+            if (bitmap.isRecycled) continue
+            val pose = if (motion == null) TrackPose.REST else MotionSampler.poseFor(motion, MotionSampler.layerTarget(layer.id), p)
+            var tx = pose.tx
+            var ty = pose.ty
+            if (ambient != null && layer.depth > 0f) {
+                val t = state.timeMs / ambient.swayPeriodMs.toFloat() * 2f * PI.toFloat()
+                tx += ambient.sway * layer.depth * sin(t + layer.depth * 1.7f) + ambient.tilt * layer.depth * state.tiltX
+                ty += ambient.sway * 0.5f * layer.depth * cos(t * 0.8f + layer.depth) + ambient.tilt * 0.6f * layer.depth * state.tiltY
+            }
+            poseScale[layer.id] = pose.scale
+            poseTx[layer.id] = tx
+            poseTy[layer.id] = ty
+            poseAlpha[layer.id] = pose.alpha
+            drawLayerBitmap(canvas, layer, bitmap)
+
+            if (ambient != null) {
+                if (layer.id == "far") ambient.halo?.let { drawHalo(canvas, scene, it, state.timeMs) }
+                for (system in ambient.systems) if (system.after == layer.id) drawSystem(canvas, scene, system, state, layer.id)
+            }
+        }
+    }
+
+    /** One layer at the pose [drawLayers] last computed for it. */
+    private fun drawLayerBitmap(canvas: Canvas, layer: LayerEntry, bitmap: Bitmap) {
+        val scale = poseScale[layer.id] ?: 1f
+        val tx = poseTx[layer.id] ?: 0f
+        val ty = poseTy[layer.id] ?: 0f
+        val l = pivotX + scale * (layer.left - pivotX) + tx
+        val r = pivotX + scale * (layer.right - pivotX) + tx
+        val t = pivotY + scale * (layer.top - pivotY) + ty
+        val b = pivotY + scale * (layer.bottom - pivotY) + ty
+        dst.set(frame.left + l * frame.width(), frame.top + t * frame.height(), frame.left + r * frame.width(), frame.top + b * frame.height())
+        bitmapPaint.alpha = (255 * (poseAlpha[layer.id] ?: 1f).coerceIn(0f, 1f)).toInt()
+        canvas.drawBitmap(bitmap, null, dst, bitmapPaint)
+    }
+
     /** Flat gradient shown while a scene loads or when a pack is unavailable. Never black. */
     fun drawPlaceholder(canvas: Canvas, width: Int, height: Int, top: Int, bottom: Int) {
         overlayPaint.shader = LinearGradient(0f, 0f, 0f, height.toFloat(), top, bottom, Shader.TileMode.CLAMP)
@@ -191,8 +223,7 @@ class SceneDrawer {
 
     // ------------------------------------------------------------------ transition effects
 
-    private fun drawReveal(canvas: Canvas, reveal: RevealSpec, p: Float, glowColor: Int) {
-        val rp = reveal.progress(p)
+    private fun drawReveal(canvas: Canvas, reveal: RevealSpec, rp: Float, glowColor: Int) {
         if (rp >= 0.999f) return
         val fw = frame.width()
         val fh = frame.height()
@@ -218,6 +249,46 @@ class SceneDrawer {
                     edgeLight(canvas, rx + soft * 0.25f, fh, glowColor, edgeAlpha)
                 }
             }
+            RevealSpec.SWEEP -> {
+                // Work in a frame rotated so the band always travels along +x.
+                val angle = reveal.from[0]
+                val rad = Math.toRadians(angle.toDouble())
+                val extent = abs(fw * cos(rad).toFloat()) + abs(fh * sin(rad).toFloat())
+                val diag = sqrt(fw * fw + fh * fh)
+                val soft = max(8f, reveal.softness * diag)
+                val cx = frame.centerX()
+                val cy = frame.centerY()
+                // Starts at the frame edge so light arrives at once, and ends with the soft edge gone.
+                val front = cx - extent / 2f + rp * (extent + soft)
+                canvas.save()
+                canvas.rotate(angle, cx, cy)
+                overlayPaint.shader = LinearGradient(front, 0f, front + soft, 0f, clear, shade, Shader.TileMode.CLAMP)
+                canvas.drawRect(front, cy - diag, cx + diag, cy + diag, overlayPaint)
+                overlayPaint.shader = null
+                val bandAlpha = reveal.edgeGlow * min(1f, (1f - rp) * 6f)
+                if (bandAlpha > 0.01f) {
+                    val bx = front + soft * 0.25f
+                    val wide = max(12f, max(fw, fh) * 0.11f)
+                    overlayPaint.blendMode = BlendMode.PLUS
+                    overlayPaint.shader = LinearGradient(
+                        bx - wide, 0f, bx + wide, 0f,
+                        intArrayOf(SceneArtist.withAlpha(glowColor, 0f), SceneArtist.withAlpha(glowColor, bandAlpha * 0.42f), SceneArtist.withAlpha(glowColor, 0f)),
+                        null, Shader.TileMode.CLAMP,
+                    )
+                    canvas.drawRect(bx - wide, cy - diag, bx + wide, cy + diag, overlayPaint)
+                    val core = wide * 0.07f
+                    val hot = SceneArtist.blend(glowColor, Color.WHITE, 0.55f)
+                    overlayPaint.shader = LinearGradient(
+                        bx - core, 0f, bx + core, 0f,
+                        intArrayOf(SceneArtist.withAlpha(hot, 0f), SceneArtist.withAlpha(hot, bandAlpha * 0.65f), SceneArtist.withAlpha(hot, 0f)),
+                        null, Shader.TileMode.CLAMP,
+                    )
+                    canvas.drawRect(bx - core, cy - diag, bx + core, cy + diag, overlayPaint)
+                    overlayPaint.shader = null
+                    overlayPaint.blendMode = null
+                }
+                canvas.restore()
+            }
             RevealSpec.IRIS -> {
                 val diag = sqrt(fw * fw + fh * fh)
                 val cx = frame.left + reveal.from[0] * fw
@@ -241,6 +312,145 @@ class SceneDrawer {
                 }
             }
         }
+    }
+
+    /**
+     * BOOK: what lies left of the hinge is flat; the rest is a page swinging down from
+     * startAngle in perspective, darker while it stands up and lit along its free edge. Behind
+     * the page is darkness, and the flat side carries the page's shadow near the crease.
+     */
+    private fun drawBook(canvas: Canvas, scene: LoadedScene, motion: MotionSpec, p: Float, ambient: AmbientSpec?, state: FrameState, reveal: RevealSpec, rp: Float) {
+        val fw = frame.width()
+        val fh = frame.height()
+        val hinge = frame.left + reveal.from[0] * fw
+        val angle = reveal.from[1] * (1f - rp)
+        val tilt = sin(Math.toRadians(angle.toDouble()).toFloat()).coerceIn(0f, 1f)
+        val top = frame.top - 2f
+        val bottom = frame.bottom + 2f
+
+        // The flat side, which also computes this frame's layer poses.
+        canvas.save()
+        canvas.clipRect(frame.left - 2f, top, hinge, bottom)
+        drawLayers(canvas, scene, motion, p, ambient, state)
+        canvas.restore()
+        fillPaint.color = SceneArtist.withAlpha(Color.BLACK, 0.55f)
+        canvas.drawRect(hinge, top, frame.right + 2f, bottom, fillPaint)
+        if (hinge > frame.left + 1f && tilt > 0.01f) {
+            val reach = fw * 0.22f
+            overlayPaint.shader = LinearGradient(hinge - reach, 0f, hinge, 0f, SceneArtist.withAlpha(Color.BLACK, 0f), SceneArtist.withAlpha(Color.BLACK, reveal.shade * 0.65f * tilt), Shader.TileMode.CLAMP)
+            canvas.drawRect(hinge - reach, top, hinge, bottom, overlayPaint)
+            overlayPaint.shader = null
+        }
+        if (angle >= 89.5f) return
+
+        // The eye sits in front of the screen centre, far enough that the free edge, lifted
+        // towards the viewer, never reaches it.
+        val eye = max(frame.right - hinge, fh) * 1.6f
+        if (!turn(matrix, hinge, top, frame.right + 2f, bottom, hinge, vertical = true, degrees = angle, eyeX = drawWidth / 2f, eyeY = drawHeight / 2f, eye = eye)) return
+
+        canvas.save()
+        canvas.concat(matrix)
+        canvas.clipRect(hinge, top, frame.right + 2f, bottom)
+        drawLayers(canvas, scene, motion, p, ambient, state)
+        if (tilt > 0.01f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, reveal.shade * tilt.pow(0.8f)))
+        val edgeAlpha = reveal.edgeGlow * sin(PI.toFloat() * tilt.coerceAtMost(1f)).coerceAtLeast(0f) + reveal.edgeGlow * 0.25f * tilt
+        if (edgeAlpha > 0.01f) {
+            val band = max(6f, (frame.right - hinge) * 0.06f)
+            overlayPaint.blendMode = BlendMode.PLUS
+            overlayPaint.shader = LinearGradient(frame.right - band, 0f, frame.right, 0f, SceneArtist.withAlpha(scene.glow, 0f), SceneArtist.withAlpha(scene.glow, edgeAlpha * 0.6f), Shader.TileMode.CLAMP)
+            canvas.drawRect(frame.right - band, top, frame.right + 2f, bottom, overlayPaint)
+            overlayPaint.shader = null
+            overlayPaint.blendMode = null
+        }
+        canvas.restore()
+    }
+
+    /**
+     * TILES: the finished scene is already drawn; every tile that has not landed yet is covered,
+     * and the ones in flight are drawn turning about their own axis, catching the light.
+     */
+    private fun drawTiles(canvas: Canvas, scene: LoadedScene, reveal: RevealSpec, rp: Float) {
+        val cols = reveal.from[0].toInt().coerceAtLeast(1)
+        val rows = reveal.from[1].toInt().coerceAtLeast(1)
+        val ox = reveal.from[2]
+        val oy = reveal.from[3]
+        val aroundX = reveal.from[4] >= 0.5f
+        val fw = frame.width()
+        val fh = frame.height()
+        val cw = fw / cols
+        val ch = fh / rows
+        val aspect = fw / fh
+        fun distance(i: Int, j: Int) = sqrt(sq(((i + 0.5f) / cols - ox) * aspect) + sq((j + 0.5f) / rows - oy))
+        var farthest = 1e-3f
+        for (i in 0 until cols) for (j in 0 until rows) farthest = max(farthest, distance(i, j))
+        val wave = 0.6f
+        val turn = 1f - wave
+        val gap = max(1f, min(cw, ch) * 0.012f)
+        val cover = SceneArtist.withAlpha(Color.BLACK, reveal.shade)
+        for (j in 0 until rows) for (i in 0 until cols) {
+            val left = frame.left + i * cw
+            val top = frame.top + j * ch
+            if (left > drawWidth || top > drawHeight || left + cw < 0f || top + ch < 0f) continue
+            val startAt = wave * (distance(i, j) / farthest) * (0.88f + 0.12f * hash01(cols * 31 + rows, i, j))
+            val tp = ((rp - startAt) / turn).coerceIn(0f, 1f)
+            if (tp >= 1f) continue
+            // Whole-pixel edges so neighbouring covers meet without a hairline of scene between them.
+            cell.set(
+                kotlin.math.round(left), kotlin.math.round(top),
+                kotlin.math.round(frame.left + (i + 1) * cw), kotlin.math.round(frame.top + (j + 1) * ch),
+            )
+            fillPaint.color = cover
+            canvas.drawRect(cell, fillPaint)
+            if (tp <= 0f) continue
+            val e = RevealSpec.STANDARD.ease(tp)
+            val angle = 90f * (1f - e)
+            if (angle >= 89.5f) continue
+            val axis = if (aroundX) cell.centerY() else cell.centerX()
+            val eye = max(fw, fh) * 1.6f
+            if (!turn(matrix, cell.left, cell.top, cell.right, cell.bottom, axis, vertical = !aroundX, degrees = angle, eyeX = cell.centerX(), eyeY = cell.centerY(), eye = eye)) continue
+            canvas.save()
+            canvas.concat(matrix)
+            cell.inset(gap * (1f - e), gap * (1f - e))
+            canvas.clipRect(cell)
+            for ((layer, bitmap) in scene.layers) if (!bitmap.isRecycled) drawLayerBitmap(canvas, layer, bitmap)
+            val dark = reveal.shade * 0.75f * (1f - e)
+            if (dark > 0.01f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, dark))
+            val shine = reveal.edgeGlow * 0.16f * sin(PI.toFloat() * e)
+            if (shine > 0.01f) canvas.drawColor(SceneArtist.withAlpha(scene.glow, shine), BlendMode.PLUS)
+            canvas.restore()
+        }
+    }
+
+    private val turnSrc = FloatArray(8)
+    private val turnDst = FloatArray(8)
+
+    /**
+     * Perspective of the flat rect [l,t,r,b] turned by [degrees] about the line x = axis
+     * ([vertical]) or y = axis, the part beyond the axis lifting towards an eye [eye] pixels in
+     * front of (eyeX, eyeY). Computed as an exact four-corner homography, so it does not depend on
+     * android.graphics.Camera. Returns false when the rect is seen edge-on.
+     */
+    private fun turn(out: Matrix, l: Float, t: Float, r: Float, b: Float, axis: Float, vertical: Boolean, degrees: Float, eyeX: Float, eyeY: Float, eye: Float): Boolean {
+        val rad = Math.toRadians(degrees.toDouble())
+        val cosA = cos(rad).toFloat()
+        val sinA = sin(rad).toFloat()
+        if (cosA < 0.01f) return false
+        turnSrc[0] = l; turnSrc[1] = t
+        turnSrc[2] = r; turnSrc[3] = t
+        turnSrc[4] = r; turnSrc[5] = b
+        turnSrc[6] = l; turnSrc[7] = b
+        for (k in 0 until 4) {
+            val x = turnSrc[2 * k]
+            val y = turnSrc[2 * k + 1]
+            val u = (if (vertical) x else y) - axis
+            val z = u * sinA
+            val s = eye / max(1f, eye - z)
+            val px = if (vertical) axis + u * cosA else x
+            val py = if (vertical) y else axis + u * cosA
+            turnDst[2 * k] = eyeX + (px - eyeX) * s
+            turnDst[2 * k + 1] = eyeY + (py - eyeY) * s
+        }
+        return out.setPolyToPoly(turnSrc, 0, turnDst, 0, 4)
     }
 
     /** A vertical blade of light along a moving fold edge. */
@@ -270,26 +480,81 @@ class SceneDrawer {
             val ox = frame.left + burst.origin.getOrElse(0) { 0.5f } * fw
             val oy = frame.top + burst.origin.getOrElse(1) { 0.5f } * fh
             val colors = burst.colors.map(::color)
-            for (i in 0 until burst.count) {
-                val h1 = hash01(burst.seed, i, 1)
-                val h2 = hash01(burst.seed, i, 2)
-                val h3 = hash01(burst.seed, i, 3)
-                val delay = 0.35f * hash01(burst.seed, i, 4)
-                val lt = ((bp - delay) / (1f - delay)).coerceIn(0f, 1f)
-                if (lt <= 0f || lt >= 1f) continue
-                val dist = burst.spread * diag * (0.12f + 0.88f * h2.pow(0.7f))
-                val theta = h1 * 2f * PI.toFloat()
-                val (r, alpha) = if (burst.mode == ParticleBurst.CONVERGE) {
-                    dist * (1f - lt).pow(1.6f) to sin(PI.toFloat() * min(1f, lt * 1.1f)).coerceAtLeast(0f)
-                } else {
-                    dist * (1f - (1f - lt).pow(3f)) to sin(PI.toFloat() * lt).pow(0.7f)
-                }
-                val a = theta + burst.swirl * lt
-                val x = ox + cos(a) * r
-                val y = oy + sin(a) * r * 0.9f
-                val size = (burst.sizeMin + (burst.sizeMax - burst.sizeMin) * h3 * h3) * short
-                sprite(canvas, x, y, size * 3f, colors[i % colors.size], alpha * (0.55f + 0.45f * hash01(burst.seed, i, 5)))
+            when (burst.mode) {
+                ParticleBurst.STREAK -> drawStreaks(canvas, burst, bp, ox, oy, diag, short, colors)
+                ParticleBurst.RISE -> drawRising(canvas, burst, bp, ox, oy, fw, fh, short, colors)
+                else -> drawBurst(canvas, burst, bp, ox, oy, diag, short, colors)
             }
+        }
+    }
+
+    private fun drawBurst(canvas: Canvas, burst: ParticleBurst, bp: Float, ox: Float, oy: Float, diag: Float, short: Float, colors: List<Int>) {
+        for (i in 0 until burst.count) {
+            val h1 = hash01(burst.seed, i, 1)
+            val h2 = hash01(burst.seed, i, 2)
+            val h3 = hash01(burst.seed, i, 3)
+            val delay = 0.35f * hash01(burst.seed, i, 4)
+            val lt = ((bp - delay) / (1f - delay)).coerceIn(0f, 1f)
+            if (lt <= 0f || lt >= 1f) continue
+            val dist = burst.spread * diag * (0.12f + 0.88f * h2.pow(0.7f))
+            val theta = h1 * 2f * PI.toFloat()
+            val (r, alpha) = if (burst.mode == ParticleBurst.CONVERGE) {
+                dist * (1f - lt).pow(1.6f) to sin(PI.toFloat() * min(1f, lt * 1.1f)).coerceAtLeast(0f)
+            } else {
+                dist * (1f - (1f - lt).pow(3f)) to sin(PI.toFloat() * lt).pow(0.7f)
+            }
+            val a = theta + burst.swirl * lt
+            val x = ox + cos(a) * r
+            val y = oy + sin(a) * r * 0.9f
+            val size = (burst.sizeMin + (burst.sizeMax - burst.sizeMin) * h3 * h3) * short
+            sprite(canvas, x, y, size * 3f, colors[i % colors.size], alpha * (0.55f + 0.45f * hash01(burst.seed, i, 5)))
+        }
+    }
+
+    /** Lines of light rushing outwards, accelerating and stretching like stars at light speed. */
+    private fun drawStreaks(canvas: Canvas, burst: ParticleBurst, bp: Float, ox: Float, oy: Float, diag: Float, short: Float, colors: List<Int>) {
+        linePaint.blendMode = BlendMode.PLUS
+        linePaint.shader = null
+        for (i in 0 until burst.count) {
+            val delay = 0.4f * hash01(burst.seed, i, 4)
+            val lt = ((bp - delay) / (1f - delay)).coerceIn(0f, 1f)
+            if (lt <= 0f || lt >= 1f) continue
+            val theta = hash01(burst.seed, i, 1) * 2f * PI.toFloat()
+            val h2 = hash01(burst.seed, i, 2)
+            // Stars start all over the field, not only near the centre, so it reads as depth.
+            val r0 = (0.02f + 0.42f * h2 * h2) * diag
+            val travel = burst.spread * diag * (0.55f + 0.45f * hash01(burst.seed, i, 3))
+            val head = r0 + travel * lt * lt
+            val length = travel * (0.04f + 0.5f * lt) * (0.4f + 0.6f * h2)
+            val tail = max(r0 * 0.6f, head - length)
+            val mid = (head + tail) / 2f
+            val alpha = 0.8f * sin(PI.toFloat() * lt).pow(0.5f) * (0.5f + 0.5f * hash01(burst.seed, i, 5))
+            val dx = cos(theta)
+            val dy = sin(theta)
+            val c = colors[i % colors.size]
+            val width = max(1.2f, (burst.sizeMin + (burst.sizeMax - burst.sizeMin) * hash01(burst.seed, i, 6)) * short)
+            linePaint.strokeWidth = width
+            linePaint.color = SceneArtist.withAlpha(c, alpha * 0.35f)
+            canvas.drawLine(ox + dx * tail, oy + dy * tail, ox + dx * mid, oy + dy * mid, linePaint)
+            linePaint.color = SceneArtist.withAlpha(c, alpha)
+            canvas.drawLine(ox + dx * mid, oy + dy * mid, ox + dx * head, oy + dy * head, linePaint)
+        }
+        linePaint.blendMode = null
+    }
+
+    /** Motes that float up from a band, swaying a little, like embers or bubbles. */
+    private fun drawRising(canvas: Canvas, burst: ParticleBurst, bp: Float, ox: Float, oy: Float, fw: Float, fh: Float, short: Float, colors: List<Int>) {
+        for (i in 0 until burst.count) {
+            val delay = 0.5f * hash01(burst.seed, i, 4)
+            val lt = ((bp - delay) / (1f - delay)).coerceIn(0f, 1f)
+            if (lt <= 0f || lt >= 1f) continue
+            val h3 = hash01(burst.seed, i, 3)
+            val x = ox + (hash01(burst.seed, i, 1) * 2f - 1f) * burst.spread * fw + sin(lt * 5f + i) * 0.012f * fw
+            val startY = oy - hash01(burst.seed, i, 2) * 0.05f * fh
+            val y = startY - (0.2f + 0.5f * h3) * fh * (1f - (1f - lt) * (1f - lt))
+            val alpha = sin(PI.toFloat() * lt).pow(0.8f) * (0.5f + 0.5f * hash01(burst.seed, i, 5))
+            val size = (burst.sizeMin + (burst.sizeMax - burst.sizeMin) * h3 * h3) * short
+            sprite(canvas, x, y, size * 3f, colors[i % colors.size], alpha)
         }
     }
 
@@ -520,5 +785,7 @@ class SceneDrawer {
         }
 
         private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
+
+        private fun sq(v: Float) = v * v
     }
 }

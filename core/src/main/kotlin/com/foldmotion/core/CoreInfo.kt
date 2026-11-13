@@ -11,10 +11,11 @@ object CoreInfo {
     const val MIN_SCHEMA_VERSION = 1
 
     /**
-     * Version of the runtime renderer. 2 adds springs, reveals, particles and ambient motion.
-     * Packs declare the minimum they need; this build still plays version-1 packs.
+     * Version of the runtime renderer. 2 adds springs, reveals, particles and ambient motion;
+     * 3 adds fold styles (book, tiles and sweep reveals, streak and rise particles, staggered
+     * tracks). Packs declare the minimum they need; this build still plays version-1 packs.
      */
-    const val RENDERER_VERSION = 2
+    const val RENDERER_VERSION = 3
     const val MIN_RENDERER_VERSION = 1
 
     const val ASSET_TYPE = "FOLD_LIVE_WALLPAPER"

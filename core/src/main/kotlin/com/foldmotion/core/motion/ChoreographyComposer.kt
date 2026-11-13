@@ -21,115 +21,356 @@ data class ChoreoInput(
     val seed: Long,
 )
 
-data class Choreography(val open: MotionSpec, val close: MotionSpec, val ambient: AmbientSpec)
+data class Choreography(val open: MotionSpec, val close: MotionSpec, val ambient: AmbientSpec, val style: FoldStyle)
 
 /**
  * Designs the fold animations and the living motion of a scene.
  *
- * OPEN (main screen appears): the scene starts as the exact slice the cover was showing and
- * unfolds outwards from it, like the phone itself; depth layers settle on a spring, nearer ones
- * travelling further, and light bursts from the focal point.
+ * Each [FoldStyle] is a different idea, not a different speed: a hinge unfolding from the cover
+ * slice, a page swinging in perspective, layers rising out of the dark, a jump out of light
+ * speed, a wave of flipping tiles, a band of scanning light, an iris opening from the focal
+ * point. OPEN plays on the main screen when the phone opens, CLOSE on the cover when it closes;
+ * the two variants of a style share the idea but are shaped for their screen.
  *
- * CLOSE (cover appears): light spirals into the focal point, then the scene opens from it as an
- * iris while the foreground rises into place.
+ * Opaque layers only ever zoom in (scale >= 1 about a point inside the frame), so they keep
+ * covering the frame; only transparent layers slide.
  *
  * AMBIENT: per family, what keeps living afterwards: stars that twinkle and occasionally fall,
  * glints on water, sand in the wind, fireflies, flowing light, a breathing halo.
  */
 object ChoreographyComposer {
 
-    fun compose(input: ChoreoInput): Choreography =
-        Choreography(open(input), close(input), ambient(input))
+    fun compose(input: ChoreoInput, style: FoldStyle = FoldStyle.AUTO): Choreography {
+        val resolved = FoldStyle.resolve(style, input.family, input.seed)
+        return Choreography(open(input, resolved), close(input, resolved), ambient(input), resolved)
+    }
 
-    // ------------------------------------------------------------------ open
-
-    fun open(input: ChoreoInput): MotionSpec {
-        val (fx, fy) = input.frames.focusIn(ScreenKind.MAIN)
-        if (input.intensity == MotionIntensity.STATIC_END) return fadeOnly(MotionSpec.KIND_OPEN, fx, fy)
-
+    /** Per-screen context shared by the style builders. */
+    private class Ctx(val input: ChoreoInput, val kind: String) {
+        val main = kind == MotionSpec.KIND_OPEN
         val lively = input.intensity == MotionIntensity.MEDIUM
-        val duration = if (lively) 1_400 else 1_100
         val gain = if (lively) 1.35f else 1f
+        val seed = (input.seed and 0xFFFF).toInt()
+        val night = input.time == TimeOfDay.NIGHT || input.family == SceneFamily.SPACE
+        val focus = input.frames.focusIn(if (main) ScreenKind.MAIN else ScreenKind.COVER)
+        val fx = focus.first
+        val fy = focus.second
+        val layers = if (main) input.mainLayers else input.coverLayers
+        val frame = if (main) input.frames.main else input.frames.cover
+        /** Width over height of this screen's frame. */
+        val aspect = frame.width / frame.height
+        fun ms(main: Int, cover: Int, livelyExtra: Int) = (if (this.main) main else cover) + if (lively) livelyExtra else 0
+    }
+
+    fun open(input: ChoreoInput, style: FoldStyle = FoldStyle.UNFOLD): MotionSpec = build(Ctx(input, MotionSpec.KIND_OPEN), style)
+
+    fun close(input: ChoreoInput, style: FoldStyle = FoldStyle.IRIS): MotionSpec = build(Ctx(input, MotionSpec.KIND_CLOSE), style)
+
+    private fun build(c: Ctx, style: FoldStyle): MotionSpec {
+        val concrete = FoldStyle.resolve(style, c.input.family, c.input.seed)
+        if (c.input.intensity == MotionIntensity.STATIC_END) return fadeOnly(c.kind, c.fx, c.fy).copy(style = concrete.name)
+        val spec = when (concrete) {
+            FoldStyle.UNFOLD -> if (c.main) unfoldOpen(c) else unfoldClose(c)
+            FoldStyle.IRIS -> if (c.main) irisOpen(c) else irisClose(c)
+            FoldStyle.BOOK -> book(c)
+            FoldStyle.RISE -> rise(c)
+            FoldStyle.WARP -> warp(c)
+            FoldStyle.TILES -> tiles(c)
+            FoldStyle.SWEEP -> sweep(c)
+            FoldStyle.AUTO -> error("resolved above")
+        }
+        return spec.copy(schemaVersion = 3, style = concrete.name)
+    }
+
+    // ------------------------------------------------------------------ track helpers
+
+    /** Opaque layers may only zoom in; anything else would uncover the frame edge. */
+    private fun layer(l: MotionLayer, from: TrackPose, delay: Float = 0f, span: Float = 1f): MotionTrack {
+        val safe = if (l.opaque) TrackPose(scale = maxOf(1f, from.scale)) else from
+        return MotionTrack(MotionSampler.layerTarget(l.id), from = safe, delay = delay, span = span)
+    }
+
+    private fun glow(from: TrackPose, to: TrackPose, delay: Float = 0f, span: Float = 1f) =
+        MotionTrack(MotionSpec.TARGET_GLOW, from = from, to = to, delay = delay, span = span)
+
+    private fun dim(alpha: Float, span: Float = 1f) =
+        MotionTrack(MotionSpec.TARGET_DIM, from = TrackPose(alpha = alpha), to = TrackPose.HIDDEN, span = span)
+
+    private fun spec(c: Ctx, duration: Int, tracks: List<MotionTrack>, spring: SpringSpec?, reveal: RevealSpec?, particles: List<ParticleBurst>) = MotionSpec(
+        schemaVersion = 3,
+        kind = c.kind,
+        durationMs = duration.coerceIn(MotionSpec.MIN_DURATION_MS, MotionSpec.MAX_DURATION_MS),
+        easing = EasingSpec(0.2f, 0f, 0f, 1f),
+        pivot = listOf(c.fx, c.fy),
+        tracks = tracks,
+        spring = spring,
+        reveal = reveal,
+        particles = particles.take(MotionSpec.MAX_BURSTS),
+    )
+
+    // ------------------------------------------------------------------ UNFOLD
+
+    /** The scene widens from exactly the slice the cover was showing, like the phone itself. */
+    private fun unfoldOpen(c: Ctx): MotionSpec {
+        val duration = c.ms(1_100, 1_000, 300)
         val tracks = ArrayList<MotionTrack>()
-        for (layer in input.mainLayers) {
-            val scale = 1f + (0.05f + 0.13f * layer.depth) * gain
-            val rise = if (layer.depth >= 0.99f) 0.035f * gain else 0f
-            tracks += MotionTrack(MotionSampler.layerTarget(layer.id), from = TrackPose(scale = scale, ty = rise))
+        for (l in c.layers) {
+            val scale = 1f + (0.05f + 0.13f * l.depth) * c.gain
+            val rise = if (l.depth >= 0.99f) 0.035f * c.gain else 0f
+            tracks += layer(l, TrackPose(scale = scale, ty = rise))
         }
         // Bloom is added light: strong at night, gentle in bright scenes where it would wash out.
-        val bloom = if (input.time == TimeOfDay.NIGHT || input.family == SceneFamily.SPACE) 0.4f else 0.22f
-        tracks += MotionTrack(MotionSpec.TARGET_GLOW, from = TrackPose(scale = 0.35f, alpha = bloom), to = TrackPose(scale = 2.4f, alpha = 0f))
-        tracks += MotionTrack(MotionSpec.TARGET_DIM, from = TrackPose(alpha = 0.22f), to = TrackPose.HIDDEN)
-
-        val cover = coverWindowInMain(input.frames)
-        val colors = burstColors(input)
-        return MotionSpec(
-            schemaVersion = 2,
-            kind = MotionSpec.KIND_OPEN,
-            durationMs = duration,
-            easing = EasingSpec(0.2f, 0f, 0f, 1f),
-            pivot = listOf(fx, fy),
-            tracks = tracks,
-            spring = SpringSpec.settlingIn(duration, if (lively) 0.68f else 0.78f),
-            reveal = RevealSpec(RevealSpec.UNFOLD, cover, end = 0.62f, softness = 0.07f, shade = 0.9f, edgeGlow = 0.85f),
-            particles = listOf(
+        val bloom = if (c.night) 0.4f else 0.22f
+        tracks += glow(TrackPose(scale = 0.35f, alpha = bloom), TrackPose(scale = 2.4f, alpha = 0f))
+        tracks += dim(0.22f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.68f else 0.78f),
+            RevealSpec(RevealSpec.UNFOLD, coverWindowInMain(c.input.frames), end = 0.62f, softness = 0.07f, shade = 0.9f, edgeGlow = 0.85f),
+            listOf(
                 ParticleBurst(
-                    ParticleBurst.BURST, count = if (lively) 160 else 100, colors = colors,
-                    origin = listOf(fx, fy), spread = 0.75f, sizeMin = 0.003f, sizeMax = 0.011f,
-                    start = 0.02f, end = 0.95f, swirl = 0.25f, seed = (input.seed and 0xFFFF).toInt() + 1,
+                    ParticleBurst.BURST, count = if (c.lively) 160 else 100, colors = burstColors(c.input),
+                    origin = listOf(c.fx, c.fy), spread = 0.75f, sizeMin = 0.003f, sizeMax = 0.011f,
+                    start = 0.02f, end = 0.95f, swirl = 0.25f, seed = c.seed + 1,
                 ),
                 ParticleBurst(
-                    ParticleBurst.BURST, count = if (lively) 14 else 9, colors = listOf(hex(input.glow)),
-                    origin = listOf(fx, fy), spread = 0.5f, sizeMin = 0.01f, sizeMax = 0.026f,
-                    start = 0.05f, end = 1f, swirl = 0.1f, seed = (input.seed and 0xFFFF).toInt() + 2,
+                    ParticleBurst.BURST, count = if (c.lively) 14 else 9, colors = listOf(hex(c.input.glow)),
+                    origin = listOf(c.fx, c.fy), spread = 0.5f, sizeMin = 0.01f, sizeMax = 0.026f,
+                    start = 0.05f, end = 1f, swirl = 0.1f, seed = c.seed + 2,
                 ),
             ),
         )
     }
 
-    // ------------------------------------------------------------------ close
-
-    fun close(input: ChoreoInput): MotionSpec {
-        val (fx, fy) = input.frames.focusIn(ScreenKind.COVER)
-        if (input.intensity == MotionIntensity.STATIC_END) return fadeOnly(MotionSpec.KIND_CLOSE, fx, fy)
-
-        val lively = input.intensity == MotionIntensity.MEDIUM
-        val duration = if (lively) 1_250 else 1_000
-        val gain = if (lively) 1.3f else 1f
+    /** The cover opens outwards from a thin seam in its middle, as if the halves met there. */
+    private fun unfoldClose(c: Ctx): MotionSpec {
+        val duration = c.ms(1_000, 1_000, 250)
         val tracks = ArrayList<MotionTrack>()
-        for (layer in input.coverLayers) {
-            val scale = 1f + (0.08f + 0.1f * layer.depth) * gain
-            val rise = if (layer.depth >= 0.99f) 0.12f * gain else if (layer.depth >= 0.5f) 0.04f * gain else 0f
-            tracks += MotionTrack(MotionSampler.layerTarget(layer.id), from = TrackPose(scale = scale, ty = rise))
+        for (l in c.layers) {
+            val scale = 1f + (0.06f + 0.08f * l.depth) * c.gain
+            val rise = if (l.depth >= 0.99f) 0.05f * c.gain else 0f
+            tracks += layer(l, TrackPose(scale = scale, ty = rise))
         }
-        val gather = if (input.time == TimeOfDay.NIGHT || input.family == SceneFamily.SPACE) 0.3f else 0.18f
-        tracks += MotionTrack(MotionSpec.TARGET_GLOW, from = TrackPose(scale = 2.2f, alpha = gather), to = TrackPose(scale = 0.45f, alpha = 0f))
-        tracks += MotionTrack(MotionSpec.TARGET_DIM, from = TrackPose(alpha = 0.18f), to = TrackPose.HIDDEN)
-
-        val colors = burstColors(input)
-        val seed = (input.seed and 0xFFFF).toInt()
-        return MotionSpec(
-            schemaVersion = 2,
-            kind = MotionSpec.KIND_CLOSE,
-            durationMs = duration,
-            easing = EasingSpec(0.2f, 0f, 0f, 1f),
-            pivot = listOf(fx, fy),
-            tracks = tracks,
-            spring = SpringSpec.settlingIn(duration, if (lively) 0.7f else 0.8f),
-            // Light gathers into the focal point in the dark first, then the iris opens from it.
-            reveal = RevealSpec(RevealSpec.IRIS, listOf(fx, fy, 0.05f), start = 0.3f, end = 0.88f, softness = 0.12f, shade = 0.92f, edgeGlow = 0.8f),
-            particles = listOf(
+        tracks += glow(TrackPose(scale = 0.4f, alpha = if (c.night) 0.32f else 0.18f), TrackPose(scale = 2.2f, alpha = 0f))
+        tracks += dim(0.2f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.7f else 0.8f),
+            RevealSpec(RevealSpec.UNFOLD, listOf(0.45f, 0f, 0.55f, 1f), end = 0.78f, softness = 0.12f, shade = 0.9f, edgeGlow = 0.85f),
+            listOf(
                 ParticleBurst(
-                    ParticleBurst.CONVERGE, count = if (lively) 170 else 120, colors = colors,
-                    origin = listOf(fx, fy), spread = 0.8f, sizeMin = 0.003f, sizeMax = 0.01f,
-                    start = 0f, end = 0.45f, swirl = 1.3f, seed = seed + 3,
-                ),
-                ParticleBurst(
-                    ParticleBurst.BURST, count = if (lively) 60 else 40, colors = colors,
-                    origin = listOf(fx, fy), spread = 0.4f, sizeMin = 0.003f, sizeMax = 0.009f,
-                    start = 0.36f, end = 1f, swirl = 0.2f, seed = seed + 4,
+                    ParticleBurst.BURST, count = if (c.lively) 110 else 70, colors = burstColors(c.input),
+                    origin = listOf(0.5f, c.fy), spread = 0.6f, sizeMin = 0.003f, sizeMax = 0.01f,
+                    start = 0.03f, end = 0.95f, swirl = 0.15f, seed = c.seed + 5,
                 ),
             ),
+        )
+    }
+
+    // ------------------------------------------------------------------ IRIS
+
+    /** Light spirals into the focal point in the dark, then the scene opens from it as a circle. */
+    private fun irisOpen(c: Ctx): MotionSpec {
+        val duration = c.ms(1_150, 1_000, 250)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val scale = 1f + (0.08f + 0.12f * l.depth) * c.gain
+            val rise = if (l.depth >= 0.99f) 0.08f * c.gain else if (l.depth >= 0.5f) 0.03f * c.gain else 0f
+            tracks += layer(l, TrackPose(scale = scale, ty = rise))
+        }
+        tracks += glow(TrackPose(scale = 2.4f, alpha = if (c.night) 0.32f else 0.2f), TrackPose(scale = 0.5f, alpha = 0f))
+        tracks += dim(0.18f)
+        val colors = burstColors(c.input)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.7f else 0.8f),
+            RevealSpec(RevealSpec.IRIS, listOf(c.fx, c.fy, 0.04f), start = 0.19f, end = 0.8f, softness = 0.1f, shade = 0.92f, edgeGlow = 0.85f),
+            listOf(
+                ParticleBurst(
+                    ParticleBurst.CONVERGE, count = if (c.lively) 200 else 150, colors = colors,
+                    origin = listOf(c.fx, c.fy), spread = 0.75f, sizeMin = 0.003f, sizeMax = 0.01f,
+                    start = 0f, end = 0.32f, swirl = 1.3f, seed = c.seed + 3,
+                ),
+                ParticleBurst(
+                    ParticleBurst.BURST, count = if (c.lively) 70 else 50, colors = colors,
+                    origin = listOf(c.fx, c.fy), spread = 0.55f, sizeMin = 0.003f, sizeMax = 0.01f,
+                    start = 0.25f, end = 1f, swirl = 0.2f, seed = c.seed + 4,
+                ),
+            ),
+        )
+    }
+
+    private fun irisClose(c: Ctx): MotionSpec {
+        val duration = c.ms(1_000, 1_000, 250)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val scale = 1f + (0.08f + 0.1f * l.depth) * c.gain
+            val rise = if (l.depth >= 0.99f) 0.12f * c.gain else if (l.depth >= 0.5f) 0.04f * c.gain else 0f
+            tracks += layer(l, TrackPose(scale = scale, ty = rise))
+        }
+        tracks += glow(TrackPose(scale = 2.2f, alpha = if (c.night) 0.3f else 0.18f), TrackPose(scale = 0.45f, alpha = 0f))
+        tracks += dim(0.18f)
+        val colors = burstColors(c.input)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.7f else 0.8f),
+            // Light gathers into the focal point in the dark first, then the iris opens from it.
+            RevealSpec(RevealSpec.IRIS, listOf(c.fx, c.fy, 0.05f), start = 0.3f, end = 0.88f, softness = 0.12f, shade = 0.92f, edgeGlow = 0.8f),
+            listOf(
+                ParticleBurst(
+                    ParticleBurst.CONVERGE, count = if (c.lively) 170 else 120, colors = colors,
+                    origin = listOf(c.fx, c.fy), spread = 0.8f, sizeMin = 0.003f, sizeMax = 0.01f,
+                    start = 0f, end = 0.45f, swirl = 1.3f, seed = c.seed + 3,
+                ),
+                ParticleBurst(
+                    ParticleBurst.BURST, count = if (c.lively) 60 else 40, colors = colors,
+                    origin = listOf(c.fx, c.fy), spread = 0.4f, sizeMin = 0.003f, sizeMax = 0.009f,
+                    start = 0.36f, end = 1f, swirl = 0.2f, seed = c.seed + 4,
+                ),
+            ),
+        )
+    }
+
+    // ------------------------------------------------------------------ BOOK
+
+    /**
+     * Main: the right half swings down flat in perspective around the centre crease, exactly the
+     * way the panel just moved, and light escapes from the crease as it lands. Cover: the whole
+     * scene swings shut around its left edge like a door.
+     */
+    private fun book(c: Ctx): MotionSpec {
+        val duration = c.ms(1_200, 1_050, 250)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) tracks += layer(l, TrackPose(scale = 1f + (0.025f + 0.05f * l.depth) * c.gain), span = 0.95f)
+        tracks += dim(0.22f, span = 0.85f)
+        val reveal = if (c.main) {
+            RevealSpec(RevealSpec.BOOK, listOf(0.5f, 104f), end = 0.8f, softness = 0.1f, shade = 0.8f, edgeGlow = 0.75f)
+        } else {
+            RevealSpec(RevealSpec.BOOK, listOf(0f, 88f), end = 0.82f, softness = 0.1f, shade = 0.85f, edgeGlow = 0.7f)
+        }
+        val particles = if (c.main) {
+            listOf(
+                ParticleBurst(
+                    ParticleBurst.BURST, count = if (c.lively) 70 else 45, colors = burstColors(c.input),
+                    origin = listOf(0.5f, 0.5f), spread = 0.42f, sizeMin = 0.0025f, sizeMax = 0.008f,
+                    start = 0.5f, end = 1f, swirl = 0.05f, seed = c.seed + 6,
+                ),
+            )
+        } else {
+            emptyList()
+        }
+        return spec(c, duration, tracks, SpringSpec.settlingIn(duration, 0.82f), reveal, particles)
+    }
+
+    // ------------------------------------------------------------------ RISE
+
+    /**
+     * The scene wakes from the dark and its layers rise into place one after another, farthest
+     * first, settling with a small bounce, while embers float up from below.
+     */
+    private fun rise(c: Ctx): MotionSpec {
+        val duration = c.ms(1_350, 1_150, 250)
+        val k = if (c.main) 1f else 0.8f
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            tracks += when {
+                l.opaque || l.depth <= 0.01f -> layer(l, TrackPose(scale = 1f + 0.08f * c.gain), span = 0.9f)
+                l.depth < 0.99f -> layer(l, TrackPose(ty = 0.24f * k * c.gain, alpha = 0.15f), delay = 0.06f, span = 0.78f)
+                else -> layer(l, TrackPose(ty = 0.42f * k * c.gain, alpha = 0.15f), delay = 0.15f, span = 0.78f)
+            }
+        }
+        tracks += glow(TrackPose(scale = 1.5f, alpha = if (c.night) 0.3f else 0.18f), TrackPose(scale = 0.8f, alpha = 0f), delay = 0.1f, span = 0.9f)
+        tracks += dim(0.68f, span = 0.72f)
+        val warm = listOf(hex(c.input.glow), "#FFD9A0", "#FFFFFF")
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.62f else 0.7f), null,
+            listOf(
+                ParticleBurst(
+                    ParticleBurst.RISE, count = (if (c.lively) 120 else 80).let { if (c.main) it else it * 2 / 3 }, colors = warm,
+                    origin = listOf(0.5f, 1.02f), spread = 0.55f, sizeMin = 0.0025f, sizeMax = 0.008f,
+                    start = 0.1f, end = 1f, swirl = 0f, seed = c.seed + 7,
+                ),
+            ),
+        )
+    }
+
+    // ------------------------------------------------------------------ WARP
+
+    /**
+     * A jump out of light speed: stars streak outwards from the focal point, a flash, and the
+     * layers fly in from close up, the nearest from furthest, and settle.
+     */
+    private fun warp(c: Ctx): MotionSpec {
+        val duration = c.ms(1_200, 1_050, 200)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val scale = 1f + (0.28f + 0.62f * l.depth) * c.gain
+            tracks += layer(l, TrackPose(scale = scale, alpha = if (l.opaque) 1f else 0.4f), delay = 0.04f * l.depth, span = 0.92f)
+        }
+        tracks += glow(TrackPose(scale = 0.3f, alpha = 0.9f), TrackPose(scale = 3.2f, alpha = 0f), span = 0.5f)
+        tracks += dim(0.62f, span = 0.55f)
+        val colors = listOf("#FFFFFF", hex(c.input.glow), hex(c.input.accent))
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, 0.86f), null,
+            listOf(
+                ParticleBurst(
+                    ParticleBurst.STREAK, count = (if (c.lively) 220 else 150).let { if (c.main) it else it * 2 / 3 }, colors = colors,
+                    origin = listOf(c.fx, c.fy), spread = 0.95f, sizeMin = 0.0018f, sizeMax = 0.0045f,
+                    start = 0f, end = 0.72f, swirl = 0f, seed = c.seed + 8,
+                ),
+                ParticleBurst(
+                    ParticleBurst.BURST, count = if (c.lively) 45 else 30, colors = colors,
+                    origin = listOf(c.fx, c.fy), spread = 0.5f, sizeMin = 0.003f, sizeMax = 0.009f,
+                    start = 0.38f, end = 1f, swirl = 0.1f, seed = c.seed + 9,
+                ),
+            ),
+        )
+    }
+
+    // ------------------------------------------------------------------ TILES
+
+    /**
+     * The scene assembles from square tiles flipping over in a wave: from the focal point on the
+     * main screen, top to bottom like a split-flap board on the cover.
+     */
+    private fun tiles(c: Ctx): MotionSpec {
+        val duration = c.ms(1_350, 1_200, 200)
+        val rows = if (c.main) 7 else 8
+        val cols = (rows * c.aspect).let { kotlin.math.round(it).toInt() }.coerceIn(2, RevealSpec.MAX_TILES_PER_SIDE)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) tracks += layer(l, TrackPose(scale = 1f + (0.03f + 0.04f * l.depth) * c.gain))
+        tracks += dim(0.15f, span = 0.9f)
+        val from = if (c.main) listOf(cols.toFloat(), rows.toFloat(), c.fx.coerceIn(0f, 1f), c.fy.coerceIn(0f, 1f), 0f)
+        else listOf(cols.toFloat(), rows.toFloat(), 0.5f, 0f, 1f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, 0.85f),
+            RevealSpec(RevealSpec.TILES, from, end = 0.9f, softness = 0f, shade = 0.94f, edgeGlow = 0.7f),
+            emptyList(),
+        )
+    }
+
+    // ------------------------------------------------------------------ SWEEP
+
+    /**
+     * A band of light crosses the screen and the scene appears behind it, its layers carried a
+     * little along: diagonally across the main screen, top to bottom down the cover.
+     */
+    private fun sweep(c: Ctx): MotionSpec {
+        val duration = c.ms(1_300, 1_100, 200)
+        val angle = if (c.main) (if ((c.input.seed ushr 4) and 1L == 0L) 22f else 158f) else 90f
+        val rad = Math.toRadians(angle.toDouble())
+        val dx = kotlin.math.cos(rad).toFloat()
+        val dy = kotlin.math.sin(rad).toFloat()
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val shift = when {
+                l.opaque || l.depth <= 0.01f -> 0f
+                l.depth < 0.99f -> 0.035f
+                else -> 0.065f
+            }
+            tracks += layer(l, TrackPose(scale = if (l.opaque) 1.04f else 1f, tx = -dx * shift, ty = -dy * shift), delay = 0.04f * l.depth, span = 0.96f)
+        }
+        tracks += dim(0.1f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, 0.88f),
+            RevealSpec(RevealSpec.SWEEP, listOf(angle), end = 0.8f, softness = 0.16f, shade = 0.9f, edgeGlow = 1f),
+            emptyList(),
         )
     }
 

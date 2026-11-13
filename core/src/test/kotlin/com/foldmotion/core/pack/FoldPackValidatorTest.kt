@@ -135,6 +135,36 @@ class FoldPackValidatorTest {
     }
 
     @Test
+    fun `v3 fold styles with staggered tracks pass and malformed ones are rejected`() {
+        val base = MotionSpec(
+            schemaVersion = 3, kind = MotionSpec.KIND_OPEN, durationMs = 1300, pivot = listOf(0.7f, 0.4f),
+            tracks = listOf(
+                MotionTrack("layer:far", TrackPose(scale = 1.05f), span = 0.9f),
+                MotionTrack("layer:near", TrackPose(ty = 0.4f, alpha = 0.2f), delay = 0.15f, span = 0.8f),
+            ),
+            spring = SpringSpec.settlingIn(1300, 0.7f),
+            particles = listOf(ParticleBurst(ParticleBurst.RISE, 80, listOf("#FFD9A0"), listOf(0.5f, 1.02f), 0.55f, 0.003f, 0.008f)),
+            style = "RISE",
+        )
+        fun codes(spec: MotionSpec) = validator.validate(buildPack(openSpec = spec, ambient = goodAmbient)).codes
+        assertTrue(codes(base).isEmpty())
+        for (reveal in listOf(
+            RevealSpec(RevealSpec.BOOK, listOf(0.5f, 104f)),
+            RevealSpec(RevealSpec.TILES, listOf(6f, 7f, 0.7f, 0.4f, 0f)),
+            RevealSpec(RevealSpec.SWEEP, listOf(22f)),
+        )) assertTrue(reveal.type, codes(base.copy(reveal = reveal)).isEmpty())
+
+        // A track that would still be moving after the transition ends.
+        val late = base.copy(tracks = base.tracks + MotionTrack("layer:mid", TrackPose(ty = 0.2f), delay = 0.5f, span = 0.8f))
+        assertTrue(codes(late).contains(ValidationCode.INVALID_MOTION))
+        assertTrue(codes(base.copy(style = "AUTO")).contains(ValidationCode.INVALID_MOTION))
+        assertTrue(codes(base.copy(style = "SPIN")).contains(ValidationCode.INVALID_MOTION))
+        assertTrue(codes(base.copy(reveal = RevealSpec(RevealSpec.TILES, listOf(60f, 7f, 0.5f, 0.5f, 0f)))).contains(ValidationCode.INVALID_MOTION))
+        assertTrue(codes(base.copy(reveal = RevealSpec(RevealSpec.BOOK, listOf(0.5f, 400f)))).contains(ValidationCode.INVALID_MOTION))
+        assertTrue(codes(base.copy(particles = listOf(base.particles[0].copy(mode = "LASER")))).contains(ValidationCode.INVALID_MOTION))
+    }
+
+    @Test
     fun `living motion out of bounds is rejected`() {
         val tooMany = goodAmbient.copy(systems = goodAmbient.systems.map { it.copy(count = 5000) })
         assertTrue(validator.validate(buildPack(ambient = tooMany)).codes.contains(ValidationCode.INVALID_MOTION))

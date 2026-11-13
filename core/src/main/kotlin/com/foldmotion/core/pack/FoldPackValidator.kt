@@ -3,6 +3,7 @@ package com.foldmotion.core.pack
 import com.foldmotion.core.CoreInfo
 import com.foldmotion.core.device.DeviceProfileRegistry
 import com.foldmotion.core.motion.AmbientSpec
+import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.motion.MotionSafety
 import com.foldmotion.core.motion.ParticleBurst
 import com.foldmotion.core.motion.RevealSpec
@@ -204,19 +205,18 @@ class FoldPackValidator(
             spec.spring?.let { sp ->
                 if (sp.dampingRatio !in 0.5f..1f || sp.stiffness !in 5f..2000f) fail(ValidationCode.INVALID_MOTION, "${ref.file}: spring")
             }
+            spec.style?.let { if (FoldStyle.parse(it) == null || it == FoldStyle.AUTO.name) fail(ValidationCode.INVALID_MOTION, "${ref.file}: style") }
+            for (t in spec.tracks) {
+                if (t.delay !in 0f..0.9f || t.span !in 0.1f..1f || t.delay + t.span > 1.0001f) fail(ValidationCode.INVALID_MOTION, "${ref.file}: ${t.target} timing")
+            }
             spec.reveal?.let { r ->
-                val shapeOk = when (r.type) {
-                    RevealSpec.UNFOLD -> r.from.size == 4 && r.from.all { it in 0f..1f } && r.from[2] > r.from[0] && r.from[3] > r.from[1]
-                    RevealSpec.IRIS -> r.from.size == 3 && r.from.all { it in 0f..1.5f }
-                    else -> false
-                }
-                if (!shapeOk || r.end !in 0.05f..1f || r.start !in 0f..r.end || r.softness !in 0f..0.5f || r.shade !in 0f..1f || r.edgeGlow !in 0f..1f) {
+                if (!r.isWellFormed() || r.end !in 0.05f..1f || r.start !in 0f..r.end || r.softness !in 0f..0.5f || r.shade !in 0f..1f || r.edgeGlow !in 0f..1f) {
                     fail(ValidationCode.INVALID_MOTION, "${ref.file}: reveal")
                 }
             }
             if (spec.particles.size > MotionSpec.MAX_BURSTS) fail(ValidationCode.INVALID_MOTION, "${ref.file}: too many bursts")
             for (b in spec.particles) {
-                val ok = (b.mode == ParticleBurst.BURST || b.mode == ParticleBurst.CONVERGE) &&
+                val ok = b.mode in ParticleBurst.MODES &&
                     b.count in 1..MotionSpec.MAX_PARTICLES_PER_BURST && b.colors.isNotEmpty() && b.colors.all(::isHex) &&
                     b.origin.size == 2 && b.spread in 0f..1.5f && b.sizeMin in 0f..0.08f && b.sizeMax in b.sizeMin..0.08f &&
                     b.start in 0f..1f && b.end in b.start..1f

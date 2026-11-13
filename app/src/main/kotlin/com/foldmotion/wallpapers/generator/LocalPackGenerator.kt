@@ -151,6 +151,7 @@ class LocalPackGenerator(
                     accent = spec.palette.accent,
                     seed = spec.seed,
                 ),
+                request.motionStyle,
             )
             val open = choreo.open
             val close = choreo.close
@@ -165,7 +166,7 @@ class LocalPackGenerator(
             val manifest = manifestFor(
                 request, profile, spec,
                 main.entry.copy(world = world(frames.main)), cover.entry.copy(world = world(frames.cover)),
-                open, close, prompt,
+                open, close, prompt, choreo.style.name,
             )
             File(staging, FoldPackManifest.FILE_NAME).writeText(CoreInfo.json.encodeToString(FoldPackManifest.serializer(), manifest))
             Checksums.write(staging)
@@ -307,6 +308,7 @@ class LocalPackGenerator(
         open: MotionSpec,
         close: MotionSpec,
         prompt: String,
+        motionStyle: String,
     ): FoldPackManifest {
         val now = Instant.now()
         val id = "fp-" + now.toEpochMilli().toString(36) + "-" + Sha256.of(request.idempotencyKey).take(6)
@@ -328,6 +330,7 @@ class LocalPackGenerator(
             ),
             previews = Previews(cover = "previews/cover.webp", main = "previews/main.webp"),
             ambient = AmbientSpec.FILE,
+            motionStyle = motionStyle,
             colors = PackColors(hex(spec.palette.glow), hex(spec.palette.accent), hex(spec.palette.mid), hex(spec.palette.skyTop)),
             generation = GenerationRecipe(
                 provider = providerId,

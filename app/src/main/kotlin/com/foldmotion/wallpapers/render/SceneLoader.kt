@@ -65,9 +65,11 @@ object SceneLoader {
             }
         }
         // Packs from before renderer 2 get the new fold choreography and living motion computed
-        // from their own geometry; nothing on disk changes.
-        val legacy = if (stored == null || stored.schemaVersion < 2 || storedAmbient == null) PackChoreography.upgrade(manifest) else null
-        val motion = if (stored != null && stored.schemaVersion >= 2) stored else legacy?.choreography?.let { if (kind == ScreenKind.MAIN) it.open else it.close }
+        // from their own geometry, and this app's own packs from before fold styles get the style
+        // their scene would get today; nothing on disk changes.
+        val restyle = PackChoreography.wantsStyleUpgrade(manifest, stored?.style)
+        val legacy = if (stored == null || stored.schemaVersion < 2 || storedAmbient == null || restyle) PackChoreography.upgrade(manifest) else null
+        val motion = if (stored != null && stored.schemaVersion >= 2 && !restyle) stored else legacy?.choreography?.let { if (kind == ScreenKind.MAIN) it.open else it.close }
         val ambient = storedAmbient ?: legacy?.choreography?.ambient
         val world = scene.world?.takeIf { it.size == 4 }?.let { WorldRect(it[0], it[1], it[2], it[3]) }
             ?: legacy?.frames?.frame(kind)
