@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fold Motion</string>
+    <string name="wallpaper_label">Fold Motion</string>
+    <string name="wallpaper_description">مشهد واحد لشاشتي هاتف Fold، مع حركة قصيرة عند الفتح والإغلاق.</string>
+
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_create">إنشاء</string>
+    <string name="nav_library">مكتبتي</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="action_continue">متابعة</string>
+    <string name="action_back">رجوع</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_retry">إعادة المحاولة</string>
+    <string name="action_close">إغلاق</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_import">استيراد</string>
+    <string name="action_apply">تطبيق</string>
+    <string name="action_generate">توليد</string>
+    <string name="action_change_idea">غيّر الفكرة</string>
+    <string name="action_play_open">محاكاة الفتح</string>
+    <string name="action_play_close">محاكاة الإغلاق</string>
+    <string name="action_edit_prompt">تعديل الوصف</string>
+    <string name="action_view_pack">فتح الحزمة</string>
+    <string name="action_open">فتح</string>
+
+    <string name="onboarding_title">خلفيات مصمّمة لهواتف Fold</string>
+    <string name="onboarding_point_scene">مشهد واحد للشاشتين: الشاشة الخارجية تعرض جزءاً منه، وعند فتح الهاتف يظهر باقي المشهد.</string>
+    <string name="onboarding_point_motion">حركة قصيرة عند الفتح أو الإغلاق، ثم تبقى الخلفية ثابتة لتوفير البطارية.</string>
+    <string name="onboarding_point_local">تُنشأ الحزم على هاتفك. لا يُرفع شيء ولا حاجة لحساب.</string>
+    <string name="onboarding_device_ok">الجهاز المكتشف: %1$s</string>
+    <string name="onboarding_device_unsupported">هذا الهاتف (%1$s) ليس من أجهزة Galaxy Z Fold المدعومة. يمكنك إنشاء الحزم ومعاينتها، لكن حركة الطي تحتاج هاتف Fold.</string>
+
+    <string name="status_verified">موثّق</string>
+    <string name="status_partial">موثّق جزئياً</string>
+    <string name="status_unverified">بانتظار اختبار الجهاز</string>
+    <string name="status_unsupported">غير مدعوم</string>
+
+    <string name="home_create_title">أنشئ خلفية Fold</string>
+    <string name="home_create_body">صِف مشهداً، أو دع التطبيق يختار فكرة لك.</string>
+    <string name="home_surprise">أنشئ لي مفاجأة</string>
+    <string name="home_ideas">أفكار</string>
+    <string name="home_recent">حزمك</string>
+    <string name="home_see_all">عرض الكل</string>
+    <string name="home_empty">لا توجد حزم بعد. إنشاء حزمة يستغرق ثوانيَ قليلة.</string>
+    <string name="badge_active">على الشاشة الرئيسية</string>
+
+    <string name="create_title">إنشاء</string>
+    <string name="create_mode_custom">وصف</string>
+    <string name="create_mode_random">فكرة عشوائية</string>
+    <string name="create_prompt_label">صِف مشهدك</string>
+    <string name="create_prompt_hint">مثال: جبال ليلية تحت هلال ونجوم</string>
+    <string name="create_examples">أمثلة</string>
+    <string name="example_1">غابة ليلية مضيئة؛ عند الفتح تظهر السماء كاملةً وتتسع النجوم، وعند الإغلاق تتجمع حول شجرة واحدة</string>
+    <string name="example_2">كثبان ذهبية ونخيل عند الغروب</string>
+    <string name="example_3">كوكب بحلقات وسط سديم بنفسجي</string>
+    <string name="example_4">بحر فيروزي عند الشروق</string>
+    <string name="create_type">نوع المشهد</string>
+    <string name="type_auto">تلقائي</string>
+    <string name="family_mountains">جبال</string>
+    <string name="family_desert">صحراء</string>
+    <string name="family_ocean">بحر</string>
+    <string name="family_space">فضاء</string>
+    <string name="family_city">مدينة</string>
+    <string name="family_abstract">تجريدي</string>
+    <string name="family_minimal">بسيط</string>
+    <string name="create_motion">الحركة</string>
+    <string name="motion_static">ثابتة</string>
+    <string name="motion_low">هادئة</string>
+    <string name="motion_medium">حيوية</string>
+    <string name="create_motion_note">خيار «تقليل الحركة» في الإعدادات يتقدّم دائماً على هذا الاختيار.</string>
+    <string name="create_understood">ما فهمه التطبيق</string>
+    <string name="create_understood_none">لم تُعرف كلمات بعد. سيُختار نوع المشهد والألوان تلقائياً.</string>
+    <string name="create_generator_note">رسّام على الجهاز: يفهم مجموعة محددة من الكلمات بالعربية والإنجليزية. ليس نموذج ذكاء اصطناعي لتوليد الصور، ونصّك لا يغادر الهاتف.</string>
+    <string name="create_idea_label">الفكرة</string>
+    <string name="create_preview_label">شكل النتيجة</string>
+    <string name="create_error_empty">اكتب بضع كلمات أولاً.</string>
+    <string name="create_error_long">اجعل الوصف أقل من 500 حرف.</string>
+
+    <string name="concept_time_night">ليل</string>
+    <string name="concept_time_dusk">غروب</string>
+    <string name="concept_time_dawn">شروق</string>
+    <string name="concept_time_day">نهار</string>
+    <string name="concept_hue_blue">أزرق</string>
+    <string name="concept_hue_teal">فيروزي</string>
+    <string name="concept_hue_green">أخضر</string>
+    <string name="concept_hue_purple">بنفسجي</string>
+    <string name="concept_hue_pink">وردي</string>
+    <string name="concept_hue_orange">برتقالي</string>
+    <string name="concept_hue_gold">ذهبي</string>
+    <string name="concept_hue_red">أحمر</string>
+    <string name="concept_el_full_moon">بدر</string>
+    <string name="concept_el_crescent">هلال</string>
+    <string name="concept_el_sun">شمس</string>
+    <string name="concept_el_stars">نجوم</string>
+    <string name="concept_el_aurora">شفق</string>
+    <string name="concept_el_pines">أشجار</string>
+    <string name="concept_el_palms">نخيل</string>
+
+    <string name="gen_title">جارٍ إنشاء حزمتك</string>
+    <string name="stage_prompt_check">فحص الوصف</string>
+    <string name="stage_storyboard">تخطيط مشهد واحد للشاشتين</string>
+    <string name="stage_anchor">رسم الشاشة الرئيسية</string>
+    <string name="stage_derive_cover">اشتقاق الشاشة الخارجية من المشهد نفسه</string>
+    <string name="stage_layers">فصل طبقات العمق</string>
+    <string name="stage_motion">تأليف حركة الفتح والإغلاق</string>
+    <string name="stage_qa">فحص الحزمة</string>
+    <string name="gen_background_note">يمكنك مغادرة هذه الشاشة. ستظهر الحزمة في مكتبتك عند اكتمالها.</string>
+    <string name="gen_failed">تعذّر إنشاء الحزمة</string>
+    <string name="gen_cancelled">أُلغي الطلب. لم يُحفظ شيء.</string>
+    <string name="gen_error_prompt_empty">الوصف فارغ.</string>
+    <string name="gen_error_prompt_too_long">الوصف أطول من 500 حرف.</string>
+    <string name="gen_error_storage_full">المساحة الحرة غير كافية. وفّر 64 ميغابايت على الأقل ثم أعد المحاولة.</string>
+    <string name="gen_error_out_of_memory">نفدت ذاكرة الهاتف. أغلق تطبيقات أخرى ثم أعد المحاولة.</string>
+    <string name="gen_error_render_failed">فشل رسم المشهد. أعد المحاولة أو غيّر الوصف.</string>
+    <string name="gen_error_validation_failed">لم تجتز الحزمة فحص الجودة (%1$s) فلم تُحفظ.</string>
+
+    <string name="preview_cover">الخارجية</string>
+    <string name="preview_main">الداخلية</string>
+    <string name="preview_both">الاثنتان</string>
+    <string name="preview_simulation_note">هذه محاكاة. على الهاتف تعمل الحركة عند تبدّل الشاشة، وتوقيتها الدقيق يعتمد على One UI.</string>
+    <string name="preview_details">التفاصيل</string>
+    <string name="preview_check">فحص الحزمة</string>
+    <string name="preview_check_passed">ناجح</string>
+    <string name="preview_check_failed">فاشل: %1$s</string>
+    <string name="preview_profile">مصمّمة لـ</string>
+    <string name="preview_size">الحجم</string>
+    <string name="preview_motion">الحركة</string>
+    <string name="preview_source">المصدر</string>
+    <string name="source_created">أُنشئت على هذا الهاتف</string>
+    <string name="source_imported">مستوردة</string>
+    <string name="apply_lock_note">في شاشة النظام اضغط «تعيين الخلفية»، واختر الشاشة الرئيسية، أو الرئيسية وشاشة القفل.</string>
+    <string name="apply_in_place">طُبّقت. شاشتك الرئيسية تعرض هذه الحزمة الآن.</string>
+    <string name="apply_done">طُبّقت. أغلق الهاتف وافتحه لترى الحركة.</string>
+    <string name="apply_not_done">لم تتغير الخلفية. يحتاج Android أن تضغط «تعيين الخلفية».</string>
+    <string name="apply_unsupported">هذا الهاتف لا يسمح بتعيين خلفية حية.</string>
+    <string name="apply_missing">لم تعد هذه الحزمة موجودة على الهاتف.</string>
+    <string name="apply_profile_mismatch">صُمّمت هذه الحزمة لـ %1$s وليس لهذا الهاتف، وقد لا تناسب شاشاته.</string>
+    <string name="delete_confirm_title">حذف هذه الحزمة؟</string>
+    <string name="delete_confirm_body">ستُزال من هذا الهاتف. النسخ التي شاركتها لا تتأثر.</string>
+    <string name="delete_active">هذه الحزمة على شاشتك الرئيسية. طبّق حزمة أخرى قبل حذفها.</string>
+    <string name="share_chooser">مشاركة حزمة Fold</string>
+
+    <string name="tab_created">من إنشائي</string>
+    <string name="tab_imported">المستوردة</string>
+    <string name="tab_applied">المطبّقة</string>
+    <string name="library_empty_created">الحزم التي تنشئها تظهر هنا.</string>
+    <string name="library_empty_imported">استورد ملفات ‎.foldpack التي شاركها معك الآخرون.</string>
+    <string name="library_empty_applied">الحزم التي تطبّقها تظهر هنا.</string>
+    <string name="import_done">استُوردت: %1$s</string>
+    <string name="import_exists">هذه الحزمة موجودة في مكتبتك.</string>
+    <string name="import_rejected">لم تُستورد: %1$s</string>
+    <string name="reject_not_a_foldpack">الصورة أو الفيديو وحده ليس حزمة Fold</string>
+    <string name="reject_unsupported_profile">صُمّمت لموديل هاتف مختلف</string>
+    <string name="reject_schema_too_new">تحتاج إصداراً أحدث من التطبيق</string>
+    <string name="reject_unsafe">يحتوي الملف على محتوى غير آمن أو غير مدعوم</string>
+    <string name="reject_damaged">الملف تالف أو ناقص</string>
+    <string name="reject_static">لا تحتوي على حركة طي</string>
+    <string name="reject_too_large">الملف كبير جداً</string>
+
+    <string name="settings_device">موديل الجهاز للمعاينة</string>
+    <string name="settings_device_auto">تلقائي: %1$s</string>
+    <string name="settings_device_note">تستخدم المعاينات والحزم الجديدة هذا الموديل. أما الخلفية نفسها فتستخدم دائماً شاشات هذا الهاتف الحقيقية.</string>
+    <string name="settings_reduced_motion">تقليل الحركة</string>
+    <string name="settings_reduced_motion_body">عرض الحالة النهائية دون حركة الفتح والإغلاق. إعداد النظام «إزالة الرسوم المتحركة» يفعل الشيء نفسه.</string>
+    <string name="settings_language">اللغة</string>
+    <string name="lang_system">لغة النظام</string>
+    <string name="settings_lab">مختبر الطي</string>
+    <string name="settings_lab_body">أحداث المحرك وتوقيت الطي، لاختبار جهاز Fold7.</string>
+    <string name="settings_limits">قيود معروفة</string>
+    <string name="settings_limits_body">• الحركة خاصة بالخلفية، ولا يمكنها التحكم في انتقال Samsung بين الشاشتين أو حركة شاشة القفل.\n• إذا ظهرت الشاشة الجديدة بعد أكثر من 3 ثوانٍ من الطي (مثلاً داخل تطبيق آخر) تُعرض الحالة النهائية دون حركة.\n• قد يحتفظ One UI بخلفيتين منفصلتين للشاشتين. مختبر الطي يسجّل سلوك هذا الهاتف.\n• يرسم الحزمَ رسّامٌ على الجهاز، وليس نموذج ذكاء اصطناعي. التوليد السحابي ومعرض المجتمع ليسا ضمن هذا الإصدار.</string>
+    <string name="settings_privacy">الخصوصية</string>
+    <string name="settings_privacy_body">لا حساب، ولا إذن إنترنت، ولا تحليلات. يُستخدم الوصف أثناء التوليد فقط، وتحتفظ الحزمة ببصمة (hash) لا بالنص. تبقى الحزم على هاتفك ما لم تشاركها.</string>
+    <string name="settings_version">الإصدار %1$s</string>
+
+    <string name="lab_posture">الوضعية كما يراها التطبيق</string>
+    <string name="lab_window">النافذة: %1$d × %2$d بكسل</string>
+    <string name="lab_hinge">زاوية المفصل</string>
+    <string name="lab_hinge_none">لا يوجد حسّاس مفصل في هذا الهاتف</string>
+    <string name="lab_profile">ملف الجهاز</string>
+    <string name="lab_match">طريقة المطابقة</string>
+    <string name="lab_wallpaper_active">Fold Motion هي الخلفية الحالية</string>
+    <string name="lab_events">أحداث المحرك</string>
+    <string name="lab_events_empty">لا أحداث بعد. طبّق حزمة، اذهب للشاشة الرئيسية، ثم أغلق الهاتف وافتحه.</string>
+    <string name="lab_export">تصدير السجل</string>
+    <string name="lab_clear">مسح</string>
+    <string name="lab_steps">خطوات الاختبار</string>
+    <string name="lab_steps_body">1. طبّق أي حزمة.\n2. اذهب للشاشة الرئيسية، أغلق الهاتف، انتظر ثانيتين، ثم افتحه. كرر 20 مرة ببطء و20 مرة بسرعة.\n3. كرر من شاشة القفل ومع وضع توفير الطاقة.\n4. صدّر السجل وأرفقه بتقرير POC مع رقم البناء المعروض أعلاه.</string>
+    <string name="yes">نعم</string>
+    <string name="no">لا</string>
+    <string name="device_unsupported_name" formatted="true">جهاز غير مدعوم</string>
+    <string name="create_prompt_counter" formatted="true">%1$d / %2$d</string>
+    <string name="preview_motion_value" formatted="true">%1$s · فتح %2$d م.ث · إغلاق %3$d م.ث</string>
+    <string name="preview_size_value" formatted="true">%1$.1f ميغابايت</string>
+    <string name="gen_ready" formatted="true">اكتملت في %1$.1f ث</string>
+</resources>

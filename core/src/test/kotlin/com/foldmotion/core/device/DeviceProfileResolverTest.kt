@@ -69,7 +69,7 @@ class DeviceProfileResolverTest {
         val coverH = fold7.cover.heightMm!!
         val mainH = fold7.main!!.heightMm!!
         val coverW = fold7.cover.widthMm!!
-        val mainW = fold7.main!!.widthMm!!
+        val mainW = fold7.main.widthMm!!
         assertEquals(151.7f, coverH, 1.5f)
         assertEquals(65.0f, coverW, 1.5f)
         assertEquals(150.7f, mainH, 1.5f)

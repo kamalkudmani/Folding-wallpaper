@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foldmotion.app/schema/foldpack-manifest.v1.json",
+  "title": "FoldPack manifest, schema version 1",
+  "description": "manifest.json at the root of a FoldPack. Mirrors com.foldmotion.core.pack.FoldPackManifest; FoldPackValidator adds the checks JSON Schema cannot express (files exist, checksums match, images are WebP of the declared size, motion never exposes the background).",
+  "type": "object",
+  "required": ["schemaVersion", "assetType", "id", "title", "createdAt", "creationSource", "profileIds", "scenes", "transitions", "previews", "colors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "assetType": { "const": "FOLD_LIVE_WALLPAPER" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },
+    "packageVersion": { "type": "integer", "minimum": 1, "default": 1 },
+    "title": {
+      "type": "object",
+      "required": ["ar", "en"],
+      "properties": { "ar": { "type": "string", "maxLength": 80 }, "en": { "type": "string", "maxLength": 80 } },
+      "additionalProperties": false
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "creationSource": { "enum": ["LOCAL_PROCEDURAL", "CLOUD_AI", "UPLOAD"] },
+    "author": { "type": ["string", "null"], "maxLength": 80 },
+    "license": { "type": "string", "default": "PERSONAL_USE" },
+    "contentRating": { "type": "string", "default": "EVERYONE" },
+    "profileIds": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+      "description": "Device profiles the pack was composed for, e.g. samsung_z_fold7."
+    },
+    "rendererVersion": {
+      "type": "object",
+      "required": ["min", "max"],
+      "properties": { "min": { "type": "integer", "minimum": 1 }, "max": { "type": "integer", "minimum": 1 } },
+      "default": { "min": 1, "max": 1 }
+    },
+    "isStaticOnly": { "const": false, "description": "Static-only packs are rejected; the field exists so an upload can state it honestly." },
+    "motionIntensity": { "enum": ["STATIC_END", "LOW", "MEDIUM"], "default": "LOW" },
+    "scenes": {
+      "type": "object",
+      "required": ["cover", "main"],
+      "properties": { "cover": { "$ref": "#/$defs/scene" }, "main": { "$ref": "#/$defs/scene" } },
+      "additionalProperties": false
+    },
+    "transitions": {
+      "type": "object",
+      "required": ["open", "close"],
+      "properties": { "open": { "$ref": "#/$defs/transitionRef" }, "close": { "$ref": "#/$defs/transitionRef" } },
+      "additionalProperties": false
+    },
+    "previews": {
+      "type": "object",
+      "required": ["cover", "main"],
+      "properties": { "cover": { "$ref": "#/$defs/path" }, "main": { "$ref": "#/$defs/path" } }
+    },
+    "colors": {
+      "type": "object",
+      "required": ["primary", "secondary", "tertiary", "background"],
+      "properties": {
+        "primary": { "$ref": "#/$defs/hex" },
+        "secondary": { "$ref": "#/$defs/hex" },
+        "tertiary": { "$ref": "#/$defs/hex" },
+        "background": { "$ref": "#/$defs/hex" }
+      }
+    },
+    "generation": {
+      "type": ["object", "null"],
+      "description": "Recipe for reproducing or auditing a generated pack. Never contains the prompt text.",
+      "properties": {
+        "provider": { "type": "string" },
+        "providerVersion": { "type": "string" },
+        "seed": { "type": "integer" },
+        "family": { "type": ["string", "null"] },
+        "promptSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "mode": { "enum": ["CUSTOM", "RANDOM"] }
+      },
+      "required": ["provider", "providerVersion", "seed"]
+    },
+    "tags": { "type": "array", "items": { "type": "string", "maxLength": 40 }, "maxItems": 20 }
+  },
+  "$defs": {
+    "path": {
+      "type": "string",
+      "maxLength": 120,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){0,2}$",
+      "description": "Relative path inside the pack. No absolute paths, no '..', at most three segments."
+    },
+    "hex": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "unitRect": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": { "type": "number", "minimum": -0.5, "maximum": 1.5 },
+      "description": "[left, top, right, bottom] in the normalised frame of the screen; values outside 0..1 are overscan."
+    },
+    "scene": {
+      "type": "object",
+      "required": ["baseWidth", "baseHeight", "focus", "layers"],
+      "properties": {
+        "baseWidth": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "baseHeight": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "focus": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+        "safeZone": { "$ref": "#/$defs/unitRect" },
+        "layers": {
+          "type": "array", "minItems": 1, "maxItems": 6,
+          "description": "Back to front. The first layer must be opaque and cover the frame.",
+          "items": {
+            "type": "object",
+            "required": ["id", "path", "width", "height", "rect", "depth"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9_]{1,24}$" },
+              "path": { "$ref": "#/$defs/path" },
+              "width": { "type": "integer", "minimum": 1, "maximum": 4096 },
+              "height": { "type": "integer", "minimum": 1, "maximum": 4096 },
+              "rect": { "$ref": "#/$defs/unitRect" },
+              "depth": { "type": "number", "minimum": 0, "maximum": 1 },
+              "opaque": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      }
+    },
+    "transitionRef": {
+      "type": "object",
+      "required": ["file", "durationMs"],
+      "properties": {
+        "file": { "$ref": "#/$defs/path" },
+        "durationMs": { "type": "integer", "minimum": 250, "maximum": 650 }
+      }
+    }
+  }
+}

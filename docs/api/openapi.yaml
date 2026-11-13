@@ -1,0 +1,221 @@
+openapi: 3.1.0
+info:
+  title: Fold Motion API
+  version: 1.0.0-draft
+  description: |
+    Draft contract for the cloud phase (blueprint sections 14-17). Nothing in app v0.1 calls it:
+    the APK has no INTERNET permission and generates packs on the device.
+
+    Rules that apply to every endpoint:
+    - JSON errors share one shape: { requestId, error: { code, message, details } }.
+    - The client sends deviceProfileId only, never a device serial or advertising id.
+    - POST /v1/generations requires Idempotency-Key; a repeat returns the original job.
+    - Status codes: 401 invalid session, 403 not allowed, 409 state conflict, 422 invalid input,
+      429 rate limited (Retry-After set), 503 provider unavailable (retryable).
+    - Clients poll with exponential backoff plus jitter (start 1 s, cap 15 s), never every 100 ms.
+servers:
+  - url: https://api.example.invalid
+    description: Placeholder. The real host is decided by the project owner (open decision D1).
+security:
+  - bearer: []
+paths:
+  /v1/devices:
+    get:
+      summary: Supported device profiles and their verification status
+      security: []
+      responses:
+        "200":
+          description: Profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profiles: { type: array, items: { $ref: "#/components/schemas/DeviceProfile" } }
+  /v1/generations:
+    post:
+      summary: Start a generation job
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GenerationRequest" }
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /v1/generations/{id}:
+    get:
+      summary: Job status
+      parameters: [ { $ref: "#/components/parameters/Id" } ]
+      responses:
+        "200":
+          description: Job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "404": { $ref: "#/components/responses/Error" }
+  /v1/generations/{id}/cancel:
+    post:
+      summary: Request cancellation (honoured only while the provider allows it)
+      parameters: [ { $ref: "#/components/parameters/Id" } ]
+      responses:
+        "200":
+          description: Cancellation state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /v1/wallpapers:
+    get:
+      summary: Public gallery, filtered to packs that passed validation for the profile
+      security: []
+      parameters:
+        - { in: query, name: profileId, required: true, schema: { type: string } }
+        - { in: query, name: cursor, schema: { type: string } }
+        - { in: query, name: family, schema: { type: string } }
+        - { in: query, name: motion, schema: { enum: [STATIC_END, LOW, MEDIUM] } }
+        - { in: query, name: sort, schema: { enum: [new, popular, editors] } }
+      responses:
+        "200":
+          description: Page of results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results: { type: array, items: { $ref: "#/components/schemas/WallpaperSummary" } }
+                  cursor: { type: [string, "null"] }
+  /v1/wallpapers/{id}:
+    get:
+      summary: Pack details and a short-lived signed download URL
+      parameters: [ { $ref: "#/components/parameters/Id" } ]
+      responses:
+        "200":
+          description: Details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WallpaperDetail" }
+  /v1/uploads/init:
+    post:
+      summary: Get a signed upload URL for a .foldpack archive
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sizeBytes, sha256]
+              properties:
+                sizeBytes: { type: integer, maximum: 100663296 }
+                sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+      responses:
+        "200":
+          description: Upload slot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadId: { type: string }
+                  signedUrl: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+                  constraints: { type: object, properties: { maxBytes: { type: integer }, contentType: { const: application/zip } } }
+  /v1/reports:
+    post:
+      summary: Report a pack or a creator
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetId, reason]
+              properties:
+                targetId: { type: string }
+                reason: { enum: [COPYRIGHT, OFFENSIVE, SEXUAL, VIOLENCE, SPAM, BROKEN, OTHER] }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: Report stored
+          content:
+            application/json:
+              schema: { type: object, properties: { reportId: { type: string } } }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  parameters:
+    Id: { in: path, name: id, required: true, schema: { type: string } }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [requestId, error]
+      properties:
+        requestId: { type: string }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [PROMPT_TOO_LONG, UNSUPPORTED_PROFILE, QUOTA_EXCEEDED] }
+            message: { type: string }
+            details: { type: object }
+            retryable: { type: boolean }
+    DeviceProfile:
+      type: object
+      properties:
+        id: { type: string, examples: [samsung_z_fold7] }
+        marketingName: { type: string }
+        verification: { enum: [VERIFIED, PARTIAL, UNVERIFIED, UNSUPPORTED] }
+        profileVersion: { type: integer }
+    GenerationRequest:
+      type: object
+      required: [deviceProfileId, mode]
+      properties:
+        deviceProfileId: { type: string }
+        mode: { enum: [CUSTOM, RANDOM] }
+        prompt: { type: string, minLength: 1, maxLength: 500 }
+        family: { type: string }
+        motionIntensity: { enum: [STATIC_END, LOW, MEDIUM], default: LOW }
+        visibility: { enum: [PRIVATE], default: PRIVATE, description: "Publishing is a separate, reviewed step." }
+    Job:
+      type: object
+      properties:
+        jobId: { type: string }
+        status: { enum: [QUEUED, GENERATING, COMPOSING, VALIDATING, READY, FAILED, CANCEL_REQUESTED, CANCELLED] }
+        progressStage: { enum: [PROMPT_CHECK, STORYBOARD, ANCHOR, DERIVE_COVER, LAYERS, MOTION_PACK, QA] }
+        artifactIds: { type: array, items: { type: string }, description: Present only when READY }
+        error: { $ref: "#/components/schemas/Error" }
+    WallpaperSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: object, properties: { ar: { type: string }, en: { type: string } } }
+        previewCoverUrl: { type: string, format: uri }
+        previewMainUrl: { type: string, format: uri }
+        profileIds: { type: array, items: { type: string } }
+        motionIntensity: { type: string }
+        validationStatus: { const: PASSED }
+    WallpaperDetail:
+      allOf:
+        - $ref: "#/components/schemas/WallpaperSummary"
+        - type: object
+          properties:
+            author: { type: string }
+            license: { type: string }
+            packageVersion: { type: integer }
+            sizeBytes: { type: integer }
+            sha256: { type: string }
+            downloadUrl: { type: string, format: uri, description: Signed, expires within minutes }

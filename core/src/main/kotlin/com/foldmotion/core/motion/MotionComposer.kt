@@ -67,8 +67,12 @@ object MotionComposer {
             val gain = if (intensity == MotionIntensity.MEDIUM) 1.6f else 1f
             for (layer in layers) {
                 val wanted = 1f - (0.02f + 0.05f * layer.depth) * gain
-                // Zooming out is only safe as far as the layer's overscan allows.
-                val floor = MotionSafety.minSafeScale(focusX, focusY, layer.left, layer.top, layer.right, layer.bottom)
+                // Zooming out an opaque layer is only safe as far as its overscan allows.
+                val floor = if (layer.opaque) {
+                    MotionSafety.minSafeScale(focusX, focusY, layer.left, layer.top, layer.right, layer.bottom)
+                } else {
+                    0f
+                }
                 val scale = max(wanted, floor + 0.004f).coerceAtMost(1f)
                 tracks += MotionTrack(MotionSampler.layerTarget(layer.id), from = TrackPose(scale = scale))
             }
