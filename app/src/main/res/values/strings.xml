@@ -178,6 +178,13 @@
     <string name="lang_system">System default</string>
     <string name="settings_lab">Fold Lab</string>
     <string name="settings_lab_body">Engine events and fold timing, for the device test of the Fold7.</string>
+    <string name="report_title">Report a problem</string>
+    <string name="report_body">Something looks wrong or stutters? Send it to the developer with the details needed to fix it.</string>
+    <string name="report_hint">Say what you did and what you saw, for example: "Folded with the screen on, the animation froze for a second." Your phone model, Android version and app settings are added for you.</string>
+    <string name="report_placeholder">What happened?</string>
+    <string name="report_trace">Attach the Fold Lab trace (fold timing, no personal data)</string>
+    <string name="report_send">Send…</string>
+    <string name="report_chooser">Send the report with</string>
     <string name="settings_limits">Known limitations</string>
     <string name="settings_limits_body">• The motion is the wallpaper\'s own. It cannot control Samsung\'s screen switch animation or the lock screen animation.\n• If the new screen appears more than 3 seconds after folding (for example inside another app), the end state is shown without motion.\n• One UI may keep separate wallpapers for the cover and main screens. Fold Lab records how this phone behaves.\n• Packs are drawn by an on-device illustrator, not an AI model. Cloud generation and the community gallery are not part of this version.</string>
     <string name="settings_privacy">Privacy</string>

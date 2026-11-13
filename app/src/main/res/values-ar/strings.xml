@@ -168,6 +168,13 @@
     <string name="lang_system">لغة النظام</string>
     <string name="settings_lab">مختبر الطي</string>
     <string name="settings_lab_body">أحداث المحرك وتوقيت الطي، لاختبار جهاز Fold7.</string>
+    <string name="report_title">الإبلاغ عن مشكلة</string>
+    <string name="report_body">هل يبدو شيء خاطئاً أو متقطعاً؟ أرسله إلى المطوّر مع التفاصيل اللازمة لإصلاحه.</string>
+    <string name="report_hint">اكتب ماذا فعلت وماذا رأيت، مثلاً: «طويت الهاتف والشاشة تعمل فتجمّدت الحركة لثانية». يُضاف طراز هاتفك وإصدار أندرويد وإعدادات التطبيق تلقائياً.</string>
+    <string name="report_placeholder">ماذا حدث؟</string>
+    <string name="report_trace">إرفاق سجل مختبر الفولد (توقيت الطيّ، بلا بيانات شخصية)</string>
+    <string name="report_send">إرسال…</string>
+    <string name="report_chooser">أرسل التقرير عبر</string>
     <string name="settings_limits">قيود معروفة</string>
     <string name="settings_limits_body">• الحركة خاصة بالخلفية، ولا يمكنها التحكم في انتقال Samsung بين الشاشتين أو حركة شاشة القفل.\n• إذا ظهرت الشاشة الجديدة بعد أكثر من 3 ثوانٍ من الطي (مثلاً داخل تطبيق آخر) تُعرض الحالة النهائية دون حركة.\n• قد يحتفظ One UI بخلفيتين منفصلتين للشاشتين. مختبر الطي يسجّل سلوك هذا الهاتف.\n• يرسم الحزمَ رسّامٌ على الجهاز، وليس نموذج ذكاء اصطناعي. التوليد السحابي ومعرض المجتمع ليسا ضمن هذا الإصدار.</string>
     <string name="settings_privacy">الخصوصية</string>

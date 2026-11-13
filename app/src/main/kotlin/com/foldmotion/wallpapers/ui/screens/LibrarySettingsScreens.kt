@@ -51,6 +51,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import com.foldmotion.wallpapers.telemetry.ProblemReport
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -205,6 +212,15 @@ fun SettingsScreen(vm: MainViewModel, onLab: () -> Unit) {
             Text(stringResource(R.string.settings_lab_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
         }
 
+        // Testers: describe a problem and send it, with the facts and the trace, to whoever they choose.
+        var reporting by rememberSaveable { mutableStateOf(false) }
+        val reportInteraction = remember { MutableInteractionSource() }
+        GlassCard(Modifier.fillMaxWidth().padding(top = 10.dp).pressScale(reportInteraction, 0.97f).clickable(reportInteraction, indication = null) { reporting = true }.testTag("report_problem")) {
+            Text(stringResource(R.string.report_title), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.report_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+        }
+        if (reporting) ReportDialog(vm) { reporting = false }
+
         SectionTitle(stringResource(R.string.settings_limits))
         GlassCard(Modifier.fillMaxWidth()) { Text(stringResource(R.string.settings_limits_body), style = MaterialTheme.typography.bodyMedium) }
         SectionTitle(stringResource(R.string.settings_privacy))
@@ -212,6 +228,56 @@ fun SettingsScreen(vm: MainViewModel, onLab: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
     }
+}
+
+/** What went wrong, in the tester's words, plus the facts; sent through the share sheet. */
+@Composable
+private fun ReportDialog(vm: MainViewModel, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var note by rememberSaveable { mutableStateOf("") }
+    var withTrace by rememberSaveable { mutableStateOf(true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = FmColors.Surface2,
+        title = { Text(stringResource(R.string.report_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.report_hint), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it.take(2_000) },
+                    placeholder = { Text(stringResource(R.string.report_placeholder)) },
+                    minLines = 4,
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("report_text"),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp).clickable { withTrace = !withTrace }) {
+                    Checkbox(checked = withTrace, onCheckedChange = { withTrace = it }, colors = CheckboxDefaults.colors(checkedColor = FmColors.Aurora))
+                    Text(stringResource(R.string.report_trace), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                lifecycleOwner.lifecycleScope.launch {
+                    val active = vm.activePackId.value?.let { id -> vm.packs.value.firstOrNull { it.id == id } }
+                    val facts = ProblemReport.Facts(
+                        device = vm.device.value,
+                        wallpaperActive = withContext(Dispatchers.IO) { vm.container.apply.isOurWallpaperActive() },
+                        activePack = active?.id,
+                        activeStyle = active?.manifest?.motionStyle,
+                        video = active?.manifest?.video != null,
+                        livingMotion = vm.livingMotion.value.name,
+                        reducedMotion = vm.reducedMotion.value,
+                    )
+                    val intent = withContext(Dispatchers.IO) { ProblemReport.intent(context, note, facts, withTrace) }
+                    context.startActivity(Intent.createChooser(intent, context.getString(R.string.report_chooser)))
+                    onDismiss()
+                }
+            }, modifier = Modifier.testTag("report_send")) { Text(stringResource(R.string.report_send)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 @Composable
