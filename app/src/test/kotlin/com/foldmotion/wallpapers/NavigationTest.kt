@@ -6,8 +6,12 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -17,6 +21,7 @@ import com.foldmotion.wallpapers.ui.MainViewModel
 import com.foldmotion.wallpapers.ui.Routes
 import com.foldmotion.wallpapers.ui.theme.FoldMotionTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -86,7 +91,8 @@ class NavigationTest {
         assertEquals(Routes.CREATE, route())
         rule.runOnUiThread { vm.startRandom("aurora_peaks") }
         settle()
-        rule.onNodeWithText("Generate").performScrollTo().performClick()
+        // Tap the button itself: scrolled just into view it sits under the floating bar.
+        rule.onNodeWithText("Generate").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
         settle()
         assertEquals(Routes.GENERATING, route())
         val deadline = System.currentTimeMillis() + 60_000
@@ -94,7 +100,7 @@ class NavigationTest {
             ShadowLooper.idleMainLooper()
             Thread.sleep(200)
         }
-        rule.onNodeWithText("Open pack").performScrollTo().performClick()
+        rule.onNodeWithText("Open pack").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
         settle()
         assertEquals(Routes.PREVIEW, route())
     }
@@ -123,6 +129,30 @@ class NavigationTest {
         assertEquals(Routes.CREATE, route())
         tab("Home")
         assertEquals(Routes.HOME, route())
+    }
+
+    @Test
+    fun `a discover wallpaper becomes yours in one tap`() {
+        start()
+        rule.onNodeWithTag("discover_grid").performScrollToNode(hasTestTag("discover_aurora_peaks"))
+        rule.onNodeWithTag("discover_aurora_peaks").performClick()
+        settle()
+        assertEquals(Routes.DISCOVER, route())
+        rule.onNodeWithTag("discover_get").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+        val deadline = System.currentTimeMillis() + 60_000
+        while (route() != Routes.PREVIEW && System.currentTimeMillis() < deadline) {
+            ShadowLooper.idleMainLooper()
+            rule.waitForIdle()
+            Thread.sleep(200)
+        }
+        assertEquals(Routes.PREVIEW, route())
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val made = AppContainer.get(app).packStore.list().first { it.manifest.title.en == "Aurora over the peaks" }
+        // Back from the new wallpaper returns to Discover, not to the detail it replaced.
+        rule.onNodeWithContentDescription("Back").performClick()
+        settle()
+        assertEquals(Routes.HOME, route())
+        assertTrue(made.manifest.motionStyle != null)
     }
 
     @Test

@@ -5,7 +5,7 @@
     <string name="wallpaper_description">One scene for both screens of your Fold, with a short motion when you open or close it.</string>
 
     <!-- Navigation and common actions -->
-    <string name="nav_home">Home</string>
+    <string name="nav_home">Discover</string>
     <string name="nav_create">Create</string>
     <string name="nav_library">Library</string>
     <string name="nav_settings">Settings</string>
@@ -294,4 +294,19 @@
     <string name="badge_video">Video</string>
     <string name="preview_scene">Scene</string>
     <string name="preview_scene_video">Video %1$d × %2$d, %3$.1f s loop</string>
+    <string name="discover_title">Discover</string>
+    <string name="discover_subtitle">Wallpapers made for the Fold, closed and open.</string>
+    <string name="discover_all">All</string>
+    <string name="discover_video">Video</string>
+    <string name="discover_night">Night</string>
+    <string name="discover_sample_title">Liquid light</string>
+    <string name="discover_sample_body">Real video: aurora light flowing across both screens without end, with the fold animation playing on top.</string>
+    <string name="discover_create_title">Create your own</string>
+    <string name="discover_create_body">Describe a scene, pick a random idea, or use your video.</string>
+    <string name="discover_get">Get this wallpaper</string>
+    <string name="discover_preparing">Preparing…</string>
+    <string name="discover_both">Closed and open</string>
+    <string name="discover_closed">Closed</string>
+    <string name="discover_open">Open</string>
+    <string name="discover_style_hint">Shown above with %1$s. Pick another to see it on this wallpaper first.</string>
 </resources>

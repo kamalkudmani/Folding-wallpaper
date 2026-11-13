@@ -1,5 +1,7 @@
 package com.foldmotion.wallpapers.ui.screens
 
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed as staggeredItemsIndexed
+
 import android.content.Intent
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -114,7 +116,6 @@ fun LibraryScreen(vm: MainViewModel, onOpenPack: (String) -> Unit) {
         1 -> R.string.library_empty_imported
         else -> R.string.library_empty_applied
     }
-    val columns = if (LocalConfiguration.current.screenWidthDp >= 600) 3 else 1
 
     Column(Modifier.fillMaxSize()) {
         ReadableColumn(Modifier.padding(top = 14.dp)) {
@@ -132,15 +133,16 @@ fun LibraryScreen(vm: MainViewModel, onOpenPack: (String) -> Unit) {
                 GlassCard(Modifier.fillMaxWidth()) { Text(stringResource(emptyText), color = FmColors.TextMuted) }
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = NavClearance),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+            // The same wall as Discover: your wallpapers on the closed and the open phone.
+            androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid(
+                columns = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells.Adaptive(168.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = NavClearance),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalItemSpacing = 18.dp,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                itemsIndexed(shown, key = { _, it -> "${tab}_${it.id}" }) { i, pack ->
-                    PackCard(pack, language, pack.id == active, vm::preview, { onOpenPack(pack.id) }, Modifier.staggerIn(i))
+                staggeredItemsIndexed(shown, key = { _, it -> "${tab}_${it.id}" }) { i, pack ->
+                    PackCard(pack, language, pack.id == active, vm::preview, { onOpenPack(pack.id) }, Modifier.staggerIn(i), layoutIndex = i)
                 }
             }
         }

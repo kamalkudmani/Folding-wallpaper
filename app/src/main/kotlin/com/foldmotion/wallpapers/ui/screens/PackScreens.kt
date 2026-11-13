@@ -1,5 +1,7 @@
 package com.foldmotion.wallpapers.ui.screens
 
+import androidx.compose.ui.draw.blur
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -299,8 +301,26 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
         }
     }
 
+    val version = pack.manifest.packageVersion
+    val coverImage = com.foldmotion.wallpapers.ui.components.rememberDeviceImage(
+        com.foldmotion.wallpapers.ui.components.DeviceImage.File(java.io.File(pack.dir, pack.manifest.previews.cover), version), 720,
+    )
+    val mainImage = com.foldmotion.wallpapers.ui.components.rememberDeviceImage(
+        com.foldmotion.wallpapers.ui.components.DeviceImage.File(java.io.File(pack.dir, pack.manifest.previews.main), version), 1080,
+    )
+    val glowColor = remember(pack.manifest.colors.primary) {
+        Color(com.foldmotion.wallpapers.render.LoadedScene.parseColor(pack.manifest.colors.primary, android.graphics.Color.WHITE))
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 600.dp
+        // The wallpaper's own light behind the page, blurred, fading into the background.
+        mainImage?.let {
+            androidx.compose.foundation.Image(
+                it, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(520.dp).blur(48.dp), alpha = 0.5f,
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(522.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x330A0B0F), FmColors.Night))))
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             ReadableColumn(Modifier.padding(top = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.staggerIn(0)) {
@@ -352,6 +372,18 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
                 Text(stringResource(R.string.preview_simulation_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 10.dp))
                 Spacer(Modifier.height(16.dp))
                 GradientButton(stringResource(R.string.action_apply), ::apply, Modifier.fillMaxWidth(), leading = Icons.Filled.Check, height = 60.dp)
+
+                SectionTitle(stringResource(R.string.discover_both))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(0.34f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        com.foldmotion.wallpapers.ui.components.FoldedDevice(coverImage, Modifier.fillMaxWidth(), glowColor)
+                        Text(stringResource(R.string.discover_closed), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    Column(Modifier.weight(0.66f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        com.foldmotion.wallpapers.ui.components.UnfoldedDevice(mainImage, Modifier.fillMaxWidth(), glowColor)
+                        Text(stringResource(R.string.discover_open), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
 
                 SectionTitle(stringResource(R.string.style_title))
                 Text(

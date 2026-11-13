@@ -1,5 +1,25 @@
 package com.foldmotion.wallpapers.ui.components
 
+import androidx.compose.ui.semantics.semantics
+
+import androidx.compose.ui.semantics.contentDescription
+
+import androidx.compose.animation.fadeOut
+
+import androidx.compose.animation.fadeIn
+
+import androidx.compose.animation.shrinkHorizontally
+
+import androidx.compose.animation.expandHorizontally
+
+import androidx.compose.animation.AnimatedVisibility
+
+import androidx.compose.ui.graphics.lerp
+
+import androidx.compose.ui.draw.drawBehind
+
+import androidx.compose.ui.draw.shadow
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -293,59 +313,75 @@ fun PillToggle(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mo
 
 data class NavItem(val label: String, val icon: ImageVector)
 
-/** Floating glass navigation bar with a sliding gradient indicator. */
+/**
+ * Floating navigation: a dark pill of icons; the current tab grows into a light capsule with its
+ * name, the way premium apps keep the chrome quiet and the content in front.
+ */
 @Composable
 fun FloatingNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
     val haptics = LocalHapticFeedback.current
-    BoxWithConstraints(
+    Row(
         modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .height(64.dp)
+            .shadow(24.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(shape)
-            .background(Color(0xCC0B1626))
-            .border(1.dp, FmColors.glassBorder, shape)
-            .padding(6.dp),
+            .background(Color(0xF0121318))
+            .border(1.dp, Color(0x1FFFFFFF), shape)
+            .padding(7.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        val itemWidth = maxWidth / items.size
-        val offset by animateDpAsState(itemWidth * selected.coerceAtLeast(0), spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), label = "nav")
-        if (selected >= 0) {
-            Box(
+        items.forEachIndexed { i, item ->
+            val chosen = i == selected
+            val weight by animateFloatAsState(if (chosen) 1.9f else 1f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), label = "navWeight")
+            val fill by animateFloatAsState(if (chosen) 1f else 0f, tween(220), label = "navFill")
+            Row(
                 Modifier
-                    .offset(x = offset)
-                    .width(itemWidth)
+                    .weight(weight)
                     .fillMaxHeight()
                     .clip(shape)
-                    .background(Brush.horizontalGradient(listOf(FmColors.Aurora.copy(alpha = 0.32f), FmColors.Violet.copy(alpha = 0.32f)))),
-            )
-        }
-        Row(Modifier.fillMaxSize()) {
-            items.forEachIndexed { i, item ->
-                val chosen = i == selected
-                val scale by animateFloatAsState(if (chosen) 1.12f else 1f, spring(dampingRatio = 0.5f), label = "icon")
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(shape)
-                        .clickable(role = Role.Tab) {
-                            if (!chosen) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSelect(i)
-                        }
-                        .testTag("nav_$i"),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(
-                        item.icon, contentDescription = null,
-                        tint = if (chosen) FmColors.Aurora else FmColors.TextMuted,
-                        modifier = Modifier.size(22.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+                    .background(Color.White.copy(alpha = 0.95f * fill))
+                    .clickable(role = Role.Tab) {
+                        if (!chosen) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(i)
+                    }
+                    .semantics { contentDescription = item.label }
+                    .testTag("nav_$i"),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    item.icon, contentDescription = null,
+                    tint = lerp(Color(0xFFB8BEC8), Color(0xFF0A0B0F), fill),
+                    modifier = Modifier.size(22.dp),
+                )
+                AnimatedVisibility(chosen, enter = fadeIn(tween(200)) + expandHorizontally(), exit = fadeOut(tween(120)) + shrinkHorizontally()) {
+                    Text(
+                        item.label, style = MaterialTheme.typography.labelLarge, color = Color(0xFF0A0B0F), maxLines = 1,
+                        modifier = Modifier.padding(start = 8.dp),
                     )
-                    Text(item.label, style = MaterialTheme.typography.labelMedium, color = if (chosen) FmColors.Text else FmColors.TextMuted, maxLines = 1)
                 }
             }
         }
     }
+}
+
+/** The app's backdrop: near-black with a faint cool light from the top, so pictures carry the colour. */
+@Composable
+fun PremiumBackground(modifier: Modifier = Modifier) {
+    Box(
+        modifier.fillMaxSize().background(FmColors.Night).drawBehind {
+            drawRect(
+                Brush.radialGradient(
+                    listOf(Color(0xFF1A2433).copy(alpha = 0.85f), Color(0x00000000)),
+                    center = Offset(size.width * 0.5f, -size.height * 0.08f),
+                    radius = size.width * 1.1f,
+                ),
+            )
+        },
+    )
 }
 
 /** Small glass chip. */

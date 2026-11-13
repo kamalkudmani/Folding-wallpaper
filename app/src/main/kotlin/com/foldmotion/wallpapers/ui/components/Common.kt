@@ -1,5 +1,7 @@
 package com.foldmotion.wallpapers.ui.components
 
+import androidx.compose.ui.graphics.Color
+
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -103,37 +105,47 @@ fun PackCard(
     pack: StoredPack,
     language: String,
     active: Boolean,
-    loader: suspend (StoredPack, ScreenKind, Int) -> Bitmap?,
+    @Suppress("UNUSED_PARAMETER") loader: suspend (StoredPack, ScreenKind, Int) -> Bitmap?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    layoutIndex: Int = 0,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = MaterialTheme.shapes.large
-    Column(
-        modifier
-            .pressScale(interaction, 0.96f)
-            .clip(shape)
-            .background(FmColors.Glass)
-            .border(1.dp, if (active) FmColors.primaryGradient else FmColors.glassBorder, shape)
-            .clickable(interaction, indication = null, onClick = onClick)
-            .padding(10.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
-            PackThumbnail(pack, ScreenKind.COVER, loader, Modifier.weight(0.32f))
-            PackThumbnail(pack, ScreenKind.MAIN, loader, Modifier.weight(0.68f))
+    val version = pack.manifest.packageVersion
+    val cover = rememberDeviceImage(DeviceImage.File(java.io.File(pack.dir, pack.manifest.previews.cover), version), 360)
+    val main = rememberDeviceImage(DeviceImage.File(java.io.File(pack.dir, pack.manifest.previews.main), version), 520)
+    val glow = remember(pack.manifest.colors.primary) { Color(LoadedSceneColors.parse(pack.manifest.colors.primary)) }
+    val back = remember(pack.manifest.colors.background) { Color(LoadedSceneColors.parse(pack.manifest.colors.background)) }
+    val layouts = listOf(PairLayout.OVERLAP, PairLayout.SIDE, PairLayout.TALL, PairLayout.SIDE)
+    Column(modifier.pressScale(interaction, 0.97f).clickable(interaction, indication = null, onClick = onClick)) {
+        Box(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(26.dp))
+                .background(Brush.radialGradient(listOf(glow.copy(alpha = 0.3f), back.copy(alpha = 0.9f), Color(0xFF0B0C10))))
+                .border(if (active) 2.dp else 0.dp, if (active) FmColors.primaryGradient else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)), RoundedCornerShape(26.dp))
+                .padding(10.dp),
+        ) {
+            FoldPair(cover, main, layouts[layoutIndex % layouts.size], glow = glow)
         }
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 6.dp, end = 4.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 pack.manifest.title.forLanguage(language),
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                modifier = Modifier.weight(1f),
             )
             if (pack.manifest.video != null) StatusPill(stringResource(R.string.badge_video), accent = false)
             if (active) StatusPill(stringResource(R.string.badge_active), accent = true)
         }
+    }
+}
+
+private object LoadedSceneColors {
+    fun parse(hex: String): Int = try {
+        android.graphics.Color.parseColor(hex)
+    } catch (e: IllegalArgumentException) {
+        android.graphics.Color.BLACK
     }
 }
 

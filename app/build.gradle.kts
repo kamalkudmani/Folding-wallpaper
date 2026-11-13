@@ -24,8 +24,8 @@ android {
         // WallpaperService.Engine.getDisplayContext. Fold7 ships with Android 16.
         minSdk = 30
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.5.0"
+        versionCode = 7
+        versionName = "0.6.0"
     }
 
     signingConfigs {
@@ -100,6 +100,7 @@ android {
                 it.systemProperty("foldmotion.screenshotDir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
                 // Optional review renders: -Dfoldmotion.videoFrames=<folder of PNG frames>.
                 System.getProperty("foldmotion.videoFrames")?.let { dir -> it.systemProperty("foldmotion.videoFrames", dir) }
+                System.getProperty("foldmotion.discoverOut")?.let { dir -> it.systemProperty("foldmotion.discoverOut", dir) }
             }
         }
     }

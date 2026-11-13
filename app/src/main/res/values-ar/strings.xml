@@ -4,7 +4,7 @@
     <string name="wallpaper_label">Fold Motion</string>
     <string name="wallpaper_description">مشهد واحد لشاشتي هاتف Fold، مع حركة قصيرة عند الفتح والإغلاق.</string>
 
-    <string name="nav_home">الرئيسية</string>
+    <string name="nav_home">اكتشف</string>
     <string name="nav_create">إنشاء</string>
     <string name="nav_library">مكتبتي</string>
     <string name="nav_settings">الإعدادات</string>
@@ -283,4 +283,19 @@
     <string name="badge_video">فيديو</string>
     <string name="preview_scene">المشهد</string>
     <string name="preview_scene_video">فيديو %1$d × %2$d، تكرار %3$.1f ث</string>
+    <string name="discover_title">اكتشف</string>
+    <string name="discover_subtitle">خلفيات مصممة لهاتف Fold، مغلقًا ومفتوحًا.</string>
+    <string name="discover_all">الكل</string>
+    <string name="discover_video">فيديو</string>
+    <string name="discover_night">ليل</string>
+    <string name="discover_sample_title">ضوء سائل</string>
+    <string name="discover_sample_body">فيديو حقيقي: ضوء شفق يتدفق عبر الشاشتين بلا نهاية، وحركة الطي تعمل فوقه.</string>
+    <string name="discover_create_title">اصنع خلفيتك</string>
+    <string name="discover_create_body">صِف مشهدًا، أو اختر فكرة عشوائية، أو استخدم الفيديو الخاص بك.</string>
+    <string name="discover_get">احصل على هذه الخلفية</string>
+    <string name="discover_preparing">جارٍ التجهيز…</string>
+    <string name="discover_both">مغلق ومفتوح</string>
+    <string name="discover_closed">مغلق</string>
+    <string name="discover_open">مفتوح</string>
+    <string name="discover_style_hint">المعروض أعلاه بحركة %1$s. اختر غيرها لتراها على هذه الخلفية أولًا.</string>
 </resources>

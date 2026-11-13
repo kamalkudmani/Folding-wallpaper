@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+
 package com.foldmotion.wallpapers.ui
 
 import android.os.Bundle
@@ -30,7 +32,15 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.foldmotion.wallpapers.ui.components.AuroraBackground
+import com.foldmotion.wallpapers.ui.components.LocalNavScope
+import com.foldmotion.wallpapers.ui.components.LocalSharedScope
+import com.foldmotion.wallpapers.ui.components.PremiumBackground
+import com.foldmotion.wallpapers.ui.discover.DiscoverDetailScreen
+import com.foldmotion.wallpapers.ui.discover.DiscoverScreen
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
 import com.foldmotion.wallpapers.ui.components.FloatingNavBar
 import com.foldmotion.wallpapers.ui.components.NavItem
 import com.foldmotion.wallpapers.ui.theme.FmColors
@@ -62,7 +72,6 @@ import androidx.navigation.navArgument
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.ui.screens.CreateScreen
 import com.foldmotion.wallpapers.ui.screens.GeneratingScreen
-import com.foldmotion.wallpapers.ui.screens.HomeScreen
 import com.foldmotion.wallpapers.ui.screens.LabScreen
 import com.foldmotion.wallpapers.ui.screens.LibraryScreen
 import com.foldmotion.wallpapers.ui.screens.OnboardingScreen
@@ -97,6 +106,7 @@ class MainActivity : ComponentActivity() {
 object Routes {
     const val ONBOARDING = "onboarding"
     const val HOME = "home"
+    const val DISCOVER = "discover/{itemId}"
     const val CREATE = "create"
     const val GENERATING = "generating"
     const val PREVIEW = "preview/{packId}"
@@ -105,6 +115,7 @@ object Routes {
     const val LAB = "lab"
 
     fun preview(id: String) = "preview/$id"
+    fun discover(id: String) = "discover/$id"
 }
 
 private data class Tab(val route: String, val label: Int, val icon: ImageVector)
@@ -115,6 +126,15 @@ private val tabs = listOf(
     Tab(Routes.LIBRARY, R.string.nav_library, Icons.AutoMirrored.Filled.List),
     Tab(Routes.SETTINGS, R.string.nav_settings, Icons.Filled.Settings),
 )
+
+/** A destination whose content can take part in shared-element transitions. */
+private fun NavGraphBuilder.screen(
+    route: String,
+    arguments: List<androidx.navigation.NamedNavArgument> = emptyList(),
+    content: @Composable (NavBackStackEntry) -> Unit,
+) = composable(route, arguments = arguments) { entry ->
+    CompositionLocalProvider(LocalNavScope provides this) { content(entry) }
+}
 
 @Composable
 fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavController()) {
@@ -133,66 +153,70 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
     val tabIndex = tabs.indexOfFirst { it.route == route }
 
     Box(Modifier.fillMaxSize()) {
-        AuroraBackground(animate = !reduced)
+        PremiumBackground()
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
-            NavHost(
-                nav,
-                startDestination = if (vm.onboardingDone) Routes.HOME else Routes.ONBOARDING,
-                enterTransition = { fadeIn(tween(320)) + scaleIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f) },
-                exitTransition = { fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.03f) },
-                popEnterTransition = { fadeIn(tween(300)) + scaleIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), initialScale = 1.04f) },
-                popExitTransition = { fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 0.94f) },
-            ) {
-                composable(Routes.ONBOARDING) {
-                    OnboardingScreen(vm) {
-                        vm.onboardingDone = true
-                        nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+            SharedTransitionLayout {
+                CompositionLocalProvider(LocalSharedScope provides this) {
+                NavHost(
+                    nav,
+                    startDestination = if (vm.onboardingDone) Routes.HOME else Routes.ONBOARDING,
+                    enterTransition = { fadeIn(tween(320)) + scaleIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f) },
+                    exitTransition = { fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.03f) },
+                    popEnterTransition = { fadeIn(tween(300)) + scaleIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), initialScale = 1.04f) },
+                    popExitTransition = { fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 0.94f) },
+                ) {
+                    screen(Routes.ONBOARDING) {
+                        OnboardingScreen(vm) {
+                            vm.onboardingDone = true
+                            nav.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                        }
                     }
+                    screen(Routes.HOME) {
+                        DiscoverScreen(
+                            vm,
+                            onOpen = { id -> nav.navigate(Routes.discover(id)) },
+                            onCreate = {
+                                vm.updateForm { it.copy(mode = com.foldmotion.core.scene.GenerationMode.CUSTOM, videoMode = false) }
+                                nav.navigate(Routes.CREATE)
+                            },
+                        )
+                    }
+                    screen(Routes.DISCOVER, arguments = listOf(navArgument("itemId") { type = NavType.StringType })) { e ->
+                        DiscoverDetailScreen(
+                            vm, e.arguments?.getString("itemId") ?: "",
+                            onBack = { nav.popBackStack() },
+                            onPackReady = { id -> nav.navigate(Routes.preview(id)) { popUpTo(Routes.DISCOVER) { inclusive = true } } },
+                        )
+                    }
+                    screen(Routes.CREATE) {
+                        CreateScreen(
+                            vm,
+                            onGenerate = { nav.navigate(Routes.GENERATING) },
+                            onOpenPack = { id -> nav.navigate(Routes.preview(id)) },
+                        )
+                    }
+                    screen(Routes.GENERATING) {
+                        GeneratingScreen(
+                            vm,
+                            onReady = { id ->
+                                vm.dismissJob()
+                                nav.navigate(Routes.preview(id)) { popUpTo(Routes.GENERATING) { inclusive = true } }
+                            },
+                            onEdit = {
+                                vm.dismissJob()
+                                nav.navigate(Routes.CREATE) { popUpTo(Routes.GENERATING) { inclusive = true } }
+                            },
+                            onClose = { nav.popBackStack() },
+                        )
+                    }
+                    screen(Routes.PREVIEW, arguments = listOf(navArgument("packId") { type = NavType.StringType })) { e ->
+                        PreviewScreen(vm, e.arguments?.getString("packId") ?: "", onBack = { nav.popBackStack() })
+                    }
+                    screen(Routes.LIBRARY) { LibraryScreen(vm, onOpenPack = { nav.navigate(Routes.preview(it)) }) }
+                    screen(Routes.SETTINGS) { SettingsScreen(vm, onLab = { nav.navigate(Routes.LAB) }) }
+                    screen(Routes.LAB) { LabScreen(vm) }
                 }
-                composable(Routes.HOME) {
-                    HomeScreen(
-                        vm,
-                        onCreate = {
-                            vm.updateForm { it.copy(mode = com.foldmotion.core.scene.GenerationMode.CUSTOM) }
-                            nav.navigate(Routes.CREATE)
-                        },
-                        onSurprise = {
-                            vm.startRandom()
-                            nav.navigate(Routes.CREATE)
-                        },
-                        onIdea = { idea -> if (vm.generateIdea(idea.id)) nav.navigate(Routes.GENERATING) },
-                        onOpenPack = { nav.navigate(Routes.preview(it)) },
-                        onLibrary = { nav.navigate(Routes.LIBRARY) },
-                        onSettings = { nav.navigate(Routes.SETTINGS) },
-                    )
                 }
-                composable(Routes.CREATE) {
-                    CreateScreen(
-                        vm,
-                        onGenerate = { nav.navigate(Routes.GENERATING) },
-                        onOpenPack = { id -> nav.navigate(Routes.preview(id)) },
-                    )
-                }
-                composable(Routes.GENERATING) {
-                    GeneratingScreen(
-                        vm,
-                        onReady = { id ->
-                            vm.dismissJob()
-                            nav.navigate(Routes.preview(id)) { popUpTo(Routes.GENERATING) { inclusive = true } }
-                        },
-                        onEdit = {
-                            vm.dismissJob()
-                            nav.navigate(Routes.CREATE) { popUpTo(Routes.GENERATING) { inclusive = true } }
-                        },
-                        onClose = { nav.popBackStack() },
-                    )
-                }
-                composable(Routes.PREVIEW, arguments = listOf(navArgument("packId") { type = NavType.StringType })) { e ->
-                    PreviewScreen(vm, e.arguments?.getString("packId") ?: "", onBack = { nav.popBackStack() })
-                }
-                composable(Routes.LIBRARY) { LibraryScreen(vm, onOpenPack = { nav.navigate(Routes.preview(it)) }) }
-                composable(Routes.SETTINGS) { SettingsScreen(vm, onLab = { nav.navigate(Routes.LAB) }) }
-                composable(Routes.LAB) { LabScreen(vm) }
             }
         }
 

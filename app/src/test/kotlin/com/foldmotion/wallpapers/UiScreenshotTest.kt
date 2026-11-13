@@ -106,6 +106,11 @@ class UiScreenshotTest {
             FoldMotionTheme { FoldMotionApp(vm, nav) }
         }
         shoot("${prefix}_01_home")
+        rule.runOnUiThread { nav.navigate(Routes.discover("aurora_peaks")) }
+        Thread.sleep(800)
+        shoot("${prefix}_01b_discover_detail")
+        rule.runOnUiThread { nav.popBackStack() }
+        settle()
         rule.runOnUiThread {
             val photo = IntArray(4000) { i -> if (i < 2400) 0xFF46144A.toInt() else if (i < 3400) 0xFF1E0A28.toInt() else 0xFFFA8C3C.toInt() }
             vm.updateForm {

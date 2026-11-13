@@ -9,6 +9,13 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**0.6: Discover**, a Pinterest-style wall where every wallpaper is shown on the closed and the
+open Fold7; tap one to see it fold and unfold live in any style, then make it yours in one tap.
+
+| Discover · detail · library · Arabic (cover screen) | Discover on the open main screen |
+|---|---|
+| ![discover](docs/screenshots/discover-0.6.jpg) | ![discover main](docs/screenshots/discover-main-0.6.jpg) |
+
 **Seven fold animation styles** (each with an unfold and a fold variant; chosen automatically per
 scene, picked when creating, or changed on any pack from its preview):
 [comparison video](docs/motion/fold-styles-0.4.mp4) · **video wallpaper with fold styles:**
@@ -83,7 +90,7 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 141 tests, Robolectric with real Skia rendering
+./gradlew :core:test :app:testDebugUnitTest   # 142 tests, Robolectric with real Skia rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ```
 

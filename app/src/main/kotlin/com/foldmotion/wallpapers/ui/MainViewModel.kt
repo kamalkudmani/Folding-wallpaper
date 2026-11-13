@@ -291,14 +291,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** The built-in sample clip, copied out of the app so it can be read like a picked one. */
     fun pickSampleVideo() {
         viewModelScope.launch {
-            val file = withContext(Dispatchers.IO) {
-                val out = java.io.File(getApplication<Application>().cacheDir, "samples/liquid-light.mp4")
-                if (!out.isFile) {
-                    out.parentFile?.mkdirs()
-                    getApplication<Application>().assets.open("samples/liquid-light.mp4").use { input -> out.outputStream().use { input.copyTo(it) } }
-                }
-                out
-            }
+            val file = withContext(Dispatchers.IO) { sampleVideoFile() }
             pickVideo(android.net.Uri.fromFile(file), sample = true)
         }
     }
@@ -322,21 +315,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (_videoJob.value is VideoJob.Running) return false
         _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.TRIM, 0f)
         videoWork = viewModelScope.launch {
+            runVideoJob(
+                com.foldmotion.wallpapers.generator.video.VideoRequest(
+                    uri = v.uri,
+                    startMs = v.startMs,
+                    endMs = v.endMs,
+                    style = f.style,
+                    intensity = f.intensity,
+                    crossfadeLoop = v.crossfade,
+                    seed = random.nextLong(),
+                    title = if (v.sample) SAMPLE_TITLE else com.foldmotion.core.pack.LocalizedText("فيديو خاص بي", "My video"),
+                    prepared = v.sample,
+                ),
+            )
+        }
+        return true
+    }
+
+    /** Discover: the sample video as a wallpaper of your own, in the chosen fold style. */
+    fun createSampleVideoWallpaper(style: FoldStyle) {
+        if (_videoJob.value is VideoJob.Running) return
+        _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.TRIM, 0f)
+        videoWork = viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) { sampleVideoFile() }
+            val uri = android.net.Uri.fromFile(file)
+            val length = withContext(Dispatchers.IO) { container.videoTools.probe(uri)?.durationMs } ?: 10_000L
+            runVideoJob(
+                com.foldmotion.wallpapers.generator.video.VideoRequest(
+                    uri = uri, startMs = 0, endMs = minOf(length, com.foldmotion.wallpapers.generator.video.VideoPackBuilder.MAX_SEGMENT_MS),
+                    style = style, seed = random.nextLong(), title = SAMPLE_TITLE, prepared = true,
+                ),
+            )
+        }
+    }
+
+    /** Discover: a curated idea made into a pack exactly as pictured (same seed), in [style]. */
+    fun getDiscoverIdea(item: com.foldmotion.wallpapers.ui.discover.DiscoverItem, style: FoldStyle): Boolean {
+        val ideaId = item.idea?.id ?: return false
+        container.generation.dismiss()
+        container.generation.start(
+            GenerationRequest(
+                idempotencyKey = UUID.randomUUID().toString(),
+                deviceProfileId = profile.id,
+                mode = GenerationMode.RANDOM,
+                ideaId = ideaId,
+                motionIntensity = MotionIntensity.LOW,
+                seed = item.entry.seed,
+                motionStyle = style,
+            ),
+            profile,
+        )
+        return true
+    }
+
+    private fun sampleVideoFile(): java.io.File {
+        val out = java.io.File(getApplication<Application>().cacheDir, "samples/liquid-light.mp4")
+        if (!out.isFile) {
+            out.parentFile?.mkdirs()
+            getApplication<Application>().assets.open("samples/liquid-light.mp4").use { input -> out.outputStream().use { input.copyTo(it) } }
+        }
+        return out
+    }
+
+    private suspend fun runVideoJob(request: com.foldmotion.wallpapers.generator.video.VideoRequest) {
+        run {
             try {
-                val pack = container.videoBuilder.build(
-                    com.foldmotion.wallpapers.generator.video.VideoRequest(
-                        uri = v.uri,
-                        startMs = v.startMs,
-                        endMs = v.endMs,
-                        style = f.style,
-                        intensity = f.intensity,
-                        crossfadeLoop = v.crossfade,
-                        seed = random.nextLong(),
-                        title = if (v.sample) com.foldmotion.core.pack.LocalizedText("ضوء سائل", "Liquid light") else com.foldmotion.core.pack.LocalizedText("فيديو خاص بي", "My video"),
-                        prepared = v.sample,
-                    ),
-                    profile,
-                ) { stage, progress -> _videoJob.value = VideoJob.Running(stage, progress) }
+                val pack = container.videoBuilder.build(request, profile) { stage, progress -> _videoJob.value = VideoJob.Running(stage, progress) }
                 _videoJob.value = VideoJob.Done(pack.id)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 _videoJob.value = null
@@ -355,7 +399,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _videoJob.value = VideoJob.Failed(R.string.video_error_unreadable)
             }
         }
-        return true
     }
 
     fun cancelVideo() {
@@ -506,6 +549,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        val SAMPLE_TITLE = com.foldmotion.core.pack.LocalizedText("ضوء سائل", "Liquid light")
         const val REFERENCE_SAMPLE_PX = 96
 
         fun rejectReason(codes: List<ValidationCode>): Int {

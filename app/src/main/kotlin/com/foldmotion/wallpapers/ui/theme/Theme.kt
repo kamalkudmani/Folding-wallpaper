@@ -19,8 +19,9 @@ import androidx.compose.ui.unit.sp
  * and a teal-to-violet accent with a warm gold highlight.
  */
 object FmColors {
-    val Night = Color(0xFF050B14)
-    val NightHigh = Color(0xFF0A1424)
+    // Near-black, slightly cool: wallpapers bring the colour (0.6 "content first" redesign).
+    val Night = Color(0xFF0A0B0F)
+    val NightHigh = Color(0xFF16171D)
     val Aurora = Color(0xFF2DE1C2)
     val AuroraDeep = Color(0xFF0FA89A)
     val Violet = Color(0xFF8B7CFF)
