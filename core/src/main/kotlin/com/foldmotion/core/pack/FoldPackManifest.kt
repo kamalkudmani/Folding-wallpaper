@@ -31,6 +31,8 @@ data class FoldPackManifest(
     val motionIntensity: MotionIntensity = MotionIntensity.LOW,
     val scenes: Scenes,
     val transitions: Transitions,
+    /** v2: motion/ambient.json, the motion that runs between folds. */
+    val ambient: String? = null,
     val previews: Previews,
     val colors: PackColors,
     val generation: GenerationRecipe? = null,
@@ -69,6 +71,8 @@ data class SceneEntry(
     val safeZone: List<Float> = listOf(0.08f, 0.12f, 0.92f, 0.88f),
     /** Back to front. The first layer must be opaque and cover the frame. */
     val layers: List<LayerEntry>,
+    /** v2: world rect [l, t, r, b] this frame shows, so ambient motion lines up across screens. */
+    val world: List<Float>? = null,
 ) {
     val focusX: Float get() = focus.getOrElse(0) { 0.5f }
     val focusY: Float get() = focus.getOrElse(1) { 0.5f }

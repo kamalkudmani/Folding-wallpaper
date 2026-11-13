@@ -7,7 +7,33 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Snackbar
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldmotion.wallpapers.ui.components.AuroraBackground
+import com.foldmotion.wallpapers.ui.components.FloatingNavBar
+import com.foldmotion.wallpapers.ui.components.NavItem
+import com.foldmotion.wallpapers.ui.theme.FmColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
@@ -15,9 +41,6 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -97,6 +120,7 @@ private val tabs = listOf(
 fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavController()) {
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val reduced by vm.reducedMotion.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
         vm.messages.collect { m ->
             when (m) {
@@ -106,34 +130,19 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
     }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    val showBar = route in tabs.map { it.route }
+    val tabIndex = tabs.indexOfFirst { it.route == route }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            if (showBar) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    for (tab in tabs) {
-                        NavigationBarItem(
-                            selected = route == tab.route,
-                            onClick = {
-                                nav.navigate(tab.route) {
-                                    popUpTo(Routes.HOME) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(tab.icon, contentDescription = null) },
-                            label = { Text(stringResource(tab.label)) },
-                        )
-                    }
-                }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            NavHost(nav, startDestination = if (vm.onboardingDone) Routes.HOME else Routes.ONBOARDING) {
+    Box(Modifier.fillMaxSize()) {
+        AuroraBackground(animate = !reduced)
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+            NavHost(
+                nav,
+                startDestination = if (vm.onboardingDone) Routes.HOME else Routes.ONBOARDING,
+                enterTransition = { fadeIn(tween(320)) + scaleIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f) },
+                exitTransition = { fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.03f) },
+                popEnterTransition = { fadeIn(tween(300)) + scaleIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), initialScale = 1.04f) },
+                popExitTransition = { fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 0.94f) },
+            ) {
                 composable(Routes.ONBOARDING) {
                     OnboardingScreen(vm) {
                         vm.onboardingDone = true
@@ -179,6 +188,36 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
                 composable(Routes.SETTINGS) { SettingsScreen(vm, onLab = { nav.navigate(Routes.LAB) }) }
                 composable(Routes.LAB) { LabScreen(vm) }
             }
+        }
+
+        // Floating glass navigation, only on the four top-level screens.
+        AnimatedVisibility(
+            visible = tabIndex >= 0,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            FloatingNavBar(
+                items = tabs.map { NavItem(stringResource(it.label), it.icon) },
+                selected = tabIndex,
+                onSelect = { i ->
+                    nav.navigate(tabs[i].route) {
+                        popUpTo(Routes.HOME) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                modifier = Modifier
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 18.dp, vertical = 12.dp)
+                    .widthIn(max = 560.dp),
+            )
+        }
+        SnackbarHost(
+            snackbar,
+            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = if (tabIndex >= 0) 92.dp else 16.dp, start = 16.dp, end = 16.dp),
+        ) { data ->
+            Snackbar(data, containerColor = FmColors.NightHigh, contentColor = FmColors.Text, shape = RoundedCornerShape(20.dp))
         }
     }
 }

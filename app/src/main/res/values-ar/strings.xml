@@ -217,4 +217,21 @@
     <string name="a11y_stage_waiting">بالانتظار</string>
     <string name="a11y_frame_cover">معاينة الشاشة الخارجية</string>
     <string name="a11y_frame_main">معاينة الشاشة الداخلية</string>
+    <string name="demo_closed">مغلق · الشاشة الخارجية</string>
+    <string name="demo_unfolding">يُفتح…</string>
+    <string name="demo_open">مفتوح · الشاشة الداخلية</string>
+    <string name="demo_folding">يُطوى…</string>
+    <string name="home_hero_title">هاتفك Fold ينبض بالحياة</string>
+    <string name="home_hero_body">افتح الهاتف فيتفتح المشهد معه، واطوِه فيتجمع الضوء من جديد.</string>
+    <string name="home_hero_empty">أنشئ أول خلفية حية لك</string>
+    <string name="preview_mode_demo">عرض الطي</string>
+    <string name="settings_living">الحركة الحية</string>
+    <string name="living_full">كاملة</string>
+    <string name="living_subtle">خفيفة</string>
+    <string name="living_off">متوقفة</string>
+    <string name="settings_living_body">بين كل طي وآخر تتلألأ النجوم وينساب الضوء وتتنفس الطبقات. تتوقف عند إطفاء الشاشة وفي توفير الطاقة ومع تقليل الحركة.</string>
+    <string name="settings_tilt">عمق مع إمالة الهاتف</string>
+    <string name="settings_tilt_body">تتبع الطبقات القريبة حركة الهاتف بلطف عند إمالته.</string>
+    <string name="onboarding_cta">ابدأ</string>
+    <string name="gen_shaping">نُشكّل مشهدك</string>
 </resources>

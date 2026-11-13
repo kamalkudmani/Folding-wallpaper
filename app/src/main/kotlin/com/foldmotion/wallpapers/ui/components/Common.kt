@@ -3,6 +3,9 @@ package com.foldmotion.wallpapers.ui.components
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,26 +53,24 @@ import com.foldmotion.wallpapers.ui.theme.FmColors
 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Row(modifier.padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(3.dp).height(18.dp).background(FmColors.Gold, RoundedCornerShape(2.dp)))
-        Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    Row(modifier.padding(top = 22.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(4.dp).height(18.dp).clip(RoundedCornerShape(2.dp)).background(FmColors.primaryGradient))
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.titleMedium)
     }
 }
 
 @Composable
 fun StatusPill(text: String, modifier: Modifier = Modifier, accent: Boolean = false) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = if (accent) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier
+            .clip(shape)
+            .background(if (accent) Brush.horizontalGradient(listOf(FmColors.Aurora.copy(alpha = 0.28f), FmColors.Violet.copy(alpha = 0.28f))) else Brush.horizontalGradient(listOf(FmColors.Glass, FmColors.Glass)))
+            .border(1.dp, FmColors.glassBorder, shape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = if (accent) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(text, style = MaterialTheme.typography.labelMedium, color = if (accent) FmColors.Text else FmColors.TextMuted, maxLines = 1)
     }
 }
 
@@ -87,8 +88,8 @@ fun PackThumbnail(
     Box(
         modifier
             .aspectRatio(scene.baseWidth / scene.baseHeight.toFloat())
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            .clip(RoundedCornerShape(14.dp))
+            .background(FmColors.GlassStrong),
     ) {
         bitmap?.let {
             Image(it.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -96,7 +97,7 @@ fun PackThumbnail(
     }
 }
 
-/** Card with cover and main previews side by side, title and badges. */
+/** Glass card with cover and main previews side by side, title and badges. */
 @Composable
 fun PackCard(
     pack: StoredPack,
@@ -106,27 +107,31 @@ fun PackCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.medium,
+    val interaction = remember { MutableInteractionSource() }
+    val shape = MaterialTheme.shapes.large
+    Column(
+        modifier
+            .pressScale(interaction, 0.96f)
+            .clip(shape)
+            .background(FmColors.Glass)
+            .border(1.dp, if (active) FmColors.primaryGradient else FmColors.glassBorder, shape)
+            .clickable(interaction, indication = null, onClick = onClick)
+            .padding(10.dp),
     ) {
-        Column(Modifier.padding(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
-                PackThumbnail(pack, ScreenKind.COVER, loader, Modifier.weight(0.32f))
-                PackThumbnail(pack, ScreenKind.MAIN, loader, Modifier.weight(0.68f))
-            }
-            Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+            PackThumbnail(pack, ScreenKind.COVER, loader, Modifier.weight(0.32f))
+            PackThumbnail(pack, ScreenKind.MAIN, loader, Modifier.weight(0.68f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 pack.manifest.title.forLanguage(language),
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
             )
-            if (active) {
-                Spacer(Modifier.height(4.dp))
-                StatusPill(stringResource(R.string.badge_active), accent = true)
-            }
+            if (active) StatusPill(stringResource(R.string.badge_active), accent = true)
         }
     }
 }

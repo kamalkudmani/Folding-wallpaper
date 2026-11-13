@@ -2,7 +2,13 @@ package com.foldmotion.core.pack
 
 import com.foldmotion.core.CoreInfo
 import com.foldmotion.core.device.DeviceProfileRegistry
+import com.foldmotion.core.motion.AmbientSpec
+import com.foldmotion.core.motion.AmbientSystem
+import com.foldmotion.core.motion.HaloSpec
 import com.foldmotion.core.motion.MotionComposer
+import com.foldmotion.core.motion.ParticleBurst
+import com.foldmotion.core.motion.RevealSpec
+import com.foldmotion.core.motion.SpringSpec
 import com.foldmotion.core.motion.MotionIntensity
 import com.foldmotion.core.motion.MotionLayer
 import com.foldmotion.core.motion.MotionSpec
@@ -50,6 +56,7 @@ class FoldPackValidatorTest {
     private fun buildPack(
         mutateManifest: (FoldPackManifest) -> FoldPackManifest = { it },
         openSpec: MotionSpec? = null,
+        ambient: AmbientSpec? = null,
     ): File {
         val dir = tmp.newFolder("pack${packCounter++}")
         val cover = SceneEntry(1080, 2520, listOf(0.5f, 0.4f), layers = listOf(
@@ -74,6 +81,7 @@ class FoldPackValidatorTest {
         File(dir, "motion/open.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), open))
         File(dir, "motion/close.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), close))
 
+        if (ambient != null) File(dir, AmbientSpec.FILE).writeText(CoreInfo.json.encodeToString(AmbientSpec.serializer(), ambient))
         val manifest = mutateManifest(
             FoldPackManifest(
                 id = "pack-test-1",
@@ -87,6 +95,7 @@ class FoldPackValidatorTest {
                     TransitionRef("motion/close.json", close.durationMs),
                 ),
                 previews = Previews("previews/cover.webp", "previews/main.webp"),
+                ambient = if (ambient != null) AmbientSpec.FILE else null,
                 colors = PackColors("#112233", "#445566", "#778899", "#000000"),
             ),
         )
@@ -102,6 +111,47 @@ class FoldPackValidatorTest {
         val report = validator.validate(buildPack(), DeviceProfileRegistry.FOLD7_ID)
         assertTrue(report.issues.toString(), report.passed)
         assertEquals("PASSED", report.status)
+    }
+
+    private val goodAmbient = AmbientSpec(
+        halo = HaloSpec(0.4f, 0.36f, 0.17f, "#FFF0C0"),
+        systems = listOf(
+            AmbientSystem(AmbientSystem.TWINKLE, 70, listOf("#FFFFFF"), listOf(-1f, -0.1f, 1f, 0.6f), 0.001f, 0.004f),
+            AmbientSystem(AmbientSystem.FIREFLY, 18, listOf("#FFE38A"), listOf(-1f, 0.7f, 1f, 1f), 0.002f, 0.004f, after = "near"),
+        ),
+    )
+
+    @Test
+    fun `v2 pack with spring motion and living motion passes`() {
+        val spring = MotionSpec(
+            schemaVersion = 2, kind = MotionSpec.KIND_OPEN, durationMs = 1100, pivot = listOf(0.7f, 0.4f),
+            tracks = listOf(MotionTrack("layer:far", TrackPose(scale = 1.06f))),
+            spring = SpringSpec.settlingIn(1100, 0.78f),
+            reveal = RevealSpec(RevealSpec.UNFOLD, listOf(0.45f, 0f, 0.93f, 1f)),
+            particles = listOf(ParticleBurst(ParticleBurst.BURST, 100, listOf("#FFFFFF"), listOf(0.7f, 0.4f), 0.7f, 0.003f, 0.01f)),
+        )
+        val report = validator.validate(buildPack(openSpec = spring, ambient = goodAmbient))
+        assertTrue(report.issues.toString(), report.passed)
+    }
+
+    @Test
+    fun `living motion out of bounds is rejected`() {
+        val tooMany = goodAmbient.copy(systems = goodAmbient.systems.map { it.copy(count = 5000) })
+        assertTrue(validator.validate(buildPack(ambient = tooMany)).codes.contains(ValidationCode.INVALID_MOTION))
+        val badType = goodAmbient.copy(systems = listOf(goodAmbient.systems[0].copy(type = "EXPLODE")))
+        assertTrue(validator.validate(buildPack(ambient = badType)).codes.contains(ValidationCode.INVALID_MOTION))
+    }
+
+    @Test
+    fun `spring overshoot that would expose the edge is caught`() {
+        // Starts zoomed in a little and rests below 1 is fine; a strong bounce past rest at scale
+        // 0.97 would open a gap at the far layer's 4% overscan.
+        val bouncy = MotionSpec(
+            schemaVersion = 2, kind = MotionSpec.KIND_OPEN, durationMs = 1100, pivot = listOf(0.5f, 0.5f),
+            tracks = listOf(MotionTrack("layer:far", TrackPose(scale = 1.9f))),
+            spring = SpringSpec.settlingIn(1100, 0.5f),
+        )
+        assertTrue(validator.validate(buildPack(openSpec = bouncy)).codes.contains(ValidationCode.MOTION_EXPOSES_EDGE))
     }
 
     @Test

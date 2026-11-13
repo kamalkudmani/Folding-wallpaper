@@ -8,6 +8,23 @@ import android.hardware.SensorManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import com.foldmotion.wallpapers.ui.theme.FmColors
+import com.foldmotion.wallpapers.ui.components.staggerIn
+import com.foldmotion.wallpapers.ui.components.pressScale
+import com.foldmotion.wallpapers.ui.components.ScreenTitle
+import com.foldmotion.wallpapers.ui.components.PillToggle
+import com.foldmotion.wallpapers.ui.components.GlassCard
+import com.foldmotion.wallpapers.ui.components.GlassButton
+import com.foldmotion.wallpapers.data.LivingMotion
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -100,34 +117,30 @@ fun LibraryScreen(vm: MainViewModel, onOpenPack: (String) -> Unit) {
     val columns = if (LocalConfiguration.current.screenWidthDp >= 600) 3 else 1
 
     Column(Modifier.fillMaxSize()) {
-        ReadableColumn(Modifier.padding(top = 16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.nav_library), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                OutlinedButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
-                    Text(stringResource(R.string.action_import))
-                }
+        ReadableColumn(Modifier.padding(top = 14.dp)) {
+            ScreenTitle(stringResource(R.string.nav_library), Modifier.staggerIn(0)) {
+                GlassButton(stringResource(R.string.action_import), { importer.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }, leading = Icons.Filled.Add, height = 44.dp)
             }
-            Spacer(Modifier.height(8.dp))
-        }
-        PrimaryTabRow(selectedTabIndex = tab) {
-            listOf(R.string.tab_created, R.string.tab_imported, R.string.tab_applied).forEachIndexed { i, res ->
-                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(stringResource(res)) })
-            }
+            PillToggle(
+                listOf(stringResource(R.string.tab_created), stringResource(R.string.tab_imported), stringResource(R.string.tab_applied)),
+                selected = tab, onSelect = { tab = it }, modifier = Modifier.staggerIn(1),
+            )
+            Spacer(Modifier.height(12.dp))
         }
         if (shown.isEmpty()) {
-            ReadableColumn(Modifier.padding(top = 32.dp)) {
-                Text(stringResource(emptyText), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ReadableColumn(Modifier.padding(top = 24.dp)) {
+                GlassCard(Modifier.fillMaxWidth()) { Text(stringResource(emptyText), color = FmColors.TextMuted) }
             }
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = NavClearance),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(shown, key = { it.id }) { pack ->
-                    PackCard(pack, language, pack.id == active, vm::preview, { onOpenPack(pack.id) })
+                itemsIndexed(shown, key = { _, it -> "${tab}_${it.id}" }) { i, pack ->
+                    PackCard(pack, language, pack.id == active, vm::preview, { onOpenPack(pack.id) }, Modifier.staggerIn(i))
                 }
             }
         }
@@ -138,58 +151,85 @@ fun LibraryScreen(vm: MainViewModel, onOpenPack: (String) -> Unit) {
 fun SettingsScreen(vm: MainViewModel, onLab: () -> Unit) {
     val device by vm.device.collectAsStateWithLifecycle()
     val reduced by vm.reducedMotion.collectAsStateWithLifecycle()
+    val living by vm.livingMotion.collectAsStateWithLifecycle()
+    val tilt by vm.tiltParallax.collectAsStateWithLifecycle()
     var language by remember { mutableStateOf(vm.currentLanguageTag()) }
 
-    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 32.dp)) {
-        Text(stringResource(R.string.nav_settings), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = NavClearance)) {
+        ScreenTitle(stringResource(R.string.nav_settings), Modifier.staggerIn(0))
+
+        SectionTitle(stringResource(R.string.settings_living))
+        GlassCard(Modifier.fillMaxWidth().staggerIn(1)) {
+            PillToggle(
+                listOf(stringResource(R.string.living_full), stringResource(R.string.living_subtle), stringResource(R.string.living_off)),
+                selected = LivingMotion.entries.indexOf(living),
+                onSelect = { vm.setLivingMotion(LivingMotion.entries[it]) },
+            )
+            Text(stringResource(R.string.settings_living_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 10.dp))
+            Spacer(Modifier.height(10.dp))
+            SwitchRow(stringResource(R.string.settings_tilt), stringResource(R.string.settings_tilt_body), tilt && living == LivingMotion.FULL, enabled = living == LivingMotion.FULL) { vm.setTiltParallax(it) }
+            HorizontalDivider(color = FmColors.GlassStrong, modifier = Modifier.padding(vertical = 6.dp))
+            SwitchRow(stringResource(R.string.settings_reduced_motion), stringResource(R.string.settings_reduced_motion_body), reduced) { vm.setReducedMotion(it) }
+        }
 
         SectionTitle(stringResource(R.string.settings_device))
-        RadioRow(
-            selected = !device.manuallyChosen,
-            label = stringResource(R.string.settings_device_auto, profileName(device.detected.profile) + " · " + statusLabel(device.detected.profile.verification.status)),
-        ) { vm.setProfileOverride(null) }
-        for (p in DeviceProfileRegistry.selectable) {
-            RadioRow(selected = device.manuallyChosen && device.active.id == p.id, label = p.marketingName + " · " + statusLabel(p.verification.status)) { vm.setProfileOverride(p.id) }
-        }
-        Text(stringResource(R.string.settings_device_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-        SectionTitle(stringResource(R.string.settings_reduced_motion))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.settings_reduced_motion_body), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(end = 12.dp))
-            Switch(checked = reduced, onCheckedChange = vm::setReducedMotion)
+        GlassCard(Modifier.fillMaxWidth().staggerIn(2)) {
+            RadioRow(
+                selected = !device.manuallyChosen,
+                label = stringResource(R.string.settings_device_auto, profileName(device.detected.profile) + " · " + statusLabel(device.detected.profile.verification.status)),
+            ) { vm.setProfileOverride(null) }
+            for (p in DeviceProfileRegistry.selectable) {
+                RadioRow(selected = device.manuallyChosen && device.active.id == p.id, label = p.marketingName + " · " + statusLabel(p.verification.status)) { vm.setProfileOverride(p.id) }
+            }
+            Text(stringResource(R.string.settings_device_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
         }
 
         if (vm.languageSupported) {
             SectionTitle(stringResource(R.string.settings_language))
-            for ((tag, label) in listOf(null to stringResource(R.string.lang_system), "ar" to "العربية", "en" to "English")) {
-                RadioRow(selected = language == tag, label = label) {
-                    language = tag
-                    vm.setLanguage(tag)
+            GlassCard(Modifier.fillMaxWidth().staggerIn(3)) {
+                for ((tag, label) in listOf(null to stringResource(R.string.lang_system), "ar" to "العربية", "en" to "English")) {
+                    RadioRow(selected = language == tag, label = label) {
+                        language = tag
+                        vm.setLanguage(tag)
+                    }
                 }
             }
         }
 
         SectionTitle(stringResource(R.string.settings_lab))
-        Surface(Modifier.fillMaxWidth().clickable(onClick = onLab), color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium) {
-            Column(Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.settings_lab), style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(R.string.settings_lab_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        val labInteraction = remember { MutableInteractionSource() }
+        GlassCard(Modifier.fillMaxWidth().staggerIn(4).pressScale(labInteraction, 0.97f).clickable(labInteraction, indication = null, onClick = onLab)) {
+            Text(stringResource(R.string.settings_lab), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.settings_lab_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
         }
 
         SectionTitle(stringResource(R.string.settings_limits))
-        Text(stringResource(R.string.settings_limits_body), style = MaterialTheme.typography.bodyMedium)
+        GlassCard(Modifier.fillMaxWidth()) { Text(stringResource(R.string.settings_limits_body), style = MaterialTheme.typography.bodyMedium) }
         SectionTitle(stringResource(R.string.settings_privacy))
-        Text(stringResource(R.string.settings_privacy_body), style = MaterialTheme.typography.bodyMedium)
+        GlassCard(Modifier.fillMaxWidth()) { Text(stringResource(R.string.settings_privacy_body), style = MaterialTheme.typography.bodyMedium) }
         Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, body: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = if (enabled) FmColors.Text else FmColors.TextMuted)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+        }
+        Switch(
+            checked = checked, onCheckedChange = onChange, enabled = enabled,
+            colors = SwitchDefaults.colors(checkedTrackColor = FmColors.Aurora, checkedThumbColor = Color(0xFF04131A), uncheckedTrackColor = FmColors.Glass),
+        )
     }
 }
 
 @Composable
 private fun RadioRow(selected: Boolean, label: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = FmColors.Aurora))
         Text(label, style = MaterialTheme.typography.bodyLarge)
     }
 }
@@ -238,8 +278,8 @@ fun LabScreen(vm: MainViewModel) {
         }
     }
 
-    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 32.dp)) {
-        Text(stringResource(R.string.settings_lab), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 40.dp)) {
+        ScreenTitle(stringResource(R.string.settings_lab))
         Spacer(Modifier.height(8.dp))
         val build = "${device.manufacturer} ${device.model} · Android ${device.androidRelease} (SDK ${device.sdkInt}) · ${device.build}"
         SelectionContainer { Text(build, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -327,8 +367,8 @@ private fun PocSummaryCard(summary: PocSummary?) {
         Verdict.NO_GO -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.secondary
     }
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+    GlassCard(Modifier.fillMaxWidth(), strong = true) {
+        Column(Modifier.fillMaxWidth()) {
             Text(verdictLabel(summary.overall), style = MaterialTheme.typography.titleMedium, color = verdictColor, fontWeight = FontWeight.SemiBold)
             Text(
                 stringResource(R.string.lab_summary_counts, summary.switches, PocThresholds.MIN_SWITCHES),

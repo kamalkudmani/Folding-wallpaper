@@ -39,6 +39,14 @@ object SceneGeometry {
     /** Vertical centre of the world; scenes are composed around it. */
     const val CENTER_Y = 0.5f
 
+    /** World y of the horizon per family. Shared by the painter and the choreographer. */
+    fun horizonFor(family: SceneFamily): Float = when (family) {
+        SceneFamily.OCEAN -> 0.6f
+        SceneFamily.DESERT -> 0.7f
+        SceneFamily.CITY -> 0.76f
+        else -> 0.72f
+    }
+
     fun frames(profile: DeviceProfile, focusX: Float, focusY: Float): SceneFrames {
         val cover = profile.cover
         val main = profile.main ?: cover

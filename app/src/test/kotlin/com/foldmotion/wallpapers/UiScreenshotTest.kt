@@ -21,6 +21,8 @@ import com.foldmotion.wallpapers.ui.Routes
 import com.foldmotion.wallpapers.ui.theme.FoldMotionTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -92,6 +94,8 @@ class UiScreenshotTest {
     private fun tour(prefix: String) {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val ids = seedPacks(app)
+        // Screenshots must be deterministic: hold the looping fold demo and living motion still.
+        AppContainer.get(app).settings.reducedMotion = true
         val vm = MainViewModel(app)
         lateinit var nav: NavHostController
         rule.setContent {
@@ -149,6 +153,36 @@ class UiScreenshotTest {
     @Test
     @Config(sdk = [36], qualifiers = "ar-ldrtl-w750dp-h832dp-port-xhdpi")
     fun mainArabic() = tour("main_ar")
+
+    @Test
+    @Config(sdk = [36], qualifiers = "en-w750dp-h832dp-port-xhdpi")
+    fun foldDemoAngles() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val id = seedPacks(app).first()
+        val dir = AppContainer.get(app).packStore.dir(id)
+        val cover = com.foldmotion.wallpapers.render.SceneLoader.load(dir, com.foldmotion.core.device.ScreenKind.COVER, 900)
+        val main = com.foldmotion.wallpapers.render.SceneLoader.load(dir, com.foldmotion.core.device.ScreenKind.MAIN, 900)
+        rule.setContent {
+            FoldMotionTheme {
+                androidx.compose.foundation.layout.Box {
+                    com.foldmotion.wallpapers.ui.components.AuroraBackground(animate = false)
+                    androidx.compose.foundation.layout.Column {
+                        for (row in listOf(listOf(-180f, -140f, -105f), listOf(-70f, -35f, 0f))) {
+                            androidx.compose.foundation.layout.Row {
+                                for (a in row) {
+                                    com.foldmotion.wallpapers.ui.components.FoldDemo(
+                                        cover, main, DeviceProfileRegistry.fold7, 300.dp,
+                                        androidx.compose.ui.Modifier.width(250.dp), animate = false, staticAngle = a,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        shoot("fold_demo_angles")
+    }
 
     @Test
     @Config(sdk = [36], qualifiers = "ar-ldrtl-w411dp-h960dp-port-xhdpi")

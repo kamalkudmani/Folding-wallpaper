@@ -2,6 +2,10 @@ package com.foldmotion.core.motion
 
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Declarative description of one transition (motion/open.json, motion/close.json).
@@ -20,9 +24,34 @@ data class MotionSpec(
     /** Zoom centre in the normalised frame, normally the scene focus point. */
     val pivot: List<Float> = listOf(0.5f, 0.5f),
     val tracks: List<MotionTrack>,
+    /** v2: physical spring for layer tracks. When set it replaces [easing] and may overshoot. */
+    val spring: SpringSpec? = null,
+    /** v2: how the scene is uncovered: from the cover strip outwards (open) or from the focus (close). */
+    val reveal: RevealSpec? = null,
+    /** v2: short-lived light particles that belong to this transition. */
+    val particles: List<ParticleBurst> = emptyList(),
 ) {
     val pivotX: Float get() = pivot.getOrElse(0) { 0.5f }
     val pivotY: Float get() = pivot.getOrElse(1) { 0.5f }
+
+    /** Eased progress for layer tracks. Exactly 1 at the end so the last frame is the rest pose. */
+    fun ease(p: Float): Float {
+        if (p >= 1f) return 1f
+        if (p <= 0f) return 0f
+        return spring?.value(p * durationMs / 1000f) ?: easing.ease(p)
+    }
+
+    /** Lowest and highest eased value over the whole transition (springs overshoot). */
+    fun easeRange(samples: Int = 96): Pair<Float, Float> {
+        var lo = 0f
+        var hi = 1f
+        for (i in 0..samples) {
+            val v = ease(i / samples.toFloat())
+            if (v < lo) lo = v
+            if (v > hi) hi = v
+        }
+        return lo to hi
+    }
 
     companion object {
         const val KIND_OPEN = "OPEN"
@@ -31,9 +60,109 @@ data class MotionSpec(
         const val TARGET_DIM = "overlay:dim"
         const val TARGET_GLOW = "overlay:glow"
 
-        /** Blueprint section 11: 250-650 ms, to be tuned on the device. */
+        /**
+         * Blueprint section 11 started at 250-650 ms. The product owner asked for a visible fold
+         * animation, so v2 allows up to 1.8 s; the device test decides the final numbers.
+         */
         const val MIN_DURATION_MS = 250
-        const val MAX_DURATION_MS = 650
+        const val MAX_DURATION_MS = 1800
+
+        const val MAX_BURSTS = 4
+        const val MAX_PARTICLES_PER_BURST = 300
+    }
+}
+
+/**
+ * Damped spring from 0 to 1 (unit mass). dampingRatio below 1 overshoots slightly, which reads as
+ * a physical, settling motion rather than a mechanical ease.
+ */
+@Serializable
+data class SpringSpec(
+    val dampingRatio: Float = 0.8f,
+    val stiffness: Float = 60f,
+) {
+    fun value(tSec: Float): Float {
+        val zeta = dampingRatio.coerceIn(0.3f, 1f)
+        val w0 = sqrt(stiffness.coerceAtLeast(0.01f))
+        val t = tSec.coerceAtLeast(0f)
+        return if (zeta >= 0.999f) {
+            1f - exp(-w0 * t) * (1f + w0 * t)
+        } else {
+            val wd = w0 * sqrt(1f - zeta * zeta)
+            1f - exp(-zeta * w0 * t) * (cos(wd * t) + (zeta * w0 / wd) * sin(wd * t))
+        }
+    }
+
+    companion object {
+        /** Stiffness that settles to within 0.3% at [settleFraction] of [durationMs]. */
+        fun settlingIn(durationMs: Int, dampingRatio: Float, settleFraction: Float = 0.9f): SpringSpec {
+            val seconds = durationMs / 1000f * settleFraction
+            // Envelope decay e^(-c) must leave < 0.3% after the polynomial or oscillation factor,
+            // which grows as damping approaches critical (1 + w0 t instead of a bounded sine).
+            val c = 6.2f + (dampingRatio - 0.7f).coerceAtLeast(0f) * 8f
+            val w0 = c / (dampingRatio * seconds)
+            return SpringSpec(dampingRatio, w0 * w0)
+        }
+    }
+}
+
+/**
+ * UNFOLD: [from] is the rect [l,t,r,b] the scene starts from (the slice the cover was showing);
+ * it widens to the whole frame. IRIS: [from] is [cx, cy, radius] in the frame (radius as a
+ * fraction of the frame diagonal) growing until the frame is uncovered.
+ */
+@Serializable
+data class RevealSpec(
+    val type: String,
+    val from: List<Float>,
+    /** Progress at which the scene is fully uncovered. */
+    val end: Float = 0.7f,
+    /** Progress at which uncovering begins; lets light gather first on close. */
+    val start: Float = 0f,
+    /** Width of the soft edge, fraction of the frame. */
+    val softness: Float = 0.08f,
+    /** Darkness of the still-covered area, 0..1. */
+    val shade: Float = 0.85f,
+    /** Strength of the light running along the moving edge, 0..1. */
+    val edgeGlow: Float = 0.7f,
+) {
+    /** Reveal progress uses Material's emphasised deceleration: fast start, gentle landing. */
+    fun progress(p: Float): Float {
+        val span = (end - start).coerceAtLeast(0.05f)
+        // The unfold snaps open like a hinge; the iris breathes open more evenly.
+        val curve = if (type == IRIS) STANDARD else EMPHASIZED
+        return curve.ease(((p - start) / span).coerceIn(0f, 1f))
+    }
+
+    companion object {
+        const val UNFOLD = "UNFOLD"
+        const val IRIS = "IRIS"
+        val EMPHASIZED = EasingSpec(0.05f, 0.7f, 0.1f, 1f)
+        val STANDARD = EasingSpec(0.4f, 0f, 0.2f, 1f)
+    }
+}
+
+/**
+ * BURST: particles fly out from [origin]. CONVERGE: they spiral into it. Positions in the
+ * normalised frame; [spread] and sizes are fractions of the frame diagonal and of its short side.
+ */
+@Serializable
+data class ParticleBurst(
+    val mode: String,
+    val count: Int,
+    val colors: List<String>,
+    val origin: List<Float>,
+    val spread: Float,
+    val sizeMin: Float,
+    val sizeMax: Float,
+    val start: Float = 0f,
+    val end: Float = 1f,
+    val swirl: Float = 0f,
+    val seed: Int = 1,
+) {
+    companion object {
+        const val BURST = "BURST"
+        const val CONVERGE = "CONVERGE"
     }
 }
 
@@ -106,7 +235,8 @@ object MotionSampler {
     fun poseFor(spec: MotionSpec?, target: String, linearProgress: Float): TrackPose {
         val track = spec?.tracks?.firstOrNull { it.target == target }
             ?: return if (target.startsWith(MotionSpec.TARGET_LAYER_PREFIX)) TrackPose.REST else TrackPose.HIDDEN
-        val eased = spec.easing.ease(linearProgress)
+        // Overlays (glow, dim) always use the curve: a spring overshoot on opacity looks like flicker.
+        val eased = if (target.startsWith(MotionSpec.TARGET_LAYER_PREFIX)) spec.ease(linearProgress) else spec.easing.ease(linearProgress)
         return track.from.lerp(track.to, eased)
     }
 

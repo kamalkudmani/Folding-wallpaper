@@ -11,6 +11,7 @@ import android.graphics.Shader
 import com.foldmotion.core.scene.Celestial
 import com.foldmotion.core.scene.LayerRole
 import com.foldmotion.core.scene.SceneFamily
+import com.foldmotion.core.scene.SceneGeometry
 import com.foldmotion.core.scene.SceneSpec
 import com.foldmotion.core.scene.SeededRandom
 import com.foldmotion.core.scene.ValueNoise
@@ -140,12 +141,7 @@ class SceneArtist(private val spec: SceneSpec) {
 
     // ---------------------------------------------------------------- sky
 
-    private fun horizonFor(f: SceneFamily) = when (f) {
-        SceneFamily.OCEAN -> 0.6f
-        SceneFamily.DESERT -> 0.7f
-        SceneFamily.CITY -> 0.76f
-        else -> 0.72f
-    }
+    private fun horizonFor(f: SceneFamily) = SceneGeometry.horizonFor(f)
 
     private fun sky(c: Canvas, w: WorldRect, horizon: Float) {
         val p = Paint()

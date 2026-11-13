@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 
+enum class LivingMotion { FULL, SUBTLE, OFF }
+
 /** One successful apply, newest first. Lets the engine fall back to the last good pack. */
 @Serializable
 data class ApplyRecord(val packId: String, val packageVersion: Int, val profileId: String, val appliedAtMs: Long)
@@ -35,6 +37,16 @@ class AppSettings(context: Context) {
     var reducedMotion: Boolean
         get() = prefs.getBoolean(KEY_REDUCED_MOTION, false)
         set(v) = prefs.edit().putBoolean(KEY_REDUCED_MOTION, v).apply()
+
+    /** Motion between folds: FULL, SUBTLE (fewer particles, 20 fps, no tilt) or OFF. */
+    var livingMotion: LivingMotion
+        get() = LivingMotion.entries.firstOrNull { it.name == prefs.getString(KEY_LIVING, null) } ?: LivingMotion.FULL
+        set(v) = prefs.edit().putString(KEY_LIVING, v.name).apply()
+
+    /** Layers follow the phone's tilt while living motion runs. */
+    var tiltParallax: Boolean
+        get() = prefs.getBoolean(KEY_TILT, true)
+        set(v) = prefs.edit().putBoolean(KEY_TILT, v).apply()
 
     /** Pack the home-screen wallpaper shows. Only changed after Android confirmed the apply. */
     var activePackId: String?
@@ -88,5 +100,7 @@ class AppSettings(context: Context) {
         const val KEY_LIVE_ENGINE = "live_engine_at"
         const val KEY_IMPORTED = "imported_ids"
         const val KEY_HISTORY = "apply_history"
+        const val KEY_LIVING = "living_motion"
+        const val KEY_TILT = "tilt_parallax"
     }
 }

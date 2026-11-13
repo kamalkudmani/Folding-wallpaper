@@ -33,6 +33,8 @@ import com.foldmotion.core.scene.GenerationRequest
 import kotlinx.coroutines.launch
 import com.foldmotion.wallpapers.AppContainer
 import com.foldmotion.wallpapers.data.AppSettings
+import com.foldmotion.wallpapers.data.LivingMotion
+import com.foldmotion.wallpapers.render.FrameState
 import com.foldmotion.wallpapers.render.LoadedScene
 import com.foldmotion.wallpapers.render.SceneDrawer
 import com.foldmotion.wallpapers.render.SceneLoader
@@ -128,6 +130,9 @@ class FoldWallpaperService : WallpaperService() {
         private var maxGapNanos = 0L
         private var lastFrameNanos = 0L
         private var refreshHz = 60f
+        private lateinit var tilt: TiltTracker
+        private var ambientRunning = false
+        private var lastAmbientNanos = 0L
         private var frameScheduled = false
         private var surfaceWidth = 0
         private var surfaceHeight = 0
@@ -144,13 +149,18 @@ class FoldWallpaperService : WallpaperService() {
                         switchPack(next)
                     }
                 }
-                AppSettings.KEY_REDUCED_MOTION -> dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
+                AppSettings.KEY_REDUCED_MOTION -> {
+                    dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
+                    refreshAmbient()
+                }
+                AppSettings.KEY_LIVING, AppSettings.KEY_TILT -> refreshAmbient()
             }
         }
 
         private val powerReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
+                refreshAmbient()
             }
         }
 
@@ -175,6 +185,7 @@ class FoldWallpaperService : WallpaperService() {
             )
             engines += this
             hinge.acquire()
+            tilt = TiltTracker(getSystemService(SensorManager::class.java))
             if (!isPreview) settings.lastLiveEngineAtMs = System.currentTimeMillis()
             packId = resolvePackId()
             readPlaceholderColors()
@@ -455,9 +466,50 @@ class FoldWallpaperService : WallpaperService() {
         private fun drawStatic(kind: ScreenKind) {
             val scene = scenes[kind]
             withCanvas { c ->
-                if (scene != null) drawer.draw(c, c.width, c.height, scene, null)
+                if (scene != null) drawer.draw(c, c.width, c.height, scene, null, frameState(scene))
                 else drawer.drawPlaceholder(c, c.width, c.height, placeholderTop, placeholderBottom)
             }
+            if (scene != null && state.visible && transitionKind == null && livingAllowed(scene)) startAmbient()
+        }
+
+        // ------------------------------------------------------------ living motion
+
+        private fun livingAllowed(scene: LoadedScene): Boolean =
+            scene.isAlive && settings.livingMotion != LivingMotion.OFF && state.policy.motionAllowed
+
+        private fun frameState(scene: LoadedScene?): FrameState {
+            if (scene == null || !livingAllowed(scene)) return FrameState(timeMs = now())
+            val subtle = settings.livingMotion == LivingMotion.SUBTLE
+            return FrameState(timeMs = now(), ambient = true, tiltX = tilt.x, tiltY = tilt.y, density = if (subtle) 0.6f else 1f)
+        }
+
+        private fun ambientIntervalNanos(scene: LoadedScene): Long {
+            val fps = if (settings.livingMotion == LivingMotion.SUBTLE) 20 else (scene.ambient?.fps ?: 30)
+            return 1_000_000_000L / fps.coerceIn(12, 60)
+        }
+
+        private fun startAmbient() {
+            if (ambientRunning) return
+            ambientRunning = true
+            if (settings.tiltParallax && settings.livingMotion == LivingMotion.FULL) tilt.start()
+            trace("AMBIENT_START", PocEvents.detail("mode" to settings.livingMotion, "tilt" to settings.tiltParallax))
+            scheduleFrame()
+        }
+
+        private fun stopAmbient() {
+            if (!ambientRunning) return
+            ambientRunning = false
+            tilt.stop()
+            trace("AMBIENT_STOP")
+        }
+
+        /** Settings or power state changed: restart or stop the loop to match. */
+        private fun refreshAmbient() {
+            if (transitionKind != null) return
+            stopAmbient()
+            if (!dispatching) stopFrames()
+            val kind = state.surface?.kind ?: return
+            if (state.visible) drawStatic(kind)
         }
 
         private fun drawPlaceholder(kind: ScreenKind) {
@@ -498,7 +550,10 @@ class FoldWallpaperService : WallpaperService() {
         }
 
         private fun onFrame(frameTimeNanos: Long) {
-            if (transitionKind == null) return
+            if (transitionKind == null) {
+                onAmbientFrame(frameTimeNanos)
+                return
+            }
             recordFrame(frameTimeNanos)
             val done = drawTransitionFrame(frameTimeNanos)
             if (done) {
@@ -519,6 +574,20 @@ class FoldWallpaperService : WallpaperService() {
             }
         }
 
+        /** Living motion between folds, capped to the pack's frame rate to save battery. */
+        private fun onAmbientFrame(frameTimeNanos: Long) {
+            if (!ambientRunning || !state.visible) return stopAmbient()
+            val kind = state.surface?.kind ?: return stopAmbient()
+            val scene = scenes[kind] ?: return stopAmbient()
+            if (!livingAllowed(scene)) return stopAmbient()
+            if (frameTimeNanos - lastAmbientNanos >= ambientIntervalNanos(scene) - 2_000_000L) {
+                lastAmbientNanos = frameTimeNanos
+                tilt.step()
+                withCanvas { c -> drawer.draw(c, c.width, c.height, scene, null, frameState(scene)) }
+            }
+            scheduleFrame()
+        }
+
         /**
          * Frame pacing for the POC: a frame counts as jank when it arrives more than 1.5 refresh
          * intervals after the previous one (blueprint section 24 target: jank under 5%).
@@ -537,7 +606,7 @@ class FoldWallpaperService : WallpaperService() {
             val scene = scenes[kind] ?: return true
             val elapsedMs = (frameTimeNanos - transitionStartNanos) / 1_000_000f
             val progress = (elapsedMs / max(1, transitionDurationMs)).coerceIn(0f, 1f)
-            withCanvas { c -> drawer.draw(c, c.width, c.height, scene, progress) }
+            withCanvas { c -> drawer.draw(c, c.width, c.height, scene, progress, frameState(scene)) }
             return progress >= 1f
         }
 
@@ -550,6 +619,7 @@ class FoldWallpaperService : WallpaperService() {
         private fun stopFrames() {
             if (frameScheduled) Choreographer.getInstance().removeFrameCallback(frameCallback)
             frameScheduled = false
+            stopAmbient()
         }
 
         // ------------------------------------------------------------ policy and helpers

@@ -6,7 +6,9 @@ import android.os.SystemClock
 import com.foldmotion.core.CoreInfo
 import com.foldmotion.core.device.DeviceProfile
 import com.foldmotion.core.device.ScreenKind
-import com.foldmotion.core.motion.MotionComposer
+import com.foldmotion.core.motion.AmbientSpec
+import com.foldmotion.core.motion.ChoreoInput
+import com.foldmotion.core.motion.ChoreographyComposer
 import com.foldmotion.core.motion.MotionLayer
 import com.foldmotion.core.motion.MotionSpec
 import com.foldmotion.core.pack.Checksums
@@ -23,6 +25,7 @@ import com.foldmotion.core.pack.Sha256
 import com.foldmotion.core.pack.TransitionRef
 import com.foldmotion.core.pack.Transitions
 import com.foldmotion.core.pack.ValidationCode
+import com.foldmotion.core.pack.VersionRange
 import com.foldmotion.core.scene.GenerationMode
 import com.foldmotion.core.scene.GenerationRequest
 import com.foldmotion.core.scene.LayerRole
@@ -135,15 +138,35 @@ class LocalPackGenerator(
             checkActive()
 
             onStage(PipelineStage.MOTION_PACK)
-            val open = MotionComposer.open(request.motionIntensity, main.entry.focusX, main.entry.focusY, motionLayers(main.entry))
-            val close = MotionComposer.close(request.motionIntensity, cover.entry.focusX, cover.entry.focusY, motionLayers(cover.entry))
+            val choreo = ChoreographyComposer.compose(
+                ChoreoInput(
+                    family = spec.family,
+                    time = spec.timeOfDay,
+                    celestial = spec.celestial,
+                    intensity = request.motionIntensity,
+                    frames = frames,
+                    mainLayers = motionLayers(main.entry),
+                    coverLayers = motionLayers(cover.entry),
+                    glow = spec.palette.glow,
+                    accent = spec.palette.accent,
+                    seed = spec.seed,
+                ),
+            )
+            val open = choreo.open
+            val close = choreo.close
             File(staging, "motion").mkdirs()
             File(staging, "motion/open.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), open))
             File(staging, "motion/close.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), close))
+            File(staging, AmbientSpec.FILE).writeText(CoreInfo.json.encodeToString(AmbientSpec.serializer(), choreo.ambient))
             checkActive()
 
             onStage(PipelineStage.QA)
-            val manifest = manifestFor(request, profile, spec, main.entry, cover.entry, open, close, prompt)
+            fun world(r: WorldRect) = listOf(r.left, r.top, r.right, r.bottom).map(::round4)
+            val manifest = manifestFor(
+                request, profile, spec,
+                main.entry.copy(world = world(frames.main)), cover.entry.copy(world = world(frames.cover)),
+                open, close, prompt,
+            )
             File(staging, FoldPackManifest.FILE_NAME).writeText(CoreInfo.json.encodeToString(FoldPackManifest.serializer(), manifest))
             Checksums.write(staging)
             val report = validator.validate(staging, profile.id)
@@ -297,12 +320,14 @@ class LocalPackGenerator(
             profileIds = listOf(profile.id),
             isStaticOnly = false,
             motionIntensity = request.motionIntensity,
+            rendererVersion = VersionRange(CoreInfo.RENDERER_VERSION, CoreInfo.RENDERER_VERSION),
             scenes = Scenes(cover = cover, main = main),
             transitions = Transitions(
                 open = TransitionRef("motion/open.json", open.durationMs),
                 close = TransitionRef("motion/close.json", close.durationMs),
             ),
             previews = Previews(cover = "previews/cover.webp", main = "previews/main.webp"),
+            ambient = AmbientSpec.FILE,
             colors = PackColors(hex(spec.palette.glow), hex(spec.palette.accent), hex(spec.palette.mid), hex(spec.palette.skyTop)),
             generation = GenerationRecipe(
                 provider = providerId,
@@ -321,6 +346,7 @@ class LocalPackGenerator(
     private suspend fun checkActive() = currentCoroutineContext().ensureActive()
 
     private fun round3(v: Float) = (v * 1000f).roundToInt() / 1000f
+    private fun round4(v: Float) = (v * 10000f).roundToInt() / 10000f
 
     companion object {
         const val MIN_FREE_BYTES = 64L * 1024 * 1024

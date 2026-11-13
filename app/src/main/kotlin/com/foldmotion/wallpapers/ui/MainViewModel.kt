@@ -32,6 +32,7 @@ import com.foldmotion.wallpapers.AppContainer
 import com.foldmotion.wallpapers.apply.ApplyOutcome
 import com.foldmotion.wallpapers.apply.ApplyStart
 import com.foldmotion.wallpapers.data.AppSettings
+import com.foldmotion.wallpapers.data.LivingMotion
 import com.foldmotion.wallpapers.data.ApplyRecord
 import com.foldmotion.wallpapers.device.DeviceSnapshot
 import com.foldmotion.wallpapers.pack.ImportResult
@@ -103,6 +104,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         .filter { it.isEmpty() || it == AppSettings.KEY_REDUCED_MOTION }
         .map { settings.reducedMotion }
         .stateIn(viewModelScope, SharingStarted.Eagerly, settings.reducedMotion)
+
+    val livingMotion: StateFlow<LivingMotion> = settingsChanges
+        .filter { it.isEmpty() || it == AppSettings.KEY_LIVING }
+        .map { settings.livingMotion }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, settings.livingMotion)
+
+    val tiltParallax: StateFlow<Boolean> = settingsChanges
+        .filter { it.isEmpty() || it == AppSettings.KEY_TILT }
+        .map { settings.tiltParallax }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, settings.tiltParallax)
 
     val job = container.generation.job
 
@@ -272,6 +283,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ settings
+
+    fun setLivingMotion(mode: LivingMotion) {
+        settings.livingMotion = mode
+    }
+
+    fun setTiltParallax(on: Boolean) {
+        settings.tiltParallax = on
+    }
+
+    /** Pack shown in the home hero: the one on the home screen, else the newest. */
+    fun heroPack(list: List<StoredPack>, active: String?): StoredPack? = list.firstOrNull { it.id == active } ?: list.firstOrNull()
 
     fun setReducedMotion(on: Boolean) {
         settings.reducedMotion = on

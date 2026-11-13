@@ -228,4 +228,21 @@
     <string name="a11y_stage_waiting">waiting</string>
     <string name="a11y_frame_cover">Cover screen preview</string>
     <string name="a11y_frame_main">Main screen preview</string>
+    <string name="demo_closed">Closed · cover screen</string>
+    <string name="demo_unfolding">Unfolding…</string>
+    <string name="demo_open">Open · main screen</string>
+    <string name="demo_folding">Folding…</string>
+    <string name="home_hero_title">Your Fold, alive</string>
+    <string name="home_hero_body">Unfold the phone and the scene opens with it. Fold it and the light gathers back.</string>
+    <string name="home_hero_empty">Create your first living wallpaper</string>
+    <string name="preview_mode_demo">Fold demo</string>
+    <string name="settings_living">Living motion</string>
+    <string name="living_full">Full</string>
+    <string name="living_subtle">Subtle</string>
+    <string name="living_off">Off</string>
+    <string name="settings_living_body">Between folds, stars twinkle, light drifts and the layers breathe. It pauses when the screen is off, in power saving and with reduced motion.</string>
+    <string name="settings_tilt">Tilt depth</string>
+    <string name="settings_tilt_body">Near layers follow the phone gently as you tilt it.</string>
+    <string name="onboarding_cta">Get started</string>
+    <string name="gen_shaping">Shaping your scene</string>
 </resources>
