@@ -22,6 +22,7 @@ import com.foldmotion.core.motion.RevealSpec
 import com.foldmotion.core.motion.TrackPose
 import com.foldmotion.core.pack.FoldPackManifest
 import com.foldmotion.core.pack.LayerEntry
+import com.foldmotion.core.pack.LiquidSpec
 import com.foldmotion.core.pack.VideoSpec
 import com.foldmotion.core.scene.WorldRect
 import kotlin.math.PI
@@ -54,13 +55,15 @@ class LoadedScene(
     /** Video scene (pack v4): the back layer is replaced by live video frames when available. */
     val video: VideoSpec? = null,
     val videoFile: java.io.File? = null,
+    /** Live liquid scene (pack v6): the back layer is computed on the GPU every frame. */
+    val liquid: LiquidSpec? = null,
 ) {
     /** Live frames for a video scene; set by whoever plays the video (engine or preview). */
     @Volatile
     var videoFrames: VideoFrames? = null
 
     val byteCount: Int get() = layers.sumOf { it.second.allocationByteCount }
-    val isAlive: Boolean get() = ambient != null && !ambient.isStill
+    val isAlive: Boolean get() = (ambient != null && !ambient.isStill) || liquid != null
 
     fun recycle() {
         layers.forEach { it.second.recycle() }
@@ -137,6 +140,7 @@ class SceneDrawer {
     private val matrix = Matrix()
     private val cell = RectF()
     private val liquid = LiquidReveal()
+    private val liquidField = LiquidField()
     private var pivotX = 0.5f
     private var pivotY = 0.5f
     /** Size of the area being drawn; the canvas may be translated (fold demo halves). */
@@ -157,6 +161,7 @@ class SceneDrawer {
         pivotY = motion?.pivotY ?: scene.focusY
         val p = progress ?: 1f
         val ambient = if (state.ambient) scene.ambient else null
+        prepareLiquid(scene, state)
         val reveal = motion?.reveal
         val rp = reveal?.progress(p) ?: 1f
         val revealing = reveal != null && rp < 0.999f
@@ -224,7 +229,7 @@ class SceneDrawer {
             poseTx[layer.id] = tx
             poseTy[layer.id] = ty
             poseAlpha[layer.id] = pose.alpha
-            drawLayerBitmap(canvas, layer, bitmap)
+            drawLayerContent(canvas, layer, bitmap, index)
 
             if (ambient != null) {
                 if (layer.id == "far") ambient.halo?.let { drawHalo(canvas, scene, it, state.timeMs) }
@@ -233,8 +238,11 @@ class SceneDrawer {
         }
     }
 
-    /** One layer at the pose [drawLayers] last computed for it. */
-    private fun drawLayerBitmap(canvas: Canvas, layer: LayerEntry, bitmap: Bitmap) {
+    /**
+     * One layer at the pose [drawLayers] last computed for it. A live liquid scene's back layer is
+     * the liquid recorded for this frame, placed exactly where its poster would be.
+     */
+    private fun drawLayerContent(canvas: Canvas, layer: LayerEntry, bitmap: Bitmap, index: Int) {
         val scale = poseScale[layer.id] ?: 1f
         val tx = poseTx[layer.id] ?: 0f
         val ty = poseTy[layer.id] ?: 0f
@@ -243,8 +251,35 @@ class SceneDrawer {
         val t = pivotY + scale * (layer.top - pivotY) + ty
         val b = pivotY + scale * (layer.bottom - pivotY) + ty
         dst.set(frame.left + l * frame.width(), frame.top + t * frame.height(), frame.left + r * frame.width(), frame.top + b * frame.height())
-        bitmapPaint.alpha = (255 * (poseAlpha[layer.id] ?: 1f).coerceIn(0f, 1f)).toInt()
+        val alpha = (poseAlpha[layer.id] ?: 1f).coerceIn(0f, 1f)
+        if (index == 0 && liquidField.ready && liquidField.draw(canvas, dst, alpha)) return
+        if (bitmap.isRecycled) return
+        bitmapPaint.alpha = (255 * alpha).toInt()
         canvas.drawBitmap(bitmap, null, dst, bitmapPaint)
+    }
+
+    /**
+     * Records this frame's live liquid for a v6 scene while it is alive (living motion on); the
+     * poster stands in when it is still, on Android 11 and 12, and on software canvases.
+     */
+    private fun prepareLiquid(scene: LoadedScene, state: FrameState) {
+        val spec = scene.liquid
+        val world = scene.world
+        val back = scene.layers.firstOrNull()?.first
+        if (spec == null || world == null || back == null || !state.ambient || !liquidField.supported) {
+            liquidField.clear()
+            return
+        }
+        val layerWorld = WorldRect(
+            world.left + back.left * world.width,
+            world.top + back.top * world.height,
+            world.left + back.right * world.width,
+            world.top + back.bottom * world.height,
+        )
+        // The fold line runs down the middle of the main screen (only the main screen uses it).
+        val crease = world.left + world.width / 2f
+        val motion = LiquidMotion.frame(state.timeMs, state.tiltX, state.tiltY, scene.kind, crease)
+        liquidField.prepare(spec, layerWorld, frame.width() * (back.right - back.left), frame.height() * (back.bottom - back.top), motion)
     }
 
     /** Flat gradient shown while a scene loads or when a pack is unavailable. Never black. */
@@ -460,7 +495,7 @@ class SceneDrawer {
             val video = scene.videoFrames?.latest(scene.kind)
             for ((index, entry) in scene.layers.withIndex()) {
                 val bitmap = if (index == 0 && video != null) video else entry.second
-                if (!bitmap.isRecycled) drawLayerBitmap(canvas, entry.first, bitmap)
+                drawLayerContent(canvas, entry.first, bitmap, index)
             }
             val dark = reveal.shade * 0.75f * (1f - e)
             if (dark > 0.01f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, dark))

@@ -42,7 +42,7 @@ object SceneLoader {
         val scene = manifest.scene(kind)
         val video = manifest.video
         // A video pack's layer is only a poster until the first frame; it need not be full size.
-        val decodeLongSide = if (video != null && (targetLongSide == 0 || targetLongSide > VIDEO_POSTER_LONG_SIDE)) VIDEO_POSTER_LONG_SIDE else targetLongSide
+        val decodeLongSide = if ((video != null || manifest.liquid != null) && (targetLongSide == 0 || targetLongSide > VIDEO_POSTER_LONG_SIDE)) VIDEO_POSTER_LONG_SIDE else targetLongSide
         val layers = ArrayList<Pair<LayerEntry, Bitmap>>(scene.layers.size)
         try {
             for (layer in scene.layers) {
@@ -98,11 +98,12 @@ object SceneLoader {
             entryMotion = if (manifest.isStaticOnly) null else motion,
             background = LoadedScene.backgroundOf(manifest),
             glow = LoadedScene.glowOf(manifest),
-            // The video itself is the living motion; no particles drawn over it between folds.
-            ambient = if (video != null) null else ambient,
+            // The video or the liquid itself is the living motion; no particles drawn over it.
+            ambient = if (video != null || manifest.liquid != null) null else ambient,
             world = world,
             video = video,
             videoFile = video?.let { File(packDir, it.file) },
+            liquid = manifest.liquid,
         )
     }
 

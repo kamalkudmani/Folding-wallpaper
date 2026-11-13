@@ -18,6 +18,7 @@ import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
+import com.foldmotion.wallpapers.render.LiquidMotion
 import com.foldmotion.wallpapers.render.video.VideoFrameSource
 import androidx.core.content.ContextCompat
 import com.foldmotion.core.device.DeviceProfile
@@ -305,6 +306,22 @@ class FoldWallpaperService : WallpaperService() {
         /** The hinge reached fully open or closed; see FoldEvent.PostureChanged. */
         fun onPosture(screen: ScreenKind) {
             dispatch(FoldEvent.PostureChanged(now(), screen, sessionLastShown = FoldSession.lastShown))
+        }
+
+        /** Launchers report taps on empty home-screen space; live liquid ripples there. */
+        override fun onCommand(action: String?, x: Int, y: Int, z: Int, extras: android.os.Bundle?, resultRequested: Boolean): android.os.Bundle? {
+            if (action == android.app.WallpaperManager.COMMAND_TAP) onTap(x, y)
+            return super.onCommand(action, x, y, z, extras, resultRequested)
+        }
+
+        private fun onTap(x: Int, y: Int) {
+            val kind = state.surface?.kind ?: return
+            val scene = scenes[kind] ?: return
+            val spec = scene.liquid ?: return
+            val world = scene.world ?: return
+            if (!spec.touch || !livingAllowed(scene) || surfaceWidth <= 0 || surfaceHeight <= 0) return
+            LiquidMotion.tap(world.left + x / surfaceWidth.toFloat() * world.width, world.top + y / surfaceHeight.toFloat() * world.height, now())
+            trace("LIQUID_TAP", PocEvents.detail("x" to x, "y" to y))
         }
 
         override fun onComputeColors(): WallpaperColors? {

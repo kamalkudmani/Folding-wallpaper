@@ -287,6 +287,17 @@ class FoldPackValidator(
             if (!ok) fail(ValidationCode.INVALID_MANIFEST, "${v.file}: video settings out of bounds")
         }
 
+        manifest.liquid?.let { l ->
+            if (!l.isWellFormed()) fail(ValidationCode.INVALID_MANIFEST, "liquid settings out of bounds")
+            // An older renderer would show only the posters, so a liquid pack says it needs 6.
+            if (manifest.rendererVersion.min < CoreInfo.LIVE_LIQUID_RENDERER_VERSION) {
+                fail(ValidationCode.INVALID_MANIFEST, "liquid needs rendererVersion.min ${CoreInfo.LIVE_LIQUID_RENDERER_VERSION}")
+            }
+            if (manifest.video != null) fail(ValidationCode.INVALID_MANIFEST, "a scene is either video or liquid")
+            // The liquid is placed by world rects: both screens need theirs.
+            if (manifest.scenes.main.world == null || manifest.scenes.cover.world == null) fail(ValidationCode.INVALID_MANIFEST, "liquid needs world rects")
+        }
+
         checkMotion(manifest.transitions.open, MotionSpec.KIND_OPEN, manifest.scenes.main, ValidationCode.MISSING_OPEN_MOTION)
         checkMotion(manifest.transitions.close, MotionSpec.KIND_CLOSE, manifest.scenes.cover, ValidationCode.MISSING_CLOSE_MOTION)
 

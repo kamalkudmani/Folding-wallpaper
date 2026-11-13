@@ -136,7 +136,11 @@ class UiScreenshotTest {
             vm.updateForm { it.copy(videoMode = true, video = com.foldmotion.wallpapers.ui.VideoPick(android.net.Uri.parse("content://x/clip.mp4"), 24_000, 1920, 1080, thumb, 2_000, 12_000)) }
         }
         shoot("${prefix}_03b_create_video")
-        rule.runOnUiThread { vm.updateForm { it.copy(videoMode = false) } }
+        rule.runOnUiThread { vm.updateForm { it.copy(videoMode = false, liquidMode = true, liquidLook = "aurora") } }
+        settle()
+        rule.onNodeWithTag("liquid_gold").performScrollTo()
+        shoot("${prefix}_03c_create_liquid")
+        rule.runOnUiThread { vm.updateForm { it.copy(liquidMode = false) } }
         rule.runOnUiThread { nav.navigate(Routes.preview(ids.first())) }
         Thread.sleep(1500)
         shoot("${prefix}_04_preview")

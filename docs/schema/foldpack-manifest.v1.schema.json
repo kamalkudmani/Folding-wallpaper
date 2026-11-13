@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://foldmotion.app/schema/foldpack-manifest.v1.json",
   "title": "FoldPack manifest, schema version 1",
-  "description": "manifest.json at the root of a FoldPack. Mirrors com.foldmotion.core.pack.FoldPackManifest; FoldPackValidator adds the checks JSON Schema cannot express (files exist, checksums match, images are WebP of the declared size, motion never exposes the background). Renderer 2 adds springs, reveals, particle bursts (motion/*.json) and ambient motion (motion/ambient.json); packs that need them declare rendererVersion.min = 2. Renderer 3 adds fold styles: per-track delay/span, BOOK, TILES and SWEEP reveals, STREAK and RISE particles; such packs declare rendererVersion.min = 3. Renderer 4 adds video scenes (video section, an MP4 clip); such packs declare rendererVersion.min = 4, drawn packs declare 3. Renderer 5 adds the liquid fold styles RIPPLE, FLOW and GLASS (reveals of the same names, drawn by a GPU shader); packs using them declare rendererVersion.min = 5.",
+  "description": "manifest.json at the root of a FoldPack. Mirrors com.foldmotion.core.pack.FoldPackManifest; FoldPackValidator adds the checks JSON Schema cannot express (files exist, checksums match, images are WebP of the declared size, motion never exposes the background). Renderer 2 adds springs, reveals, particle bursts (motion/*.json) and ambient motion (motion/ambient.json); packs that need them declare rendererVersion.min = 2. Renderer 3 adds fold styles: per-track delay/span, BOOK, TILES and SWEEP reveals, STREAK and RISE particles; such packs declare rendererVersion.min = 3. Renderer 4 adds video scenes (video section, an MP4 clip); such packs declare rendererVersion.min = 4, drawn packs declare 3. Renderer 5 adds the liquid fold styles RIPPLE, FLOW and GLASS (reveals of the same names, drawn by a GPU shader); packs using them declare rendererVersion.min = 5. Renderer 6 adds live liquid scenes (liquid section); such packs declare rendererVersion.min = 6.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -60,7 +60,9 @@
         "LOCAL_PROCEDURAL",
         "CLOUD_AI",
         "UPLOAD",
-        "LOCAL_VIDEO"
+        "LOCAL_VIDEO",
+        "LOCAL_LIQUID",
+        "LOCAL_PHOTO"
       ]
     },
     "author": {
@@ -106,7 +108,7 @@
       },
       "default": {
         "min": 3,
-        "max": 5
+        "max": 6
       }
     },
     "isStaticOnly": {
@@ -357,6 +359,73 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 83886080
+        }
+      }
+    },
+    "liquid": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "v6: the scene is live liquid computed on the GPU every frame, in world space so the cover shows the slice of the main screen's liquid around it. It drifts with tilt, ripples where the home screen is tapped and pools along the fold when half open. Scene layers hold one poster per screen (the liquid at time 0) for renderers without runtime shaders. Packs with liquid declare rendererVersion.min = 6, have world rects on both scenes and no video.",
+      "required": [
+        "palette"
+      ],
+      "properties": {
+        "palette": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "description": "Deep shadow, body, swirl, highlight."
+        },
+        "specular": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1.5
+        },
+        "gloss": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 160
+        },
+        "brightness": {
+          "type": "number",
+          "minimum": 0.4,
+          "maximum": 1.8
+        },
+        "span": {
+          "type": "number",
+          "minimum": 0.4,
+          "maximum": 4,
+          "description": "Noise units per world unit (main screen long side = 1)."
+        },
+        "warp": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "speed": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 4
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9999
+        },
+        "tilt": {
+          "type": "boolean"
+        },
+        "touch": {
+          "type": "boolean"
+        },
+        "hinge": {
+          "type": "boolean"
         }
       }
     }

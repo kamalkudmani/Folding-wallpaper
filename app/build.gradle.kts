@@ -25,8 +25,10 @@ android {
         // WallpaperService.Engine.getDisplayContext. Fold7 ships with Android 16.
         minSdk = 30
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.7.0"
+        versionCode = 9
+        versionName = "0.8.0"
+        // LiteRT ships native code: phones are arm64; x86_64 keeps emulators working.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     signingConfigs {
@@ -67,6 +69,8 @@ android {
     // Only the two languages the app is written in; drops dozens of library translations.
     androidResources {
         localeFilters += listOf("en", "ar")
+        // The subject model is memory-mapped straight from the APK.
+        noCompress += "tflite"
     }
 
     buildFeatures {
@@ -103,7 +107,8 @@ android {
                 System.getProperty("foldmotion.videoFrames")?.let { dir -> it.systemProperty("foldmotion.videoFrames", dir) }
                 System.getProperty("foldmotion.discoverOut")?.let { dir -> it.systemProperty("foldmotion.discoverOut", dir) }
                 System.getProperty("foldmotion.storeOut")?.let { dir -> it.systemProperty("foldmotion.storeOut", dir) }
-                System.getProperty("foldmotion.liquidFrames")?.let { dir -> it.systemProperty("foldmotion.liquidFrames", dir) }
+                System.getProperty("foldmotion.liquid")?.let { v -> it.systemProperty("foldmotion.liquid", v) }
+                System.getProperty("foldmotion.promoOut")?.let { dir -> it.systemProperty("foldmotion.promoOut", dir) }
             }
         }
     }
@@ -133,6 +138,7 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.core)
+    implementation(libs.litert)
     // Video wallpapers: hardware playback (ExoPlayer) and on-device trimming/scaling (Transformer).
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.transformer)

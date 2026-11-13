@@ -32,6 +32,10 @@ class AppContainer(context: Context) {
     val generation = GenerationController(generator, scope)
     val videoTools: com.foldmotion.wallpapers.generator.video.VideoTools = com.foldmotion.wallpapers.generator.video.AndroidVideoTools(app)
     val videoBuilder = com.foldmotion.wallpapers.generator.video.VideoPackBuilder(packStore, validator, videoTools)
+    val liquidBuilder = com.foldmotion.wallpapers.generator.liquid.LiquidPackBuilder(packStore, validator)
+    val depthBuilder = com.foldmotion.wallpapers.generator.depth.DepthPackBuilder(packStore, validator)
+    /** Finds the subject of a photo on the phone (DeepLab v3 on LiteRT); swappable in tests. */
+    var subjectMasker: com.foldmotion.wallpapers.generator.depth.SubjectMasker = com.foldmotion.wallpapers.generator.depth.DeepLabMasker(app)
     val apply = ApplyController(app, settings, packStore)
 
     companion object {

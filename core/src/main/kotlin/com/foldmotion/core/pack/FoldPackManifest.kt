@@ -37,6 +37,8 @@ data class FoldPackManifest(
     val motionStyle: String? = null,
     /** v4: the scene is a looping video; see [VideoSpec]. */
     val video: VideoSpec? = null,
+    /** v6: the scene is live liquid computed on the GPU; see [LiquidSpec]. */
+    val liquid: LiquidSpec? = null,
     val previews: Previews,
     val colors: PackColors,
     val generation: GenerationRecipe? = null,
@@ -52,6 +54,10 @@ data class FoldPackManifest(
         const val SOURCE_UPLOAD = "UPLOAD"
         /** v4: made on the phone from the user's own video. */
         const val SOURCE_VIDEO = "LOCAL_VIDEO"
+        /** v6: live liquid made on the phone. */
+        const val SOURCE_LIQUID = "LOCAL_LIQUID"
+        /** A 3D photo: the user's photo split on the phone into its subject and background. */
+        const val SOURCE_PHOTO = "LOCAL_PHOTO"
     }
 }
 

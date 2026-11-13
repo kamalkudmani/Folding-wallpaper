@@ -203,6 +203,39 @@ class FoldPackValidatorTest {
         assertEquals(CoreInfo.STYLES_RENDERER_VERSION, CoreInfo.minRendererFor(video = false, style = null))
     }
 
+    @Test
+    fun `live liquid packs need renderer 6, world rects, sane settings and no video`() {
+        val spec = LiquidSpec.PRESETS.getValue("gold")
+        fun liquidPack(
+            l: LiquidSpec = spec,
+            min: Int = CoreInfo.LIVE_LIQUID_RENDERER_VERSION,
+            world: Boolean = true,
+        ) = buildPack(mutateManifest = { m ->
+            m.copy(
+                liquid = l,
+                rendererVersion = VersionRange(min, CoreInfo.RENDERER_VERSION),
+                scenes = if (!world) m.scenes else Scenes(
+                    cover = m.scenes.cover.copy(world = listOf(0.235f, 0f, 0.666f, 1f)),
+                    main = m.scenes.main.copy(world = listOf(0f, 0f, 0.901f, 1f)),
+                ),
+            )
+        }, ambient = goodAmbient)
+        assertTrue(validator.validate(liquidPack()).codes.toString(), validator.validate(liquidPack()).passed)
+        for (preset in LiquidSpec.PRESETS.values) assertTrue(preset.isWellFormed())
+        assertTrue(validator.validate(liquidPack(min = CoreInfo.VIDEO_RENDERER_VERSION)).codes.contains(ValidationCode.INVALID_MANIFEST))
+        assertTrue(validator.validate(liquidPack(world = false)).codes.contains(ValidationCode.INVALID_MANIFEST))
+        for (bad in listOf(
+            spec.copy(palette = listOf("#000000", "#FFFFFF")),
+            spec.copy(palette = listOf("#000000", "#FFFFFF", "red", "#FFFFFF")),
+            spec.copy(gloss = 1000f),
+            spec.copy(speed = 0f),
+            spec.copy(span = 40f),
+        )) assertTrue(bad.toString(), validator.validate(liquidPack(bad)).codes.contains(ValidationCode.INVALID_MANIFEST))
+        // The flow is exactly periodic: whole turns per period at every speed.
+        for (speed in listOf(0.25f, 0.6f, 1f, 1.7f, 4f)) assertTrue(LiquidSpec.turns(speed).all { it >= 1 })
+        assertEquals(CoreInfo.LIVE_LIQUID_RENDERER_VERSION, CoreInfo.minRendererFor(video = false, style = "SWEEP", liquid = true))
+    }
+
     private val fakeMp4 = ByteArray(64).also {
         it[3] = 24
         "ftypisom".toByteArray().copyInto(it, 4)

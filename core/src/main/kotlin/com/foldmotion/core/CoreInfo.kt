@@ -13,10 +13,11 @@ object CoreInfo {
     /**
      * Version of the runtime renderer. 2 adds springs, reveals, particles and ambient motion;
      * 3 adds fold styles (book, tiles and sweep reveals, streak and rise particles, staggered
-     * tracks); 4 adds video scenes; 5 adds the liquid styles (ripple, flow and glass reveals).
-     * Packs declare the minimum they need; this build still plays version-1 packs.
+     * tracks); 4 adds video scenes; 5 adds the liquid styles (ripple, flow and glass reveals);
+     * 6 adds live liquid scenes. Packs declare the minimum they need; this build still plays
+     * version-1 packs.
      */
-    const val RENDERER_VERSION = 5
+    const val RENDERER_VERSION = 6
 
     /** First renderer with fold styles: what a drawn (non-video) pack needs at least. */
     const val STYLES_RENDERER_VERSION = 3
@@ -27,8 +28,12 @@ object CoreInfo {
     /** First renderer with the liquid fold styles. */
     const val LIQUID_RENDERER_VERSION = 5
 
+    /** First renderer with live liquid scenes ([com.foldmotion.core.pack.LiquidSpec]). */
+    const val LIVE_LIQUID_RENDERER_VERSION = 6
+
     /** The lowest renderer a pack needs, so older apps can still import what they can play. */
-    fun minRendererFor(video: Boolean, style: String?): Int = when {
+    fun minRendererFor(video: Boolean, style: String?, liquid: Boolean = false): Int = when {
+        liquid -> LIVE_LIQUID_RENDERER_VERSION
         com.foldmotion.core.motion.FoldStyle.parse(style)?.isLiquid == true -> LIQUID_RENDERER_VERSION
         video -> VIDEO_RENDERER_VERSION
         else -> STYLES_RENDERER_VERSION

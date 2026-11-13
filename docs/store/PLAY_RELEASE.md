@@ -1,6 +1,6 @@
 # Publishing Fold Motion on Google Play
 
-Status at 0.7.0: **the app is technically ready for a closed test, not yet for production.** The
+Status at 0.8.0: **the app is technically ready for a closed test, not yet for production.** The
 code meets Play's technical rules (target API 36, App Bundle, no risky permissions, no data
 collection). What is left needs the owner: a developer account, an upload key, a real-device test
 on the Fold7, and Google's mandatory closed test.
@@ -18,6 +18,10 @@ on the Fold7, and Google's mandatory closed test.
 | Feature graphic 1024 x 500 | `docs/store/feature-graphic-1024x500.png` |
 | Adaptive and themed launcher icon | `app/src/main/res/drawable/ic_launcher_*.xml` |
 | Store texts, data safety and content rating answers | this file, sections 4 to 6 |
+| Phone screenshots (1080 x 1920, English and Arabic) and large-screen ones (1920 x 1080) | `docs/store/screenshots/`, made by `tools/store/screenshots.py` from the app's UI tour |
+| Promo video for YouTube, Shorts and TikTok (vertical, English and Arabic) | `docs/promo/`, made by `PromoRender` + `tools/promo/promo.py` |
+| Tester recruitment kit | `docs/store/TESTERS.md` |
+| Premium (Pro) proposal | `docs/store/PREMIUM_PLAN.md` |
 
 ## 2. What the owner has to do (in order)
 
@@ -48,10 +52,12 @@ on the Fold7, and Google's mandatory closed test.
    Then apply for production access in Play Console.
 8. **Production**: after approval, promote the tested release. Start with a staged rollout (20%).
 
-## 3. Screenshots still to take
+## 3. Screenshots
 
-Play needs at least 2 phone screenshots; for a foldable-first app, large-screen screenshots are
-strongly recommended. Take them on the Fold7 (they will look better than renders):
+Ready-made sets are in `docs/store/screenshots/` (`phone_en_*`, `phone_ar_*`, `large_*`): the app's
+real screens, rendered by its UI tests, framed with a caption. Upload `phone_*` as phone
+screenshots and `large_*` as 7- and 10-inch tablet screenshots. Real captures from the Fold7 can
+replace them later and look even better:
 - Cover screen: Discover wall, a wallpaper's detail page, the Create screen.
 - Main screen (open): Discover wall in 4 columns, the detail page with the 3D fold demo.
 - Optional: a 30-second video of folding and unfolding with a liquid wallpaper (YouTube link).
@@ -70,8 +76,11 @@ Fold Motion makes live wallpapers for foldable phones that react to the hinge. O
 the scene unfolds from exactly what the cover screen was showing; close it and the cover screen
 comes alive.
 
-• Liquid wallpapers: molten gold, aurora silk, liquid chrome, deep ocean and more, flowing across
-  both screens in seamless loops.
+• Live liquid: molten gold, aurora silk, liquid chrome, deep ocean and more, computed live on
+  your phone. It never repeats, drifts when you tilt the phone, ripples where you tap and pools
+  along the fold when the phone is half open.
+• 3D photos: pick a photo of a person, a pet or a car; the subject is lifted in front of the
+  background (on your phone, nothing is uploaded) and moves in 3D as you tilt.
 • Ten fold animations: Unfold, Book, Rise, Warp, Tiles, Sweep, Iris, and the new liquid effects
   Ripple, Flow and Glass that bend the picture itself like water and melting glass.
 • Make your own: describe a scene, pick a random idea, or turn your own photo or video into a
@@ -88,8 +97,10 @@ comes alive.
 يصنع Fold Motion خلفيات حيّة للهواتف القابلة للطي تتفاعل مع المفصل. افتح الهاتف فيتفتّح المشهد
 من الجزء نفسه الذي كانت تعرضه الشاشة الخارجية، وأغلقه فتنبض الشاشة الخارجية بالحياة.
 
-• خلفيات سائلة: ذهب منصهر، حرير الشفق، كروم سائل، أعماق المحيط وغيرها، تنساب عبر الشاشتين
-  في حلقات بلا أي فاصل.
+• سائل حيّ: ذهب منصهر، حرير الشفق، كروم سائل، أعماق المحيط وغيرها، يُحسب لحظياً على هاتفك.
+  لا يتكرر أبداً، ينساب مع ميل الهاتف، يتموّج حيث تلمس، ويتجمّع عند خط الطي عند نصف الفتح.
+• صور ثلاثية الأبعاد: اختر صورة لشخص أو حيوان أليف أو سيارة، فيُرفع العنصر أمام الخلفية
+  (على هاتفك، بلا رفع أي شيء) ويتحرك بأبعاد ثلاثية مع الميل.
 • عشر حركات طيّ: تفتّح، كتاب، صعود، انطلاق، بلاط، مسح، قزحية، والتأثيرات السائلة الجديدة
   تموّج وانسياب وزجاج التي تثني الصورة نفسها كالماء والزجاج الذائب.
 • اصنع خلفيتك: صف مشهداً، أو اختر فكرة عشوائية، أو حوّل صورتك أو فيديو خاص بك إلى خلفية
@@ -115,7 +126,8 @@ Avoid other companies' trademarks in the name, icon and screenshots (for example
 
 Why "No" is correct: the app has no INTERNET permission, so nothing can leave the phone except a
 file the user chooses to share through Android's share sheet, which Play does not count as
-collection or sharing.
+collection or sharing. The 3D-photo model is bundled and run by LiteRT inside the app: no ML Kit,
+no Google Play services, no usage metrics.
 
 **App access**: all features are available without login. **Ads**: the app contains no ads.
 

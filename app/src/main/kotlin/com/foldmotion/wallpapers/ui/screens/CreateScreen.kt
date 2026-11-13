@@ -58,6 +58,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -120,7 +123,8 @@ fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit, onOpenPack: (String)
                     Column(Modifier.weight(0.85f).padding(end = 20.dp, start = 4.dp)) {
                         Text(stringResource(R.string.create_preview_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
                         val pick = form.video
-                        if (form.videoMode && pick != null) VideoWindows(pick, device.active) else {
+                        if (form.liquidMode) LiquidWindows(form, device.active, living = !vm.reducedMotion.collectAsStateWithLifecycle().value)
+                        else if (form.videoMode && pick != null) VideoWindows(pick, device.active) else {
                             ShapeHint(form, device.active.screen(ScreenKind.COVER).aspect, device.active.screen(ScreenKind.MAIN).aspect)
                         }
                     }
@@ -139,14 +143,15 @@ fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit, onOpenPack: (String)
 private fun CreateHeader(vm: MainViewModel, form: CreateForm) {
     ScreenTitle(stringResource(R.string.create_title))
     PillToggle(
-        listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random), stringResource(R.string.create_mode_video)),
-        selected = if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1,
+        listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random), stringResource(R.string.create_mode_video), stringResource(R.string.create_mode_liquid)),
+        selected = if (form.liquidMode) 3 else if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1,
         onSelect = { i ->
             vm.updateForm {
                 when (i) {
-                    0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false)
-                    1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false)
-                    else -> it.copy(videoMode = true)
+                    0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false, liquidMode = false)
+                    1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false, liquidMode = false)
+                    2 -> it.copy(videoMode = true, liquidMode = false)
+                    else -> it.copy(liquidMode = true, videoMode = false)
                 }
             }
         },
@@ -162,10 +167,11 @@ private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGen
     ReadableColumn(Modifier.padding(top = if (header) 14.dp else 0.dp)) {
         if (header) CreateHeader(vm, form)
 
-        val section = if (form.videoMode) 2 else form.mode.ordinal
+        val section = if (form.liquidMode) 3 else if (form.videoMode) 2 else form.mode.ordinal
         AnimatedContent(section, transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.97f)) togetherWith fadeOut(tween(160)) }, label = "mode") { which ->
             Column {
                 when {
+                    which == 3 -> LiquidSection(vm, form, busy, preview = header)
                     which == 2 -> VideoSection(vm, form, busy)
                     form.mode == GenerationMode.CUSTOM -> CustomSection(vm, form, busy)
                     else -> RandomSection(vm, form, busy, language)
@@ -195,9 +201,13 @@ private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGen
         val videoJob by vm.videoJob.collectAsStateWithLifecycle()
         VideoProgress(vm, videoJob)
         GradientButton(
-            stringResource(if (form.videoMode) R.string.video_create else R.string.action_generate),
+            stringResource(if (form.liquidMode) R.string.liquid_create else if (form.videoMode) R.string.video_create else R.string.action_generate),
             onClick = {
-                if (form.videoMode) vm.createFromVideo() else if (vm.generate()) onGenerate()
+                when {
+                    form.liquidMode -> vm.createLiquidFromForm()
+                    form.videoMode -> vm.createFromVideo()
+                    vm.generate() -> onGenerate()
+                }
             },
             enabled = !busy && (!form.videoMode || form.video != null),
             leading = Icons.Filled.Star,
@@ -206,6 +216,77 @@ private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGen
         )
         Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.create_generator_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+    }
+}
+
+/**
+ * Create > Liquid: pick a look, how fast it flows and how big its waves are; the live liquid
+ * plays right here as it will on the phone.
+ */
+@Composable
+private fun LiquidSection(vm: MainViewModel, form: CreateForm, busy: Boolean, preview: Boolean) {
+    val device by vm.device.collectAsStateWithLifecycle()
+    val reduced by vm.reducedMotion.collectAsStateWithLifecycle()
+    val language = vm.language()
+    GlassCard(Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.liquid_look), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (row in com.foldmotion.wallpapers.ui.discover.LiquidLooks.all.chunked(4)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    for (look in row) {
+                        val chosen = look.name == form.liquidLook
+                        val colors = look.spec.palette.map { Color(android.graphics.Color.parseColor(it)) }
+                        Column(
+                            Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                                .clickable(enabled = !busy) { vm.updateForm { it.copy(liquidLook = look.name) } }
+                                .semantics { selected = chosen; contentDescription = look.title.forLanguage(language) }
+                                .testTag("liquid_${look.name}"),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(14.dp))
+                                    .background(Brush.linearGradient(listOf(colors[3], colors[2], colors[1], colors[0])))
+                                    .border(if (chosen) 2.dp else 1.dp, if (chosen) Color.White else FmColors.Hairline, RoundedCornerShape(14.dp)),
+                            )
+                            Text(
+                                look.title.forLanguage(language), style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                                color = if (chosen) FmColors.Text else FmColors.TextMuted, modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (preview) {
+            Spacer(Modifier.height(14.dp))
+            LiquidWindows(form, device.active, height = 200.dp, living = !reduced)
+        }
+        SectionTitle(stringResource(R.string.liquid_pace))
+        PillToggle(
+            listOf(stringResource(R.string.liquid_pace_calm), stringResource(R.string.liquid_pace_flowing), stringResource(R.string.liquid_pace_lively)),
+            selected = form.liquidPace,
+            onSelect = { i -> vm.updateForm { it.copy(liquidPace = i) } },
+        )
+        SectionTitle(stringResource(R.string.liquid_scale))
+        PillToggle(
+            listOf(stringResource(R.string.liquid_scale_large), stringResource(R.string.liquid_scale_medium), stringResource(R.string.liquid_scale_fine)),
+            selected = form.liquidScale,
+            onSelect = { i -> vm.updateForm { it.copy(liquidScale = i) } },
+        )
+        Text(stringResource(R.string.liquid_interactive_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+/** The live liquid on the closed and the open phone, side by side. */
+@Composable
+private fun LiquidWindows(form: CreateForm, profile: com.foldmotion.core.device.DeviceProfile, height: androidx.compose.ui.unit.Dp = 300.dp, living: Boolean = true) {
+    val spec = form.liquidSpec
+    val coverAspect = profile.screen(ScreenKind.COVER).aspect
+    val mainAspect = profile.screen(ScreenKind.MAIN).aspect
+    Row(Modifier.fillMaxWidth().height(height), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
+        com.foldmotion.wallpapers.ui.components.LiquidLive(spec, ScreenKind.COVER, profile, Modifier.fillMaxHeight().aspectRatio(coverAspect).clip(RoundedCornerShape(18.dp)), living, "discover/liquid_${form.liquidLook}_cover.webp")
+        com.foldmotion.wallpapers.ui.components.LiquidLive(spec, ScreenKind.MAIN, profile, Modifier.fillMaxHeight().aspectRatio(mainAspect).clip(RoundedCornerShape(18.dp)), living, "discover/liquid_${form.liquidLook}_main.webp")
     }
 }
 
@@ -385,7 +466,23 @@ private fun VideoSection(vm: MainViewModel, form: CreateForm, busy: Boolean) {
         if (uri != null) vm.pickVideo(uri)
     }
     fun pick() = picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.createFromPhoto(uri)
+    }
     val v = form.video
+    if (v == null) {
+        // A 3D photo: the subject is found on the phone and lifted in front of its background.
+        GlassCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Text(stringResource(R.string.photo_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.photo_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(12.dp))
+            GradientButton(
+                stringResource(R.string.photo_pick),
+                { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                Modifier.fillMaxWidth().testTag("photo_pick"), enabled = !busy, height = 52.dp,
+            )
+        }
+    }
     GlassCard(Modifier.fillMaxWidth()) {
         if (v == null) {
             Text(stringResource(R.string.video_title), style = MaterialTheme.typography.titleMedium)

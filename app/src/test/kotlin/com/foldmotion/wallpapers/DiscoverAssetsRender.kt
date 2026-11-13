@@ -17,6 +17,9 @@ import com.foldmotion.core.scene.IdeaBank
 import com.foldmotion.wallpapers.generator.LocalPackGenerator
 import com.foldmotion.wallpapers.render.SceneDrawer
 import com.foldmotion.wallpapers.render.SceneLoader
+import com.foldmotion.wallpapers.generator.liquid.LiquidPackBuilder
+import com.foldmotion.core.pack.LiquidSpec
+import com.foldmotion.core.scene.WorldRect
 import com.foldmotion.wallpapers.ui.discover.CatalogEntry
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -59,7 +62,7 @@ class DiscoverAssetsRender {
     fun `render discover catalogue`() {
         val out = System.getProperty("foldmotion.discoverOut")?.let(::File)
         // The liquid step alone when its frames are given.
-        assumeTrue(out != null && System.getProperty("foldmotion.liquidFrames") == null)
+        assumeTrue(out != null && System.getProperty("foldmotion.liquid") == null)
         out!!.mkdirs()
         val drawer = SceneDrawer()
         val entries = ArrayList<String>()
@@ -128,35 +131,37 @@ class DiscoverAssetsRender {
         return world(crops.main) to world(crops.cover)
     }
 
-    /** One clip of the liquid set (tools/liquid/liquid.py renders them into assets/liquid/). */
+    /** One wallpaper of the live liquid set (its look is [LiquidSpec.PRESETS] under [name]). */
     private data class Liquid(val name: String, val titleEn: String, val titleAr: String, val glow: String, val accent: String, val background: String, val style: String)
 
     /**
-     * Adds the liquid set to the catalogue: thumbnails from each clip's first frame and one
-     * entry per clip, replacing earlier liquid entries. Runs with -Dfoldmotion.discoverOut and
-     * -Dfoldmotion.liquidFrames=<folder of <name>.png first frames>.
+     * Adds the live liquid set to the catalogue: thumbnails rendered by the live shader itself
+     * (time 0, on the hardware pipeline) for the cover and main windows, and one entry per preset
+     * carrying its [com.foldmotion.core.pack.LiquidSpec], replacing earlier liquid entries. Runs
+     * with -Dfoldmotion.discoverOut=<assets/discover> -Dfoldmotion.liquid=1.
      */
     @Test
     fun `render liquid catalogue`() {
         val out = System.getProperty("foldmotion.discoverOut")?.let(::File)
-        val frames = System.getProperty("foldmotion.liquidFrames")?.let(::File)
-        assumeTrue(out != null && frames != null)
+        assumeTrue(out != null && System.getProperty("foldmotion.liquid") != null)
         val catalog = File(out, "catalog.json")
         val serializer = ListSerializer(CatalogEntry.serializer())
         val oneLine = Json { encodeDefaults = false; explicitNulls = false }
         val kept = Json { ignoreUnknownKeys = true }.decodeFromString(serializer, catalog.readText()).filterNot { it.isLiquidEntry() }
-        val added = LIQUIDS.mapIndexedNotNull { i, l ->
-            val png = File(frames, "${l.name}.png").takeIf { it.isFile } ?: return@mapIndexedNotNull null
-            val frame = BitmapFactory.decodeFile(png.path)
-            val (main, cover) = videoThumbs(frame, out!!, "liquid_${l.name}")
-            val unit = maxOf(frame.width, frame.height).toFloat()
+        val g = LiquidPackBuilder.geometry(fold7)
+        val added = LIQUIDS.mapIndexed { i, l ->
+            val spec = LiquidSpec.PRESETS.getValue(l.name)
+            for ((kind, width) in listOf(ScreenKind.COVER to COVER_WIDTH, ScreenKind.MAIN to MAIN_WIDTH)) {
+                val height = (width / fold7.screen(kind).aspect).toInt()
+                val bmp = LiquidPackBuilder.still(spec, if (kind == ScreenKind.MAIN) g.main else g.cover, width, height)
+                save(bmp, File(out!!, "liquid_${l.name}_${if (kind == ScreenKind.MAIN) "main" else "cover"}.webp"))
+            }
+            fun rect(r: WorldRect) = listOf(r.left, r.top, r.right, r.bottom)
             CatalogEntry(
-                id = "liquid_${l.name}", video = true, glow = l.glow, accent = l.accent, background = l.background,
-                mainWorld = main, coverWorld = cover, focus = listOf(0.5f * frame.width / unit, 0.5f * frame.height / unit),
-                seed = 100L + i, style = l.style, videoAsset = "liquid/${l.name}.mp4", seamless = true,
-                titleEn = l.titleEn, titleAr = l.titleAr, tags = listOf("liquid"),
-                videoWidth = frame.width, videoHeight = frame.height, videoMs = LIQUID_MS,
-            ).also { frame.recycle() }
+                id = "liquid_${l.name}", video = false, glow = l.glow, accent = l.accent, background = l.background,
+                mainWorld = rect(g.main), coverWorld = rect(g.cover), focus = listOf(g.main.left + g.main.width / 2f, g.main.top + g.main.height / 2f),
+                seed = 100L + i, style = l.style, titleEn = l.titleEn, titleAr = l.titleAr, tags = listOf("liquid"), liquid = spec,
+            )
         }
         catalog.writeText((kept + added).joinToString(",\n", "[\n", "\n]\n") { oneLine.encodeToString(CatalogEntry.serializer(), it) })
     }
@@ -164,8 +169,6 @@ class DiscoverAssetsRender {
     private fun CatalogEntry.isLiquidEntry() = "liquid" in tags
 
     companion object {
-        const val LIQUID_MS = 10_000
-
         private val LIQUIDS = listOf(
             Liquid("gold", "Molten gold", "ذهب منصهر", "#FFE7B0", "#E0A030", "#0B0703", "FLOW"),
             Liquid("aurora", "Aurora silk", "حرير الشفق", "#B8FFF4", "#7A6CFF", "#03080E", "GLASS"),

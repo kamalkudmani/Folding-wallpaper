@@ -1,6 +1,6 @@
 # Fold Motion Wallpapers: Privacy Policy
 
-Effective: 13 November 2026 · App version 0.7.0 and later
+Effective: 13 November 2026 · App version 0.8.0 and later
 
 **Short version: Fold Motion collects nothing and sends nothing. The app has no internet access.**
 
@@ -9,8 +9,9 @@ Effective: 13 November 2026 · App version 0.7.0 and later
 | Data | Used for | Leaves your phone? |
 |---|---|---|
 | Pictures and videos you choose with Android's picker | Making a wallpaper from them (trimmed, resized, cropped on the phone) | No |
+| 3D photos: the subject of the photo you pick | Found by a small model built into the app (DeepLab v3, run on the phone by LiteRT), to lift it in front of its background | No: no Google Play services, no network |
 | Wallpapers you create (packs) | Stored in the app's private storage so they can be shown and edited | No, unless you tap **Share** |
-| Hinge angle, fold state and motion sensors | Playing the fold animation and the tilt effect at the right moment | No, never stored |
+| Hinge angle, fold state, motion sensors and home-screen taps | Playing the fold animation, the tilt effect, and the live liquid's drift, ripples and pooling | No, never stored |
 | Settings (language, motion, style choices) | Remembering your choices | No |
 | Fold Lab trace (only if you record one) | Measuring animation smoothness on your device | No, unless you tap **Export** |
 
@@ -39,7 +40,7 @@ Questions: open an issue at https://github.com/kamalkudmani/Folding-wallpaper/is
 
 # سياسة الخصوصية: خلفيات Fold Motion
 
-سارية من: 13 نوفمبر 2026 · الإصدار 0.7.0 وما بعده
+سارية من: 13 نوفمبر 2026 · الإصدار 0.8.0 وما بعده
 
 **باختصار: التطبيق لا يجمع أي شيء ولا يرسل أي شيء، وليس لديه اتصال بالإنترنت.**
 
@@ -48,8 +49,9 @@ Questions: open an issue at https://github.com/kamalkudmani/Folding-wallpaper/is
 | البيانات | الاستخدام | هل تغادر هاتفك؟ |
 |---|---|---|
 | الصور والفيديوهات التي تختارها من منتقي أندرويد | صنع خلفية منها (قصّ وتصغير على الهاتف نفسه) | لا |
+| الصور ثلاثية الأبعاد: العنصر الرئيسي في صورتك | يجده نموذج صغير مدمج في التطبيق (DeepLab v3 يعمل على الهاتف عبر LiteRT) ليرفعه أمام الخلفية | لا: بلا خدمات Google Play وبلا إنترنت |
 | الخلفيات التي تصنعها | تُحفظ في مساحة التطبيق الخاصة لعرضها وتعديلها | لا، إلا إذا ضغطت **مشاركة** |
-| زاوية المفصل وحالة الطيّ ومستشعرات الحركة | تشغيل حركة الطيّ وتأثير الميل في اللحظة الصحيحة | لا، ولا تُحفظ أبداً |
+| زاوية المفصل وحالة الطيّ ومستشعرات الحركة ولمسات الشاشة الرئيسية | تشغيل حركة الطيّ وتأثير الميل وانسياب السائل الحيّ وتموجاته وتجمّعه | لا، ولا تُحفظ أبداً |
 | الإعدادات (اللغة، الحركة، الأنماط) | تذكّر اختياراتك | لا |
 | تسجيل مختبر الفولد (فقط إن سجّلته) | قياس سلاسة الحركة على جهازك | لا، إلا إذا ضغطت **تصدير** |
 

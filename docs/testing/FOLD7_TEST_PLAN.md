@@ -26,9 +26,14 @@ Before you start: Settings > Fold Lab > **Clear**, so the trace only holds this 
 - [ ] On the cover home screen, unfold: the main screen plays the unfold animation.
 - [ ] Repeat 5 times quickly. Note any time it does not play or stutters.
 
-## 4. Liquid and video
+## 4. Live liquid, 3D photo and video
 
-- [ ] The liquid keeps flowing on both screens and never jumps at the loop point (watch 30 s).
+- [ ] The liquid keeps flowing on both screens and never jumps (watch 30 s).
+- [ ] Tilt the phone slowly: the liquid drifts downhill. Tap empty space on the home screen: a
+      ripple spreads from your finger (if your launcher passes taps to the wallpaper).
+- [ ] Hold the phone half open (like a laptop): the liquid pools along the fold.
+- [ ] Create > Photo & video > Pick a photo of a person or pet: the subject floats in front and
+      moves against the background when you tilt; unfolding lifts it out of the picture.
 - [ ] Turn on power saving: the motion stops; turn it off: it resumes.
 - [ ] Settings > Reduce motion on: the motion stops.
 

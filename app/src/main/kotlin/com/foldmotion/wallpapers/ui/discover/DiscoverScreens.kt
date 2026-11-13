@@ -167,7 +167,16 @@ private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String,
     ) {
         Box(Modifier.fillMaxWidth().sharedArt("art-${item.id}")) {
             FoldCardArt(cover, main, shape)
-            if (item.isVideo) {
+            if (item.isLive) {
+                // Live liquid: a small "Live" capsule with a glowing dot.
+                Row(
+                    Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(50)).background(Color(0x99000000)).padding(horizontal = 9.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color(item.glow)))
+                    Text(stringResource(R.string.badge_live), style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(start = 5.dp))
+                }
+            } else if (item.isVideo) {
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(10.dp).size(28.dp).clip(CircleShape).background(Color(0x99000000)),
                     contentAlignment = Alignment.Center,
@@ -262,13 +271,13 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
     LaunchedEffect(job, videoJob, waiting) {
         if (!waiting) return@LaunchedEffect
         val j = job
-        if (!item.isVideo && j != null && j.status == JobStatus.READY && j.packId != null) {
+        if (!item.isMoving && j != null && j.status == JobStatus.READY && j.packId != null) {
             waiting = false
             vm.dismissJob()
             onPackReady(j.packId)
         }
         val v = videoJob
-        if (item.isVideo && v is VideoJob.Done) {
+        if (item.isMoving && v is VideoJob.Done) {
             waiting = false
             vm.dismissVideoJob()
             onPackReady(v.packId)
@@ -295,7 +304,15 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
             stringResource(if (busy) R.string.discover_preparing else R.string.discover_get),
             onClick = {
                 waiting = true
-                if (item.isVideo) vm.createSampleVideoWallpaper(style, item) else vm.getDiscoverIdea(item, style)
+                val liquid = item.entry.liquid
+                when {
+                    liquid != null -> vm.createLiquidWallpaper(
+                        liquid, style,
+                        com.foldmotion.core.pack.LocalizedText(item.entry.titleAr ?: "سائل حيّ", item.entry.titleEn ?: "Live liquid"),
+                    )
+                    item.isVideo -> vm.createSampleVideoWallpaper(style, item)
+                    else -> vm.getDiscoverIdea(item, style)
+                }
             },
             modifier = Modifier.fillMaxWidth().testTag("discover_get"),
             enabled = !busy,

@@ -75,8 +75,15 @@ data class CreateForm(
     /** Third creation mode: a wallpaper from the user's own video. */
     val videoMode: Boolean = false,
     val video: VideoPick? = null,
+    /** Fourth creation mode: live liquid in one of the looks, at a chosen pace and wave size. */
+    val liquidMode: Boolean = false,
+    val liquidLook: String = "gold",
+    val liquidPace: Int = 1,
+    val liquidScale: Int = 1,
     val error: Int? = null,
 ) {
+    val liquidSpec: com.foldmotion.core.pack.LiquidSpec get() = com.foldmotion.wallpapers.ui.discover.LiquidLooks.spec(liquidLook, liquidPace, liquidScale)
+
     val interpretation: PromptInterpretation get() = PromptAnalyzer.analyze(prompt)
     val promptLength: Int get() = prompt.codePointCount(0, prompt.length)
 }
@@ -356,6 +363,88 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Discover: live liquid made into a pack in [style] (or any [spec] from Create). Two posters
+     * rendered on the GPU, so it takes well under a second; progress goes through [videoJob].
+     */
+    fun createLiquidWallpaper(spec: com.foldmotion.core.pack.LiquidSpec, style: FoldStyle, title: com.foldmotion.core.pack.LocalizedText) {
+        if (_videoJob.value is VideoJob.Running) return
+        _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.POSTERS, 0f)
+        videoWork = viewModelScope.launch {
+            try {
+                val pack = withContext(Dispatchers.Default) {
+                    container.liquidBuilder.build(
+                        com.foldmotion.wallpapers.generator.liquid.LiquidRequest(spec = spec, style = style, seed = random.nextLong(), title = title),
+                        profile,
+                    )
+                }
+                _videoJob.value = VideoJob.Done(pack.id)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _videoJob.value = null
+                throw e
+            } catch (e: Exception) {
+                PocTrace.log("liquid", "BUILD_FAILED", e.javaClass.simpleName + ": " + e.message)
+                _videoJob.value = VideoJob.Failed(R.string.liquid_error)
+            }
+        }
+    }
+
+    /**
+     * Create > Photo: the user's photo as a 3D wallpaper (subject in front, background behind,
+     * moving apart with tilt and the fold). Found and cut on the phone; nothing is uploaded.
+     */
+    fun createFromPhoto(uri: android.net.Uri) {
+        if (_videoJob.value is VideoJob.Running) return
+        val f = _form.value
+        _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.POSTERS, 0f)
+        videoWork = viewModelScope.launch {
+            try {
+                val photo = withContext(Dispatchers.IO) { decodePhoto(uri, PHOTO_LONG_SIDE) }
+                if (photo == null) {
+                    _videoJob.value = VideoJob.Failed(R.string.photo_error)
+                    return@launch
+                }
+                val result = withContext(Dispatchers.Default) {
+                    container.depthBuilder.build(
+                        photo,
+                        com.foldmotion.wallpapers.generator.depth.PhotoRequest(style = f.style, intensity = f.intensity, seed = random.nextLong()),
+                        profile,
+                        container.subjectMasker,
+                    )
+                }
+                photo.recycle()
+                if (!result.hasSubject) _messages.tryEmit(UiMessage.Text(R.string.photo_no_subject))
+                _videoJob.value = VideoJob.Done(result.pack.id)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _videoJob.value = null
+                throw e
+            } catch (e: Exception) {
+                PocTrace.log("photo", "BUILD_FAILED", e.javaClass.simpleName + ": " + e.message)
+                _videoJob.value = VideoJob.Failed(R.string.photo_error)
+            }
+        }
+    }
+
+    /** A picked photo, upright, at most [longSide] pixels on its long side, in software memory. */
+    private fun decodePhoto(uri: android.net.Uri, longSide: Int): android.graphics.Bitmap? = try {
+        val source = ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
+        ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            val w = info.size.width
+            val h = info.size.height
+            val scale = minOf(1f, longSide / maxOf(w, h).toFloat())
+            if (scale < 1f) decoder.setTargetSize(maxOf(1, (w * scale).toInt()), maxOf(1, (h * scale).toInt()))
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }.let { if (it.config == android.graphics.Bitmap.Config.ARGB_8888) it else it.copy(android.graphics.Bitmap.Config.ARGB_8888, false) }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Create > Liquid: the chosen look as a live liquid wallpaper. */
+    fun createLiquidFromForm() {
+        val f = _form.value
+        createLiquidWallpaper(f.liquidSpec, f.style, com.foldmotion.wallpapers.ui.discover.LiquidLooks.byName(f.liquidLook).title)
+    }
+
     /** Discover: a curated idea made into a pack exactly as pictured (same seed), in [style]. */
     fun getDiscoverIdea(item: com.foldmotion.wallpapers.ui.discover.DiscoverItem, style: FoldStyle): Boolean {
         val ideaId = item.idea?.id ?: return false
@@ -554,6 +643,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         val SAMPLE_TITLE = com.foldmotion.core.pack.LocalizedText("ضوء سائل", "Liquid light")
+        const val PHOTO_LONG_SIDE = 2560
         const val REFERENCE_SAMPLE_PX = 96
 
         fun rejectReason(codes: List<ValidationCode>): Int {

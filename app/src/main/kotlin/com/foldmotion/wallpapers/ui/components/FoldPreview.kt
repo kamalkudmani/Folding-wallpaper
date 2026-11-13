@@ -67,6 +67,7 @@ import com.foldmotion.core.device.DeviceProfile
 import com.foldmotion.core.device.ScreenKind
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.render.FrameState
+import com.foldmotion.wallpapers.render.LiquidMotion
 import com.foldmotion.wallpapers.render.LoadedScene
 import com.foldmotion.wallpapers.render.SceneDrawer
 import com.foldmotion.wallpapers.render.SceneLoader
@@ -192,6 +193,20 @@ class ScenePreviewView(context: Context) : View(context) {
         looping = false
         Choreographer.getInstance().removeFrameCallback(loop)
         super.onDetachedFromWindow()
+    }
+
+    /** Live liquid: a touch sends out a ripple, as a tap on the home screen does. */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        val s = scene
+        val world = s?.world
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN && s?.liquid?.touch == true && living && world != null && width > 0) {
+            val span = (sliceEnd - sliceStart).coerceAtLeast(0.05f)
+            val fx = sliceStart + event.x / width * span
+            LiquidMotion.tap(world.left + fx * world.width, world.top + event.y / height * world.height, SystemClock.elapsedRealtime())
+            invalidate()
+        }
+        return super.onTouchEvent(event)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -535,4 +550,67 @@ private suspend fun animateValue(durationMs: Long, onValue: (Float) -> Unit) {
     val anim = Animatable(0f)
     anim.animateTo(1f, tween(durationMs.toInt(), easing = LinearEasing)) { onValue(value) }
     onValue(1f)
+}
+
+/**
+ * Live liquid in one screen's window of its world, as the wallpaper will show it (Create's
+ * preview). Touch it for ripples. When motion is off, the still frame shows.
+ */
+@Composable
+fun LiquidLive(
+    spec: com.foldmotion.core.pack.LiquidSpec,
+    kind: ScreenKind,
+    profile: DeviceProfile,
+    modifier: Modifier = Modifier,
+    living: Boolean = true,
+    /** A still of this look (a Discover thumbnail), shown while motion is off. */
+    posterAsset: String? = null,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scene = remember(spec, kind, profile, posterAsset) {
+        val g = com.foldmotion.wallpapers.generator.liquid.LiquidPackBuilder.geometry(profile)
+        val o = com.foldmotion.wallpapers.generator.liquid.LiquidPackBuilder.OVERSCAN
+        val window = if (kind == ScreenKind.MAIN) g.main else g.cover
+        val screen = profile.screen(kind)
+        // Only a stand-in until the GPU draws the live liquid (or while motion is off): a gradient
+        // of the look's colours, made on the CPU so composing never waits for the GPU.
+        val pw = 96
+        val ph = (pw / screen.aspect).toInt().coerceAtLeast(2)
+        val colors = spec.palette.map { LoadedScene.parseColor(it, android.graphics.Color.GRAY) }
+        val still = posterAsset?.let {
+            try {
+                context.assets.open(it).use { s -> android.graphics.BitmapFactory.decodeStream(s) }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        val poster = still ?: android.graphics.Bitmap.createBitmap(pw, ph, android.graphics.Bitmap.Config.ARGB_8888).also { b ->
+            android.graphics.Canvas(b).drawRect(
+                0f, 0f, pw.toFloat(), ph.toFloat(),
+                android.graphics.Paint().apply {
+                    shader = android.graphics.LinearGradient(0f, 0f, pw * 0.7f, ph.toFloat(), intArrayOf(colors[3], colors[2], colors[1], colors[0]), null, android.graphics.Shader.TileMode.CLAMP)
+                },
+            )
+        }
+        LoadedScene(
+            packId = "liquid-preview",
+            kind = kind,
+            baseWidth = screen.widthPx,
+            baseHeight = screen.heightPx,
+            focusX = 0.5f,
+            focusY = 0.5f,
+            // A Discover still covers the window exactly; the stand-in covers it with overscan.
+            layers = listOf(
+                (if (still != null) com.foldmotion.core.pack.LayerEntry("far", "preview", poster.width, poster.height, listOf(0f, 0f, 1f, 1f), 0f, opaque = true)
+                else com.foldmotion.core.pack.LayerEntry("far", "preview", pw, ph, listOf(-o, -o, 1 + o, 1 + o), 0f, opaque = true)) to poster,
+            ),
+            entryMotion = null,
+            background = android.graphics.Color.BLACK,
+            glow = LoadedScene.parseColor(spec.palette[3], android.graphics.Color.WHITE),
+            world = window,
+            liquid = spec,
+        )
+    }
+    DisposableEffect(scene) { onDispose { scene.recycle() } }
+    SceneView(scene, modifier, living = living)
 }

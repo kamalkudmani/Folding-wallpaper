@@ -9,6 +9,19 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**0.8: Live.** The liquid wallpapers are now computed live on the GPU instead of played from
+videos: they never repeat, drift when you tilt the phone, ripple where you tap the home screen and
+pool along the fold when the phone is half open (and the APK is a third smaller: the 23 MB of clips are gone). Create >
+Liquid makes your own from 8 looks, 3 paces and 3 wave sizes, with a live preview. **3D photos**:
+pick a photo of a person, pet or car; a model running on the phone (no upload) lifts the subject
+in front of its background so it moves in 3D with tilt and rises out of the picture when you
+unfold. Plus a tester kit (in-app *Report a problem*, test plan, recruitment posts), framed Play
+screenshots, a vertical promo video and a premium proposal.
+
+| Promo (vertical) | Play screenshots |
+|---|---|
+| [fold-motion-promo-0.8-en.mp4](docs/promo/fold-motion-promo-0.8-en.mp4) · [AR](docs/promo/fold-motion-promo-0.8-ar.mp4) | [docs/store/screenshots](docs/store/screenshots) |
+
 **0.7: Liquid.** Eight new liquid wallpapers (molten gold, aurora silk, liquid chrome, deep
 ocean...) that flow across both screens in loops with no seam, three liquid fold effects that bend
 the picture itself on the GPU (Ripple, Flow, Glass), a new app icon, a calmer and consistent
@@ -60,10 +73,18 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
   frosted, chromatic glass). The frame is recorded into a RenderNode and bent by an AGSL
   RuntimeShader as its RenderEffect, on the GPU; Android 11-12 and software canvases get a drawn
   cousin (iris, sweep, fade). Tests render them through the real HWUI pipeline.
-- **Liquid wallpapers** (0.7): eight 10-second loops rendered by `tools/liquid/liquid.py`
-  (domain-warped noise lit as a glossy height field, every time term on a circle so the last frame
-  leads straight into the first: no cross-fade needed). The Discover detail page plays the real
-  clip on the 3D fold demo; "Get" makes it a video pack in the chosen fold style.
+- **Live liquid** (0.8, renderer 6): domain-warped gradient noise lit as a glossy height field,
+  in an AGSL shader drawn into a low-resolution compositing RenderNode each frame and composited
+  under the layer's pose, so every fold style plays over it. World-space, so cover and main show
+  one continuous liquid; time runs on circles of whole turns per 10 minutes (exactly periodic,
+  precision-safe). Tilt drifts it (bounded leaky integrator), launcher taps (`COMMAND_TAP`) send
+  ripples, the hinge angle pools it along the fold. Posters (time 0) are rendered on the GPU
+  offscreen (HardwareRenderer + ImageReader) for Android 11-12, motion off and thumbnails. The 0.7
+  loop generator stays in `tools/liquid/liquid.py`.
+- **3D photos** (0.8): DeepLab v3 (bundled, 2.7 MB) on LiteRT finds people, pets and vehicles;
+  the subject becomes a front layer (depth 1) and the background gets its hole filled by push-pull
+  averaging; tilt parallax is three times a drawn scene's, and Auto picks Rise so the subject lifts
+  out on unfold. An ordinary renderer-3 pack.
 - **Video wallpapers** (0.5): make a wallpaper from your own clip (trimmed to up to 15 s and
   resized on the phone with Media3 Transformer, sound removed, nothing uploaded) or try the
   built-in *Liquid light* sample. One clip feeds both screens: the inner screen shows a window
@@ -103,6 +124,7 @@ accounts, moderation.
 - [Blueprint review v1.1 (Arabic)](docs/BLUEPRINT_REVIEW_v1.1.md) — corrections, additions, status, open decisions.
 - [Publishing on Google Play](docs/store/PLAY_RELEASE.md) — what is ready, what the owner must do, listing texts, data safety and rating answers.
 - [Privacy policy (English + Arabic)](docs/PRIVACY.md)
+- [Fold7 test plan](docs/testing/FOLD7_TEST_PLAN.md) · [Finding testers](docs/store/TESTERS.md) · [Premium proposal](docs/store/PREMIUM_PLAN.md) · [Third-party notices](NOTICE.md)
 - [FoldPack manifest JSON Schema](docs/schema/foldpack-manifest.v1.schema.json)
 - [API contract draft (OpenAPI)](docs/api/openapi.yaml)
 - [POC report template (Arabic)](docs/POC_REPORT_TEMPLATE.md)
@@ -112,7 +134,7 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 151 tests, Robolectric with real Skia and HWUI rendering
+./gradlew :core:test :app:testDebugUnitTest   # 164 tests, Robolectric with real Skia and HWUI rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ./gradlew :app:bundleRelease                   # app/build/outputs/bundle/release/app-release.aab (for Play)
 ```
@@ -139,7 +161,8 @@ app/    engine/     FoldWallpaperService, hinge monitor, shared fold session
         apply/      ApplyController (system picker, verified result)
         telemetry/  PocTrace (Fold Lab)
         ui/         Compose screens, theme, components
-tools/  liquid/liquid.py renders the seamless liquid loops (numpy + ffmpeg)
+tools/  liquid/liquid.py (0.7 liquid loops), store/screenshots.py (framed Play screenshots),
+        promo/promo.sh (captions and encoding for the promo video)
 docs/   Review, schema, API draft, privacy policy, Play release kit, screenshots
 ```
 

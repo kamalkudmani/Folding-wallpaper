@@ -54,6 +54,8 @@ data class CatalogEntry(
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
     val videoMs: Int = 0,
+    /** Live liquid items (v6): computed on the GPU, no clip. */
+    val liquid: com.foldmotion.core.pack.LiquidSpec? = null,
 )
 
 /** A wallpaper in the Discover wall: a curated idea, or the sample video. */
@@ -68,6 +70,10 @@ data class DiscoverItem(val entry: CatalogEntry, val idea: SceneIdea?) {
     val family: SceneFamily get() = idea?.family ?: SceneFamily.ABSTRACT
     val autoStyle: FoldStyle get() = FoldStyle.parse(entry.style) ?: FoldStyle.AUTO
     val isLiquid: Boolean get() = DiscoverCatalog.LIQUID_TAG in entry.tags
+    /** Live liquid, drawn on the GPU in real time. */
+    val isLive: Boolean get() = entry.liquid != null
+    /** Moves by itself: a clip or live liquid. */
+    val isMoving: Boolean get() = isVideo || isLive
 
     fun title(language: String, sampleTitle: String): String =
         idea?.let { if (language == "ar") it.titleAr else it.titleEn }
@@ -102,7 +108,7 @@ enum class DiscoverCategory(val label: Int) {
         LIQUID -> item.isLiquid
         VIDEO -> item.isVideo
         NIGHT -> item.idea?.timeOfDay == TimeOfDay.NIGHT || item.family == SceneFamily.SPACE
-        else -> !item.isVideo && item.family.name == name
+        else -> !item.isMoving && item.family.name == name
     }
 }
 
@@ -129,8 +135,8 @@ object DiscoverCatalog {
      */
     internal fun interleave(items: List<DiscoverItem>): List<DiscoverItem> {
         // The liquid set leads; the older sample clip follows it.
-        val videos = ArrayDeque(items.filter { it.isVideo }.sortedByDescending { it.isLiquid })
-        val drawn = ArrayDeque(items.filterNot { it.isVideo })
+        val videos = ArrayDeque(items.filter { it.isMoving }.sortedByDescending { it.isLive })
+        val drawn = ArrayDeque(items.filterNot { it.isMoving })
         val out = ArrayList<DiscoverItem>(items.size)
         while (videos.isNotEmpty() || drawn.isNotEmpty()) {
             videos.removeFirstOrNull()?.let(out::add)
@@ -240,8 +246,9 @@ object DiscoverCatalog {
                 entryMotion = if (kind == ScreenKind.MAIN) choreo.open else choreo.close,
                 background = item.background,
                 glow = item.glow,
-                ambient = if (item.isVideo) null else choreo.ambient,
+                ambient = if (item.isMoving) null else choreo.ambient,
                 world = frames.frame(kind),
+                liquid = e.liquid,
             )
         }
         return scene(ScreenKind.COVER, coverBmp) to scene(ScreenKind.MAIN, mainBmp)

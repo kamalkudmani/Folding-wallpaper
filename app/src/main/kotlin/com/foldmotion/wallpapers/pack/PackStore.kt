@@ -119,7 +119,7 @@ class PackStore(context: Context, private val settings: AppSettings) {
             val next = manifest.copy(
                 packageVersion = manifest.packageVersion + 1,
                 rendererVersion = VersionRange(
-                    CoreInfo.minRendererFor(manifest.video != null, choreo.style.name),
+                    CoreInfo.minRendererFor(manifest.video != null, choreo.style.name, liquid = manifest.liquid != null),
                     maxOf(manifest.rendererVersion.max, CoreInfo.RENDERER_VERSION),
                 ),
                 transitions = Transitions(

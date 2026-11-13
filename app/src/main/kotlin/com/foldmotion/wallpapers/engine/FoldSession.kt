@@ -123,6 +123,7 @@ class HingeMonitor(
 
     override fun onSensorChanged(event: SensorEvent) {
         val angle = event.values.firstOrNull() ?: return
+        com.foldmotion.wallpapers.render.LiquidMotion.hingeAngle = angle
         val posture = FoldSession.hingePosture
         // Hysteresis so a phone held near a threshold does not flap.
         val next = when {
