@@ -324,6 +324,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         settings.tiltParallax = on
     }
 
+    val liveSwitchHoldMs: StateFlow<Long> = settingsChanges
+        .filter { it.isEmpty() || it == AppSettings.KEY_SWITCH_HOLD }
+        .map { settings.liveSwitchHoldMs }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, settings.liveSwitchHoldMs)
+
+    fun setLiveSwitchHold(ms: Long) {
+        settings.liveSwitchHoldMs = ms
+    }
+
     /** Pack shown in the home hero: the one on the home screen, else the newest. */
     fun heroPack(list: List<StoredPack>, active: String?): StoredPack? = list.firstOrNull { it.id == active } ?: list.firstOrNull()
 

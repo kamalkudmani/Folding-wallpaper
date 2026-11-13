@@ -266,4 +266,7 @@
     <string name="style_changed">Fold animation: %1$s</string>
     <string name="style_failed">Couldn\'t change the animation. The wallpaper is unchanged.</string>
     <string name="style_working">Changing the animation…</string>
+    <string name="lab_switch_hold">Start delay with the screen on</string>
+    <string name="lab_switch_hold_value">%1$d ms</string>
+    <string name="lab_switch_hold_body">When you fold or unfold with the screen on, One UI plays its own switch animation first. The fold animation waits this long so it is not over before you can see it. If it starts too late or is half gone, try another value.</string>
 </resources>

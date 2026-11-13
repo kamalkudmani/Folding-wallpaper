@@ -255,4 +255,7 @@
     <string name="style_changed">حركة الطي: %1$s</string>
     <string name="style_failed">تعذّر تغيير الحركة، ولم يتغير شيء في الخلفية.</string>
     <string name="style_working">جارٍ تغيير الحركة…</string>
+    <string name="lab_switch_hold">تأخير البدء والشاشة تعمل</string>
+    <string name="lab_switch_hold_value">%1$d ms</string>
+    <string name="lab_switch_hold_body">عند الطي أو الفتح والشاشة تعمل، يعرض One UI حركة التبديل الخاصة به أولًا. تنتظر حركة الطي هذه المدة حتى لا تنتهي قبل أن تراها. إذا بدأت متأخرة أو فاتك نصفها، جرّب قيمة أخرى.</string>
 </resources>

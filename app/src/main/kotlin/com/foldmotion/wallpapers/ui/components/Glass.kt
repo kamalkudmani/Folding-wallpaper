@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -274,7 +275,8 @@ fun PillToggle(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mo
                         .clickable(role = Role.Tab) {
                             if (!chosen) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelect(i)
-                        },
+                        }
+                        .testTag("pill_$i"),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -329,7 +331,8 @@ fun FloatingNavBar(items: List<NavItem>, selected: Int, onSelect: (Int) -> Unit,
                         .clickable(role = Role.Tab) {
                             if (!chosen) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelect(i)
-                        },
+                        }
+                        .testTag("nav_$i"),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {

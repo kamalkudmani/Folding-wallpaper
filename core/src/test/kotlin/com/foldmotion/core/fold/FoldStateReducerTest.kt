@@ -54,7 +54,7 @@ class FoldStateReducerTest {
         val h = Harness()
         boot(h, cover)
         val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
-        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main)))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main, live = true)))
         assertEquals(FoldPhase.MAIN_ENTER, h.state.phase)
 
         h.send(FoldEvent.TransitionFinished(1_500))
@@ -67,7 +67,7 @@ class FoldStateReducerTest {
         val h = Harness()
         boot(h, main)
         val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1080, 2520, cover))
-        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.CLOSE, cover)))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.CLOSE, cover, live = true)))
         assertEquals(FoldPhase.COVER_ENTER, h.state.phase)
     }
 
@@ -243,6 +243,111 @@ class FoldStateReducerTest {
             FoldEvent.VisibilityChanged(1_100, true, sessionLastShown = cover, sessionPostureChangedAtMs = 1_000),
         )
         assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main)))
+    }
+
+    @Test
+    fun `screen on - a switch that hides the wallpaper for a moment still plays the animation`() {
+        // Reported on the Fold7: with the screen on, folding showed no animation. The system
+        // reports the wallpaper hidden for a moment during the switch, which cut the transition,
+        // and the new panel already counted as shown, so nothing played when it came back.
+        for (from in listOf(cover, main)) {
+            val to = if (from == cover) main else cover
+            val h = Harness()
+            boot(h, from)
+            val start = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, if (to == cover) 1080 else 1968, if (to == cover) 2520 else 2184, to))
+            assertTrue(start.any { it is FoldCommand.StartTransition && it.screen == to && it.live })
+            h.send(FoldEvent.VisibilityChanged(1_050, false))
+            val again = h.sendAndLoad(FoldEvent.VisibilityChanged(1_400, true))
+            assertTrue("$from -> $to", again.any { it is FoldCommand.StartTransition && it.screen == to })
+            // Once it has finished, coming back to the same panel stays still.
+            h.send(FoldEvent.TransitionFinished(2_600))
+            h.send(FoldEvent.VisibilityChanged(3_000, false))
+            assertTrue(h.sendAndLoad(FoldEvent.VisibilityChanged(3_100, true)).none { it is FoldCommand.StartTransition })
+        }
+    }
+
+    @Test
+    fun `screen on - surface torn down and rebuilt during the switch still animates`() {
+        val h = Harness()
+        boot(h, cover)
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        h.send(FoldEvent.SurfaceDestroyed(1_020))
+        h.send(FoldEvent.SurfaceCreated(1_200))
+        val out = h.sendAndLoad(FoldEvent.SurfaceChanged(1_210, 1968, 2184, main))
+        assertTrue(out.any { it is FoldCommand.StartTransition && it.screen == main })
+    }
+
+    @Test
+    fun `screen on - a new engine for the other panel animates from its first surface`() {
+        // One UI may build a fresh engine for the panel being switched to while the screen is on.
+        val h = Harness(FoldState(visible = false))
+        h.send(FoldEvent.SurfaceCreated(2_000))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(2_000, 1080, 2520, cover, sessionLastShown = main, sessionPostureChangedAtMs = 1_950))
+        val out = h.sendAndLoad(FoldEvent.VisibilityChanged(2_050, true, sessionLastShown = main, sessionPostureChangedAtMs = 1_950))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.CLOSE, cover, live = false)))
+    }
+
+    @Test
+    fun `screen on - an engine that stays visible hears the fold from the hinge`() {
+        // Separate engines per panel whose visibility never toggles: only the hinge tells.
+        val h = Harness()
+        boot(h, main)
+        h.send(FoldEvent.TransitionFinished(100))
+        val out = h.sendAndLoad(FoldEvent.PostureChanged(5_000, main, sessionLastShown = cover))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main, live = true)))
+        // The hinge settling on the same posture again does nothing.
+        h.send(FoldEvent.TransitionFinished(6_200))
+        assertTrue(h.sendAndLoad(FoldEvent.PostureChanged(6_300, main, sessionLastShown = main)).isEmpty())
+        // A hinge reading for the other panel only timestamps the fold.
+        assertTrue(h.sendAndLoad(FoldEvent.PostureChanged(7_000, cover, sessionLastShown = main)).isEmpty())
+        assertEquals(7_000L, h.state.postureChangedAtMs)
+    }
+
+    @Test
+    fun `locked phone opened still animates, and a switch while hidden is not live`() {
+        val h = Harness()
+        boot(h, cover)
+        h.send(FoldEvent.VisibilityChanged(1_000, false))
+        h.sendAndLoad(FoldEvent.SurfaceChanged(5_000, 1968, 2184, main))
+        val out = h.sendAndLoad(FoldEvent.VisibilityChanged(5_300, true))
+        assertTrue(out.contains(FoldCommand.StartTransition(TransitionKind.OPEN, main, live = false)))
+    }
+
+    @Test
+    fun `transition clock pauses through stalls instead of skipping the animation`() {
+        val ms = 1_000_000L
+        val clock = TransitionClock(durationMs = 1_000)
+        clock.start(0)
+        clock.advance(16 * ms)
+        // The display switch freezes frames for 700 ms: the next frame continues, not ends.
+        val afterStall = clock.advance(716 * ms)
+        assertTrue("progress $afterStall", afterStall < 0.1f)
+        var t = 716L
+        while (!clock.isDone) {
+            t += 16
+            clock.advance(t * ms)
+        }
+        assertEquals(1f, clock.progress, 0f)
+        // Smooth frames: about the nominal duration.
+        val smooth = TransitionClock(durationMs = 1_000)
+        smooth.start(0)
+        var n = 0
+        while (!smooth.isDone) smooth.advance(++n * 16 * ms)
+        assertTrue(n in 62..64)
+    }
+
+    @Test
+    fun `transition clock holds the first frame for a live switch`() {
+        val ms = 1_000_000L
+        val clock = TransitionClock(durationMs = 1_000, holdMs = 250)
+        clock.start(0)
+        var t = 0L
+        while (t < 240) {
+            t += 16
+            assertEquals(0f, clock.advance(t * ms), 0f)
+        }
+        t += 48
+        assertTrue(clock.advance(t * ms) > 0f)
     }
 
     @Test

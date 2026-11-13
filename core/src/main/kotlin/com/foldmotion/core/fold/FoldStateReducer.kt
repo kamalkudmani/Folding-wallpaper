@@ -26,6 +26,7 @@ object FoldStateReducer {
             is FoldEvent.TransitionFinished -> onTransitionFinished(prev, out)
             is FoldEvent.PolicyChanged -> onPolicyChanged(prev, event, out)
             is FoldEvent.PackChanged -> onPackChanged(prev, event, out)
+            is FoldEvent.PostureChanged -> onPosture(prev, event, out)
         }
         return Reduction(next, out)
     }
@@ -40,15 +41,21 @@ object FoldStateReducer {
         if (previous == incoming) return s
 
         val kindChanged = s.lastSurfaceKind != null && s.lastSurfaceKind != e.kind
-        var st = s.copy(surface = incoming, lastSurfaceKind = e.kind)
+        var st = s.copy(
+            surface = incoming,
+            lastSurfaceKind = e.kind,
+            // Another engine may have shown the other panel since this one last drew.
+            lastShown = if (s.activeTransition == null) e.sessionLastShown ?: s.lastShown else s.lastShown,
+            postureChangedAtMs = latest(s.postureChangedAtMs, e.sessionPostureChangedAtMs),
+        )
         if (kindChanged) {
             // Cover <-> main switch. It may arrive as a resize of the same surface or as a brand
             // new surface after the old one was destroyed; both count as the fold moment.
             if (st.activeTransition != null) {
                 out += FoldCommand.CutTransition(CutReason.PROFILE_CHANGED)
-                st = st.copy(activeTransition = null)
+                st = st.copy(activeTransition = null, transitionFrom = null)
             }
-            st = st.copy(postureChangedAtMs = e.atMs)
+            st = st.copy(postureChangedAtMs = e.atMs, liveSwitch = s.visible)
             st = present(st, e.atMs, out)
         } else if (previous == null || st.activeTransition == null) {
             // First surface, a surface restored for the same panel, or a rotation/resize.
@@ -60,10 +67,26 @@ object FoldStateReducer {
 
     private fun onSurfaceDestroyed(s: FoldState, out: MutableList<FoldCommand>): FoldState {
         if (s.surface == null) return s
-        if (s.activeTransition != null) out += FoldCommand.CutTransition(CutReason.SURFACE_DESTROYED)
+        var st = s
+        if (s.activeTransition != null) {
+            out += FoldCommand.CutTransition(CutReason.SURFACE_DESTROYED)
+            st = unshow(st, out)
+        }
         out += FoldCommand.StopFrames
-        return s.copy(surface = null, activeTransition = null, phase = FoldPhase.SURFACE_LOST)
+        return st.copy(surface = null, activeTransition = null, phase = FoldPhase.SURFACE_LOST)
     }
+
+    /**
+     * A transition was cut before it could be seen: the new screen has not really been shown, so
+     * the next presentation (within the freshness window) plays it again.
+     */
+    private fun unshow(s: FoldState, out: MutableList<FoldCommand>): FoldState {
+        val from = s.transitionFrom ?: return s
+        out += FoldCommand.MarkShown(from)
+        return s.copy(lastShown = from, transitionFrom = null)
+    }
+
+    private fun latest(a: Long?, b: Long?): Long? = listOfNotNull(a, b).maxOrNull()
 
     private fun onVisibility(
         s: FoldState,
@@ -72,10 +95,15 @@ object FoldStateReducer {
     ): FoldState {
         if (e.visible == s.visible) return s
         if (!e.visible) {
-            if (s.activeTransition != null) out += FoldCommand.CutTransition(CutReason.VISIBILITY_LOST)
+            var hidden = s
+            if (s.activeTransition != null) {
+                out += FoldCommand.CutTransition(CutReason.VISIBILITY_LOST)
+                hidden = unshow(hidden, out)
+            }
             out += FoldCommand.StopFrames
-            return s.copy(
+            return hidden.copy(
                 visible = false,
+                liveSwitch = false,
                 activeTransition = null,
                 phase = if (s.surface == null) FoldPhase.SURFACE_LOST else FoldPhase.SUSPENDED,
             )
@@ -119,8 +147,19 @@ object FoldStateReducer {
         if (kind != null && s.visible) out += FoldCommand.DrawStatic(kind)
         return s.copy(
             activeTransition = null,
+            transitionFrom = null,
             phase = if (kind == null) FoldPhase.SURFACE_LOST else stablePhase(kind),
         )
+    }
+
+    private fun onPosture(s: FoldState, e: FoldEvent.PostureChanged, out: MutableList<FoldCommand>): FoldState {
+        var st = s.copy(postureChangedAtMs = latest(s.postureChangedAtMs, e.atMs))
+        if (st.activeTransition != null || !st.visible || st.surface?.kind != e.screen) return st
+        // Only when this panel has not been presented since the fold; otherwise nothing to do.
+        val shown = e.sessionLastShown ?: st.lastShown
+        if (shown == null || shown == e.screen) return st
+        st = st.copy(lastShown = shown, liveSwitch = true)
+        return present(st, e.atMs, out)
     }
 
     private fun onPolicyChanged(
@@ -137,6 +176,7 @@ object FoldStateReducer {
             if (kind != null && st.visible) out += FoldCommand.DrawStatic(kind)
             st = st.copy(
                 activeTransition = null,
+                transitionFrom = null,
                 phase = if (kind == null) FoldPhase.SURFACE_LOST else stablePhase(kind),
             )
         }
@@ -152,7 +192,7 @@ object FoldStateReducer {
         if (st.activeTransition != null) {
             out += FoldCommand.CutTransition(CutReason.PACK_CHANGED)
             out += FoldCommand.StopFrames
-            st = st.copy(activeTransition = null)
+            st = st.copy(activeTransition = null, transitionFrom = null)
         }
         st = st.copy(readyScene = null, loadingScene = null)
         return present(st, e.atMs, out)
@@ -182,10 +222,12 @@ object FoldStateReducer {
 
         return if (shouldAnimate(s, kind, atMs)) {
             val transition = if (kind == ScreenKind.MAIN) TransitionKind.OPEN else TransitionKind.CLOSE
-            out += FoldCommand.StartTransition(transition, kind)
+            out += FoldCommand.StartTransition(transition, kind, s.liveSwitch)
             out += FoldCommand.MarkShown(kind)
             s.copy(
                 activeTransition = transition,
+                transitionFrom = s.lastShown,
+                liveSwitch = false,
                 phase = if (kind == ScreenKind.MAIN) FoldPhase.MAIN_ENTER else FoldPhase.COVER_ENTER,
                 lastShown = kind,
                 previewDemoPlayed = true,
@@ -193,7 +235,7 @@ object FoldStateReducer {
         } else {
             out += FoldCommand.DrawStatic(kind)
             out += FoldCommand.MarkShown(kind)
-            s.copy(phase = stablePhase(kind), lastShown = kind, previewDemoPlayed = true)
+            s.copy(phase = stablePhase(kind), lastShown = kind, previewDemoPlayed = true, liveSwitch = false)
         }
     }
 

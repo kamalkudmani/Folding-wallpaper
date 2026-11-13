@@ -70,7 +70,7 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 119 tests, Robolectric with real Skia rendering
+./gradlew :core:test :app:testDebugUnitTest   # 132 tests, Robolectric with real Skia rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ```
 

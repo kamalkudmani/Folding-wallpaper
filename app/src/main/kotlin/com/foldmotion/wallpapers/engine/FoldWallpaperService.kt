@@ -23,6 +23,7 @@ import com.foldmotion.core.device.ScreenClassifier
 import com.foldmotion.core.device.ScreenKind
 import com.foldmotion.core.fold.FoldCommand
 import com.foldmotion.core.fold.FoldEvent
+import com.foldmotion.core.fold.TransitionClock
 import com.foldmotion.core.fold.FoldState
 import com.foldmotion.core.fold.FoldStateReducer
 import com.foldmotion.core.fold.MotionPolicy
@@ -65,7 +66,7 @@ class FoldWallpaperService : WallpaperService() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer.get(this)
-        hinge = HingeMonitor(getSystemService(SensorManager::class.java))
+        hinge = HingeMonitor(getSystemService(SensorManager::class.java)) { screen -> engines.toList().forEach { it.onPosture(screen) } }
         PocTrace.log("service", "CREATE")
         ensureDefaultPack()
     }
@@ -124,6 +125,7 @@ class FoldWallpaperService : WallpaperService() {
 
         private var transitionKind: TransitionKind? = null
         private var transitionStartNanos = 0L
+        private var clock: TransitionClock? = null
         private var transitionDurationMs = 0
         private var frameCount = 0
         private var jankFrames = 0
@@ -149,7 +151,7 @@ class FoldWallpaperService : WallpaperService() {
                         switchPack(next)
                     }
                 }
-                AppSettings.KEY_REDUCED_MOTION -> {
+                AppSettings.KEY_REDUCED_MOTION, AppSettings.KEY_SWITCH_HOLD -> {
                     dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
                     refreshAmbient()
                 }
@@ -244,8 +246,16 @@ class FoldWallpaperService : WallpaperService() {
             )
             if (previousKind != null && previousKind != kind) {
                 FoldSession.markPostureChange(id, PocEvents.detail(PocEvents.FROM to previousKind, PocEvents.TO to kind, PocEvents.VIA to "surface"))
+            } else {
+                FoldSession.inferSwitch(id, kind)
             }
-            dispatch(FoldEvent.SurfaceChanged(now(), width, height, kind))
+            dispatch(
+                FoldEvent.SurfaceChanged(
+                    now(), width, height, kind,
+                    sessionLastShown = FoldSession.lastShown,
+                    sessionPostureChangedAtMs = FoldSession.postureChangedAtMs,
+                ),
+            )
         }
 
         override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
@@ -264,6 +274,7 @@ class FoldWallpaperService : WallpaperService() {
         override fun onVisibilityChanged(visible: Boolean) {
             super.onVisibilityChanged(visible)
             trace(PocEvents.VISIBILITY, PocEvents.detail(PocEvents.VISIBLE to visible))
+            if (visible) state.surface?.kind?.let { FoldSession.inferSwitch(id, it) }
             dispatch(
                 FoldEvent.VisibilityChanged(
                     now(), visible,
@@ -271,6 +282,11 @@ class FoldWallpaperService : WallpaperService() {
                     sessionPostureChangedAtMs = FoldSession.postureChangedAtMs,
                 ),
             )
+        }
+
+        /** The hinge reached fully open or closed; see FoldEvent.PostureChanged. */
+        fun onPosture(screen: ScreenKind) {
+            dispatch(FoldEvent.PostureChanged(now(), screen, sessionLastShown = FoldSession.lastShown))
         }
 
         override fun onComputeColors(): WallpaperColors? {
@@ -309,14 +325,14 @@ class FoldWallpaperService : WallpaperService() {
                 is FoldCommand.LoadScene -> loadScene(command.kind)
                 is FoldCommand.DrawPlaceholder -> drawPlaceholder(command.kind)
                 is FoldCommand.DrawStatic -> drawStatic(command.kind)
-                is FoldCommand.StartTransition -> startTransition(command.kind, command.screen)
+                is FoldCommand.StartTransition -> startTransition(command.kind, command.screen, command.live)
                 is FoldCommand.CutTransition -> {
                     trace(PocEvents.TRANSITION_CUT, PocEvents.detail(PocEvents.REASON to command.reason.name))
                     transitionKind = null
                     stopFrames()
                 }
                 FoldCommand.StopFrames -> stopFrames()
-                is FoldCommand.MarkShown -> FoldSession.lastShown = command.kind
+                is FoldCommand.MarkShown -> FoldSession.markShown(command.kind)
             }
         }
 
@@ -526,7 +542,7 @@ class FoldWallpaperService : WallpaperService() {
             }
         }
 
-        private fun startTransition(kind: TransitionKind, screen: ScreenKind) {
+        private fun startTransition(kind: TransitionKind, screen: ScreenKind, live: Boolean) {
             val scene = scenes[screen]
             val motion = scene?.entryMotion
             if (scene == null || motion == null) {
@@ -536,6 +552,10 @@ class FoldWallpaperService : WallpaperService() {
             transitionKind = kind
             transitionDurationMs = motion.durationMs
             transitionStartNanos = System.nanoTime()
+            // A switch with the screen on happens under the system's own switch animation: hold
+            // the first frame for a moment, and never let a frozen display skip the motion.
+            val hold = if (live) state.policy.liveSwitchHoldMs else 0L
+            clock = TransitionClock(motion.durationMs, hold).also { it.start(transitionStartNanos) }
             val sincePosture = FoldSession.postureChangedAtMs?.let { now() - it }
             frameCount = 0
             jankFrames = 0
@@ -548,7 +568,7 @@ class FoldWallpaperService : WallpaperService() {
             }.coerceIn(30f, 240f)
             trace(
                 PocEvents.TRANSITION_START,
-                PocEvents.detail(PocEvents.KIND to kind, PocEvents.DURATION_MS to motion.durationMs, PocEvents.SINCE_POSTURE_MS to sincePosture),
+                PocEvents.detail(PocEvents.KIND to kind, PocEvents.DURATION_MS to motion.durationMs, PocEvents.SINCE_POSTURE_MS to sincePosture, "live" to live, "holdMs" to hold),
             )
             drawTransitionFrame(transitionStartNanos)
             scheduleFrame()
@@ -609,8 +629,7 @@ class FoldWallpaperService : WallpaperService() {
         private fun drawTransitionFrame(frameTimeNanos: Long): Boolean {
             val kind = state.surface?.kind ?: return true
             val scene = scenes[kind] ?: return true
-            val elapsedMs = (frameTimeNanos - transitionStartNanos) / 1_000_000f
-            val progress = (elapsedMs / max(1, transitionDurationMs)).coerceIn(0f, 1f)
+            val progress = clock?.advance(frameTimeNanos) ?: 1f
             withCanvas { c -> drawer.draw(c, c.width, c.height, scene, progress, frameState(scene)) }
             return progress >= 1f
         }
@@ -639,6 +658,7 @@ class FoldWallpaperService : WallpaperService() {
             return MotionPolicy(
                 reducedMotion = settings.reducedMotion || animatorScale == 0f,
                 powerSave = power?.isPowerSaveMode == true,
+                liveSwitchHoldMs = settings.liveSwitchHoldMs,
             )
         }
 

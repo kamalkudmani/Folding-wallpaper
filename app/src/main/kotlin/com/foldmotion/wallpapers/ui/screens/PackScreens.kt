@@ -35,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -112,7 +114,7 @@ fun GeneratingScreen(vm: MainViewModel, onReady: (String) -> Unit, onEdit: () ->
     }
     val fraction by animateFloatAsState(doneCount / PipelineStage.entries.size.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow), label = "progress")
 
-    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 18.dp, bottom = 32.dp)) {
+    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 18.dp, bottom = NavClearance)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.gen_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
             GlassIconButton(Icons.Filled.Close, stringResource(R.string.action_close), onClose)
@@ -302,6 +304,8 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             ReadableColumn(Modifier.padding(top = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.staggerIn(0)) {
+                    GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back), onBack)
+                    Spacer(Modifier.width(12.dp))
                     Text(pack.manifest.title.forLanguage(language), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     GlassIconButton(Icons.Filled.Share, stringResource(R.string.action_share), {
                         vm.shareIntent(pack.id)?.let { context.startActivity(android.content.Intent.createChooser(it, context.getString(R.string.share_chooser))) }
@@ -331,7 +335,7 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
                     }
                 }
             }
-            ReadableColumn(Modifier.padding(bottom = 40.dp)) {
+            ReadableColumn(Modifier.padding(bottom = NavClearance)) {
                 Spacer(Modifier.height(16.dp))
                 if (mode != PreviewMode.DEMO) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -365,7 +369,7 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
                 )
 
                 SectionTitle(stringResource(R.string.preview_details))
-                GlassCard(Modifier.fillMaxWidth()) {
+                GlassCard(Modifier.fillMaxWidth().testTag("preview_details")) {
                     DetailRow(stringResource(R.string.preview_check), if (report.passed) stringResource(R.string.preview_check_passed) else stringResource(R.string.preview_check_failed, report.codes.joinToString()))
                     DetailRow(stringResource(R.string.preview_profile), pack.manifest.profileIds.map { id -> DeviceProfileRegistry.byId(id)?.let { profileName(it) } ?: id }.joinToString())
                     DetailRow(

@@ -41,11 +41,19 @@ data class MotionPolicy(
      * visible later than this after the posture change, the end state is shown without motion.
      */
     val freshnessWindowMs: Long = DEFAULT_FRESHNESS_MS,
+    /**
+     * When the panels switch while the screen stays on, the system shows its own switch
+     * animation over the wallpaper for a moment. The first frame is held this long so the fold
+     * animation is not over before it can be seen.
+     */
+    val liveSwitchHoldMs: Long = DEFAULT_LIVE_SWITCH_HOLD_MS,
 ) {
     val motionAllowed: Boolean get() = !reducedMotion && !powerSave
 
     companion object {
         const val DEFAULT_FRESHNESS_MS = 3_000L
+        const val DEFAULT_LIVE_SWITCH_HOLD_MS = 250L
+        val LIVE_SWITCH_HOLD_CHOICES = listOf(0L, 150L, 250L, 400L, 600L)
     }
 }
 
@@ -64,6 +72,14 @@ data class FoldState(
     /** Monotonic time of the last cover/main switch, if known. */
     val postureChangedAtMs: Long? = null,
     val activeTransition: TransitionKind? = null,
+    /**
+     * What was on screen before the running transition. If the transition is cut before the user
+     * could see it (the system hides the wallpaper for a moment during a switch with the screen
+     * on), the new screen counts as not yet shown, so it plays when it comes back.
+     */
+    val transitionFrom: ScreenKind? = null,
+    /** The panels switched while the screen was on; the next transition holds its first frame. */
+    val liveSwitch: Boolean = false,
     val policy: MotionPolicy = MotionPolicy(),
     /** System wallpaper picker preview: plays the entry motion once as a demonstration. */
     val isPreview: Boolean = false,
@@ -81,6 +97,9 @@ sealed interface FoldEvent {
         val width: Int,
         val height: Int,
         val kind: ScreenKind,
+        /** Process-wide hints, as for [VisibilityChanged]: a new engine has no history. */
+        val sessionLastShown: ScreenKind? = null,
+        val sessionPostureChangedAtMs: Long? = null,
     ) : FoldEvent
 
     data class SurfaceDestroyed(override val atMs: Long) : FoldEvent
@@ -98,6 +117,16 @@ sealed interface FoldEvent {
     data class TransitionFinished(override val atMs: Long) : FoldEvent
     data class PolicyChanged(override val atMs: Long, val policy: MotionPolicy) : FoldEvent
     data class PackChanged(override val atMs: Long) : FoldEvent
+
+    /**
+     * The hinge sensor says the phone is now fully open ([screen] = MAIN) or closed (COVER). Lets
+     * an engine that stays visible on its panel, with no surface change, still notice the fold.
+     */
+    data class PostureChanged(
+        override val atMs: Long,
+        val screen: ScreenKind,
+        val sessionLastShown: ScreenKind? = null,
+    ) : FoldEvent
 }
 
 sealed interface FoldCommand {
@@ -110,7 +139,8 @@ sealed interface FoldCommand {
     /** Draw the resting pose once. No frame loop. */
     data class DrawStatic(val kind: ScreenKind) : FoldCommand
 
-    data class StartTransition(val kind: TransitionKind, val screen: ScreenKind) : FoldCommand
+    /** [live]: the panels switched while the screen was on, so hold the first frame briefly. */
+    data class StartTransition(val kind: TransitionKind, val screen: ScreenKind, val live: Boolean = false) : FoldCommand
 
     /** Stop the running transition immediately; a later command decides what to draw. */
     data class CutTransition(val reason: CutReason) : FoldCommand

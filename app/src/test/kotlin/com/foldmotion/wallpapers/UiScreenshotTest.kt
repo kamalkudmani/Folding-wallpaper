@@ -132,7 +132,9 @@ class UiScreenshotTest {
         val store = AppContainer.get(app).packStore
         val before = store.get(ids.first())!!.manifest
         val target = if (before.motionStyle == "BOOK") "warp" else "book"
-        rule.onNodeWithTag("style_$target").performScrollTo()
+        // Scroll past the picker so the floating navigation does not cover the tile.
+        rule.onNodeWithTag("preview_details").performScrollTo()
+        settle()
         rule.onNodeWithTag("style_$target").performClick()
         val deadline = System.currentTimeMillis() + 15_000
         while (store.get(ids.first())!!.manifest.packageVersion == before.packageVersion && System.currentTimeMillis() < deadline) {

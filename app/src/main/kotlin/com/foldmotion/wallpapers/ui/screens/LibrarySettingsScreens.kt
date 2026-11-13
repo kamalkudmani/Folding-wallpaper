@@ -278,7 +278,7 @@ fun LabScreen(vm: MainViewModel) {
         }
     }
 
-    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 40.dp)) {
+    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = NavClearance)) {
         ScreenTitle(stringResource(R.string.settings_lab))
         Spacer(Modifier.height(8.dp))
         val build = "${device.manufacturer} ${device.model} · Android ${device.androidRelease} (SDK ${device.sdkInt}) · ${device.build}"
@@ -295,6 +295,16 @@ fun LabScreen(vm: MainViewModel) {
         LabRow(stringResource(R.string.lab_profile), "${device.detected.profile.id} · ${statusLabel(device.detected.profile.verification.status)}")
         LabRow(stringResource(R.string.lab_match), device.detected.confidence.name)
         LabRow(stringResource(R.string.lab_wallpaper_active), stringResource(if (vm.container.apply.isOurWallpaperActive()) R.string.yes else R.string.no))
+
+        SectionTitle(stringResource(R.string.lab_switch_hold))
+        val hold by vm.liveSwitchHoldMs.collectAsStateWithLifecycle()
+        val choices = com.foldmotion.core.fold.MotionPolicy.LIVE_SWITCH_HOLD_CHOICES
+        PillToggle(
+            choices.map { stringResource(R.string.lab_switch_hold_value, it.toInt()) },
+            selected = choices.indexOf(hold).coerceAtLeast(0),
+            onSelect = { vm.setLiveSwitchHold(choices[it]) },
+        )
+        Text(stringResource(R.string.lab_switch_hold_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
 
         SectionTitle(stringResource(R.string.lab_steps))
         Text(stringResource(R.string.lab_steps_body), style = MaterialTheme.typography.bodyMedium)

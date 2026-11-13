@@ -87,6 +87,11 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_UPDATED, null)?.substringBefore('|')
         set(v) = prefs.edit().putString(KEY_UPDATED, v?.let { "$it|${System.nanoTime()}" }).apply()
 
+    /** Fold Lab: how long a switch with the screen on holds the first frame (device tuning). */
+    var liveSwitchHoldMs: Long
+        get() = prefs.getLong(KEY_SWITCH_HOLD, com.foldmotion.core.fold.MotionPolicy.DEFAULT_LIVE_SWITCH_HOLD_MS)
+        set(v) = prefs.edit().putLong(KEY_SWITCH_HOLD, v).apply()
+
     fun recordApply(record: ApplyRecord) {
         applyHistory = listOf(record) + applyHistory.filterNot { it.packId == record.packId }
     }
@@ -111,5 +116,6 @@ class AppSettings(context: Context) {
         const val KEY_LIVING = "living_motion"
         const val KEY_TILT = "tilt_parallax"
         const val KEY_UPDATED = "pack_updated"
+        const val KEY_SWITCH_HOLD = "live_switch_hold_ms"
     }
 }

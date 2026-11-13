@@ -190,9 +190,10 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
             }
         }
 
-        // Floating glass navigation, only on the four top-level screens.
+        // Floating glass navigation on every screen after onboarding, so Home is always one tap
+        // away (also from a wallpaper just created, which is not one of the four tabs).
         AnimatedVisibility(
-            visible = tabIndex >= 0,
+            visible = route != null && route != Routes.ONBOARDING,
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -201,10 +202,15 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
                 items = tabs.map { NavItem(stringResource(it.label), it.icon) },
                 selected = tabIndex,
                 onSelect = { i ->
-                    nav.navigate(tabs[i].route) {
-                        popUpTo(Routes.HOME) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+                    // Each tab opens its own screen fresh on top of Home. Saving and restoring
+                    // tab stacks would bring back a stale preview or generation screen; the
+                    // Create form survives anyway because it lives in the ViewModel.
+                    val target = tabs[i].route
+                    if (route != target) {
+                        nav.navigate(target) {
+                            popUpTo(Routes.HOME)
+                            launchSingleTop = true
+                        }
                     }
                 },
                 modifier = Modifier
@@ -215,7 +221,7 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
         }
         SnackbarHost(
             snackbar,
-            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = if (tabIndex >= 0) 92.dp else 16.dp, start = 16.dp, end = 16.dp),
+            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = if (route != Routes.ONBOARDING) 92.dp else 16.dp, start = 16.dp, end = 16.dp),
         ) { data ->
             Snackbar(data, containerColor = FmColors.NightHigh, contentColor = FmColors.Text, shape = RoundedCornerShape(20.dp))
         }
