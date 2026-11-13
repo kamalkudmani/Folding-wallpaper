@@ -261,7 +261,7 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
     var mode by remember { mutableStateOf(PreviewMode.DEMO) }
     var playCover by remember { mutableIntStateOf(0) }
     var playMain by remember { mutableIntStateOf(0) }
-    val (cover, main) = rememberPackScenes(pack.dir, longSide, pack.manifest.packageVersion)
+    val (cover, main) = rememberPackScenes(pack.dir, longSide, pack.manifest.packageVersion, playVideo = !reduced)
     val restyling by vm.restyling.collectAsStateWithLifecycle()
     val style = remember(pack.id, pack.manifest.packageVersion) { PackChoreography.styleOf(pack.manifest) }
     // Replay as soon as a restyled pack has loaded (the 3D demo restarts by itself).
@@ -377,6 +377,9 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
                         stringResource(R.string.preview_motion_value, intensityLabel(pack.manifest.motionIntensity), main?.entryMotion?.durationMs ?: pack.manifest.transitions.open.durationMs, cover?.entryMotion?.durationMs ?: pack.manifest.transitions.close.durationMs),
                     )
                     DetailRow(stringResource(R.string.style_title), foldStyleLabel(style))
+                    pack.manifest.video?.let { v ->
+                        DetailRow(stringResource(R.string.preview_scene), stringResource(R.string.preview_scene_video, v.width, v.height, v.durationMs / 1000f))
+                    }
                     DetailRow(stringResource(R.string.preview_size), stringResource(R.string.preview_size_value, pack.sizeBytes / 1_048_576f))
                     DetailRow(stringResource(R.string.preview_source), stringResource(if (pack.imported) R.string.source_imported else R.string.source_created), last = true)
                 }

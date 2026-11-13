@@ -30,6 +30,8 @@ class AppContainer(context: Context) {
     val packStore = PackStore(app, settings)
     val generator = LocalPackGenerator(packStore, validator)
     val generation = GenerationController(generator, scope)
+    val videoTools: com.foldmotion.wallpapers.generator.video.VideoTools = com.foldmotion.wallpapers.generator.video.AndroidVideoTools(app)
+    val videoBuilder = com.foldmotion.wallpapers.generator.video.VideoPackBuilder(packStore, validator, videoTools)
     val apply = ApplyController(app, settings, packStore)
 
     companion object {

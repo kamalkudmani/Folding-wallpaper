@@ -8,7 +8,9 @@ import java.security.MessageDigest
 data class PackLimits(
     val maxEntries: Int = 64,
     val maxFileBytes: Long = 32L * 1024 * 1024,
-    val maxTotalBytes: Long = 96L * 1024 * 1024,
+    /** A video clip may be larger than any image; the app trims and scales clips well below this. */
+    val maxVideoBytes: Long = 80L * 1024 * 1024,
+    val maxTotalBytes: Long = 128L * 1024 * 1024,
     val maxImageDimension: Int = 4096,
     val maxLayersPerScene: Int = 6,
     val maxPathLength: Int = 120,
@@ -17,7 +19,12 @@ data class PackLimits(
 
 object PackPaths {
     const val CHECKSUMS = "checksums.sha256"
-    val ALLOWED_EXTENSIONS = setOf("json", "webp", "sha256")
+    val ALLOWED_EXTENSIONS = setOf("json", "webp", "sha256", "mp4")
+    val VIDEO_EXTENSIONS = setOf("mp4")
+
+    /** Largest a single file of this kind may be. */
+    fun maxBytesFor(path: String, limits: PackLimits): Long =
+        if (extension(path) in VIDEO_EXTENSIONS) limits.maxVideoBytes else limits.maxFileBytes
 
     /**
      * True for a plain relative path made of safe segments. Rejects absolute paths, backslashes,

@@ -57,6 +57,7 @@ class FoldPackValidatorTest {
         mutateManifest: (FoldPackManifest) -> FoldPackManifest = { it },
         openSpec: MotionSpec? = null,
         ambient: AmbientSpec? = null,
+        extraFiles: Map<String, ByteArray> = emptyMap(),
     ): File {
         val dir = tmp.newFolder("pack${packCounter++}")
         val cover = SceneEntry(1080, 2520, listOf(0.5f, 0.4f), layers = listOf(
@@ -82,6 +83,7 @@ class FoldPackValidatorTest {
         File(dir, "motion/close.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), close))
 
         if (ambient != null) File(dir, AmbientSpec.FILE).writeText(CoreInfo.json.encodeToString(AmbientSpec.serializer(), ambient))
+        for ((path, bytes) in extraFiles) File(dir, path).apply { parentFile.mkdirs(); writeBytes(bytes) }
         val manifest = mutateManifest(
             FoldPackManifest(
                 id = "pack-test-1",
@@ -162,6 +164,66 @@ class FoldPackValidatorTest {
         assertTrue(codes(base.copy(reveal = RevealSpec(RevealSpec.TILES, listOf(60f, 7f, 0.5f, 0.5f, 0f)))).contains(ValidationCode.INVALID_MOTION))
         assertTrue(codes(base.copy(reveal = RevealSpec(RevealSpec.BOOK, listOf(0.5f, 400f)))).contains(ValidationCode.INVALID_MOTION))
         assertTrue(codes(base.copy(particles = listOf(base.particles[0].copy(mode = "LASER")))).contains(ValidationCode.INVALID_MOTION))
+    }
+
+    private val fakeMp4 = ByteArray(64).also {
+        it[3] = 24
+        "ftypisom".toByteArray().copyInto(it, 4)
+    }
+
+    private fun videoSpec(size: Long = fakeMp4.size.toLong()) = VideoSpec(
+        file = VideoSpec.FILE, width = 1920, height = 1080, durationMs = 8_000, frameRate = 30f,
+        crop = VideoGeometry.crops(DeviceProfileRegistry.fold7, 1920, 1080), sizeBytes = size,
+    )
+
+    private fun videoPack(spec: VideoSpec = videoSpec(), bytes: ByteArray = fakeMp4, min: Int = CoreInfo.VIDEO_RENDERER_VERSION) =
+        buildPack(
+            mutateManifest = { it.copy(video = spec, rendererVersion = VersionRange(min, CoreInfo.RENDERER_VERSION)) },
+            extraFiles = mapOf(VideoSpec.FILE to bytes),
+        )
+
+    @Test
+    fun `video pack passes and survives an archive round trip`() {
+        val report = validator.validate(videoPack())
+        assertTrue(report.issues.toString(), report.passed)
+        val out = java.io.ByteArrayOutputStream()
+        FoldPackArchive.pack(videoPack(), out)
+        val back = tmp.newFolder("videoBack")
+        FoldPackArchive.unpack(java.io.ByteArrayInputStream(out.toByteArray()), back)
+        assertTrue(validator.validate(back).passed)
+    }
+
+    @Test
+    fun `bad video packs are rejected with a reason`() {
+        fun codes(dir: File) = validator.validate(dir).codes
+        assertTrue(codes(videoPack(min = 3)).contains(ValidationCode.INVALID_MANIFEST))
+        assertTrue(codes(videoPack(bytes = ByteArray(64) { 7 })).contains(ValidationCode.UNSUPPORTED_MEDIA_TYPE))
+        assertTrue(codes(videoPack(spec = videoSpec(size = 999))).contains(ValidationCode.INVALID_MANIFEST))
+        assertTrue(codes(videoPack(spec = videoSpec().copy(loopCrossfadeMs = 5_000))).contains(ValidationCode.INVALID_MANIFEST))
+        assertTrue(codes(videoPack(spec = videoSpec().copy(durationMs = 600_000))).contains(ValidationCode.INVALID_MANIFEST))
+        assertTrue(codes(videoPack(spec = videoSpec().copy(file = "video/scene.mov"))).isNotEmpty())
+        // An MP4 nobody references is an unlisted file.
+        val stray = buildPack(extraFiles = mapOf("video/extra.mp4" to fakeMp4))
+        assertTrue(codes(stray).contains(ValidationCode.UNLISTED_FILE))
+    }
+
+    @Test
+    fun `video crops keep the cover a slice of the main window at the same scale`() {
+        val fold7 = DeviceProfileRegistry.fold7
+        for ((w, h) in listOf(1920 to 1080, 1080 to 1920, 2160 to 2160, 3840 to 2160)) {
+            for (fx in listOf(0f, 0.3f, 0.5f, 1f)) {
+                val c = VideoGeometry.crops(fold7, w, h, fx, 0.5f)
+                val (ml, mt, mr, mb) = c.main
+                val (cl, ct, cr, cb) = c.cover
+                val mainAspect = (mr - ml) * w / ((mb - mt) * h)
+                assertEquals("$w x $h", fold7.main!!.aspect, mainAspect, 0.01f)
+                assertTrue(cl >= ml - 1e-4f && cr <= mr + 1e-4f && ct >= mt - 1e-4f && cb <= mb + 1e-4f)
+                // Same physical scale: the cover is 65.0 mm of the main's 135.8 mm, full height.
+                assertEquals(65.0f / 135.8f, (cr - cl) / (mr - ml), 0.02f)
+                assertEquals(1f, (cb - ct) / (mb - mt), 0.02f)
+                assertTrue(c.main.all { it in 0f..1f } && c.cover.all { it in 0f..1f })
+            }
+        }
     }
 
     @Test

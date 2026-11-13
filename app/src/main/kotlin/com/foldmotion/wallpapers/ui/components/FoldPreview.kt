@@ -94,10 +94,17 @@ class ScenePreviewView(context: Context) : View(context) {
 
     var scene: LoadedScene? = null
         set(value) {
+            if (field !== value) {
+                field?.videoFrames?.removeListener(videoListener)
+                if (isAttachedToWindow) value?.videoFrames?.addListener(videoListener)
+            }
             field = value
             invalidate()
             updateLoop()
         }
+
+    /** Video packs: redraw whenever a new frame is decoded. */
+    private val videoListener: () -> Unit = { invalidate() }
 
     /** Living motion between transitions. */
     var living: Boolean = true
@@ -127,8 +134,8 @@ class ScenePreviewView(context: Context) : View(context) {
     private val loop = object : Choreographer.FrameCallback {
         override fun doFrame(frameNanos: Long) {
             if (!looping) return
-            // Living motion is capped at 30 fps, like the wallpaper engine.
-            if (frameNanos - lastFrame >= 31_000_000L) {
+            // Living motion at 60 fps, like the wallpaper engine on Full.
+            if (frameNanos - lastFrame >= 15_000_000L) {
                 lastFrame = frameNanos
                 invalidate()
             }
@@ -170,6 +177,7 @@ class ScenePreviewView(context: Context) : View(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        scene?.videoFrames?.addListener(videoListener)
         updateLoop()
     }
 
@@ -179,6 +187,7 @@ class ScenePreviewView(context: Context) : View(context) {
     }
 
     override fun onDetachedFromWindow() {
+        scene?.videoFrames?.removeListener(videoListener)
         animator?.cancel()
         looping = false
         Choreographer.getInstance().removeFrameCallback(loop)
@@ -200,12 +209,28 @@ class ScenePreviewView(context: Context) : View(context) {
 
 /** Loads both scenes of a pack for previewing and frees them when the composable leaves. */
 @Composable
-fun rememberPackScenes(packDir: File?, longSidePx: Int, revision: Int = 0): Pair<LoadedScene?, LoadedScene?> {
+fun rememberPackScenes(packDir: File?, longSidePx: Int, revision: Int = 0, playVideo: Boolean = true): Pair<LoadedScene?, LoadedScene?> {
     var scenes by remember(packDir) { mutableStateOf<Pair<LoadedScene?, LoadedScene?>>(null to null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(packDir, longSidePx, revision) {
         if (packDir == null) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) {
             SceneLoader.load(packDir, ScreenKind.COVER, longSidePx) to SceneLoader.load(packDir, ScreenKind.MAIN, longSidePx)
+        }
+        // A video pack plays one clip for both screens, as on the phone.
+        loaded.second?.let { mainScene ->
+            val spec = mainScene.video
+            val file = mainScene.videoFile
+            if (spec != null && file != null) {
+                val overscan = (-(mainScene.layers.firstOrNull()?.first?.left ?: 0f)).coerceIn(0f, 0.25f)
+                val source = try {
+                    com.foldmotion.wallpapers.render.video.VideoFrameSource(context, file, spec, overscan, maxLongSide = 1440)
+                } catch (e: Exception) {
+                    null
+                }
+                loaded.first?.videoFrames = source
+                mainScene.videoFrames = source
+            }
         }
         val previous = scenes
         scenes = loaded
@@ -215,13 +240,17 @@ fun rememberPackScenes(packDir: File?, longSidePx: Int, revision: Int = 0): Pair
             try {
                 kotlinx.coroutines.delay(600)
             } finally {
+                previous.second?.videoFrames?.release()
                 previous.first?.recycle()
                 previous.second?.recycle()
             }
         }
     }
+    val source = scenes.second?.videoFrames
+    LaunchedEffect(source, playVideo) { source?.setPlaying(playVideo) }
     DisposableEffect(packDir) {
         onDispose {
+            scenes.second?.videoFrames?.release()
             scenes.first?.recycle()
             scenes.second?.recycle()
         }

@@ -22,6 +22,7 @@ import com.foldmotion.core.motion.RevealSpec
 import com.foldmotion.core.motion.TrackPose
 import com.foldmotion.core.pack.FoldPackManifest
 import com.foldmotion.core.pack.LayerEntry
+import com.foldmotion.core.pack.VideoSpec
 import com.foldmotion.core.scene.WorldRect
 import kotlin.math.PI
 import kotlin.math.abs
@@ -50,7 +51,14 @@ class LoadedScene(
     val ambient: AmbientSpec? = null,
     /** World rect this frame shows, so ambient elements line up across screens. */
     val world: WorldRect? = null,
+    /** Video scene (pack v4): the back layer is replaced by live video frames when available. */
+    val video: VideoSpec? = null,
+    val videoFile: java.io.File? = null,
 ) {
+    /** Live frames for a video scene; set by whoever plays the video (engine or preview). */
+    @Volatile
+    var videoFrames: VideoFrames? = null
+
     val byteCount: Int get() = layers.sumOf { it.second.allocationByteCount }
     val isAlive: Boolean get() = ambient != null && !ambient.isStill
 
@@ -68,6 +76,18 @@ class LoadedScene(
         fun backgroundOf(manifest: FoldPackManifest) = parseColor(manifest.colors.background, Color.BLACK)
         fun glowOf(manifest: FoldPackManifest) = parseColor(manifest.colors.primary, Color.WHITE)
     }
+}
+
+/**
+ * Decoded video frames for the screens of a video pack. All calls on the main thread; listeners
+ * fire there when new frames are ready.
+ */
+interface VideoFrames {
+    fun latest(kind: ScreenKind): Bitmap?
+    fun addListener(listener: () -> Unit)
+    fun removeListener(listener: () -> Unit)
+    fun setPlaying(play: Boolean)
+    fun release()
 }
 
 /** Per-frame inputs that are not part of the scene. */
@@ -177,7 +197,11 @@ class SceneDrawer {
      * the layer they belong to. Remembers each layer's pose for the ambient systems and the tiles.
      */
     private fun drawLayers(canvas: Canvas, scene: LoadedScene, motion: MotionSpec?, p: Float, ambient: AmbientSpec?, state: FrameState) {
-        for ((layer, bitmap) in scene.layers) {
+        val video = scene.videoFrames?.latest(scene.kind)
+        for ((index, entry) in scene.layers.withIndex()) {
+            val (layer, poster) = entry
+            // A video scene's back layer is the live frame (same window and overscan as its poster).
+            val bitmap = if (index == 0 && video != null) video else poster
             if (bitmap.isRecycled) continue
             val pose = if (motion == null) TrackPose.REST else MotionSampler.poseFor(motion, MotionSampler.layerTarget(layer.id), p)
             var tx = pose.tx
@@ -412,7 +436,11 @@ class SceneDrawer {
             canvas.concat(matrix)
             cell.inset(gap * (1f - e), gap * (1f - e))
             canvas.clipRect(cell)
-            for ((layer, bitmap) in scene.layers) if (!bitmap.isRecycled) drawLayerBitmap(canvas, layer, bitmap)
+            val video = scene.videoFrames?.latest(scene.kind)
+            for ((index, entry) in scene.layers.withIndex()) {
+                val bitmap = if (index == 0 && video != null) video else entry.second
+                if (!bitmap.isRecycled) drawLayerBitmap(canvas, entry.first, bitmap)
+            }
             val dark = reveal.shade * 0.75f * (1f - e)
             if (dark > 0.01f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, dark))
             val shine = reveal.edgeGlow * 0.16f * sin(PI.toFloat() * e)

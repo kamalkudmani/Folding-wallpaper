@@ -53,6 +53,8 @@ sealed interface ImportResult {
  */
 class PackStore(context: Context, private val settings: AppSettings) {
 
+    private val resolver = context.contentResolver
+
     private val root = File(context.filesDir, "packs").apply { mkdirs() }
     private val staging = File(context.cacheDir, "staging")
     private val quarantine = File(context.cacheDir, "quarantine")
@@ -116,7 +118,10 @@ class PackStore(context: Context, private val settings: AppSettings) {
             }
             val next = manifest.copy(
                 packageVersion = manifest.packageVersion + 1,
-                rendererVersion = VersionRange(CoreInfo.RENDERER_VERSION, maxOf(manifest.rendererVersion.max, CoreInfo.RENDERER_VERSION)),
+                rendererVersion = VersionRange(
+                    if (manifest.video != null) CoreInfo.VIDEO_RENDERER_VERSION else CoreInfo.STYLES_RENDERER_VERSION,
+                    maxOf(manifest.rendererVersion.max, CoreInfo.RENDERER_VERSION),
+                ),
                 transitions = Transitions(
                     open = manifest.transitions.open.copy(durationMs = choreo.open.durationMs),
                     close = manifest.transitions.close.copy(durationMs = choreo.close.durationMs),
@@ -214,4 +219,11 @@ class PackStore(context: Context, private val settings: AppSettings) {
     }
 
     fun freeBytes(): Long = root.usableSpace
+
+    /** Copies a picked file (content:// or file://) into [out]. */
+    fun copyIn(uri: android.net.Uri, out: File) {
+        out.parentFile?.mkdirs()
+        val input = if (uri.scheme == "file") File(requireNotNull(uri.path)).inputStream() else resolver.openInputStream(uri)
+        requireNotNull(input) { "cannot open $uri" }.use { inp -> out.outputStream().use { inp.copyTo(it) } }
+    }
 }

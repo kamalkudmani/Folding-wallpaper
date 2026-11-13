@@ -16,7 +16,9 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
+import android.view.Surface
 import android.view.SurfaceHolder
+import com.foldmotion.wallpapers.render.video.VideoFrameSource
 import androidx.core.content.ContextCompat
 import com.foldmotion.core.device.DeviceProfile
 import com.foldmotion.core.device.ScreenClassifier
@@ -134,6 +136,15 @@ class FoldWallpaperService : WallpaperService() {
         private var refreshHz = 60f
         private lateinit var tilt: TiltTracker
         private var ambientRunning = false
+        /** Plays the current video pack, if it is one; shared by both screens' scenes. */
+        private var video: VideoFrameSource? = null
+        private var videoDrawScheduled = false
+        private var frameRateVote = -1f
+        private val videoListener: () -> Unit = { onVideoFrame() }
+        private val videoDraw = Choreographer.FrameCallback {
+            videoDrawScheduled = false
+            if (state.visible && transitionKind == null) state.surface?.kind?.let { drawStatic(it) }
+        }
         private var lastAmbientNanos = 0L
         private var frameScheduled = false
         private var surfaceWidth = 0
@@ -154,8 +165,12 @@ class FoldWallpaperService : WallpaperService() {
                 AppSettings.KEY_REDUCED_MOTION, AppSettings.KEY_SWITCH_HOLD -> {
                     dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
                     refreshAmbient()
+                    updateVideoPlayback()
                 }
-                AppSettings.KEY_LIVING, AppSettings.KEY_TILT -> refreshAmbient()
+                AppSettings.KEY_LIVING, AppSettings.KEY_TILT -> {
+                    refreshAmbient()
+                    updateVideoPlayback()
+                }
                 // The pack on screen got new fold animations: drop the decoded scenes and reload.
                 AppSettings.KEY_UPDATED -> if (settings.updatedPackId == packId && packId != null) {
                     trace("PACK_RELOAD", PocEvents.detail("pack" to packId))
@@ -168,6 +183,7 @@ class FoldWallpaperService : WallpaperService() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
                 refreshAmbient()
+                updateVideoPlayback()
             }
         }
 
@@ -226,6 +242,7 @@ class FoldWallpaperService : WallpaperService() {
             super.onSurfaceChanged(holder, format, width, height)
             surfaceWidth = width
             surfaceHeight = height
+            frameRateVote = -1f
             val kind = ScreenClassifier.classify(profile, width, height) ?: return
             val newDisplay = try {
                 displayContext?.display?.displayId ?: -1
@@ -282,6 +299,7 @@ class FoldWallpaperService : WallpaperService() {
                     sessionPostureChangedAtMs = FoldSession.postureChangedAtMs,
                 ),
             )
+            updateVideoPlayback()
         }
 
         /** The hinge reached fully open or closed; see FoldEvent.PostureChanged. */
@@ -393,7 +411,7 @@ class FoldWallpaperService : WallpaperService() {
             try {
                 decoder.execute {
                     val scene = try {
-                        SceneLoader.load(dir, kind, if (isPreview) longSide else 0)
+                        SceneLoader.load(dir, kind, if (isPreview) longSide else 0, gpu = true)
                     } catch (e: OutOfMemoryError) {
                         null
                     }
@@ -408,6 +426,7 @@ class FoldWallpaperService : WallpaperService() {
                         } else {
                             scenes[kind]?.recycle()
                             scenes[kind] = scene
+                            attachVideo(scene)
                             trace(
                                 PocEvents.SCENE_READY,
                                 PocEvents.detail(PocEvents.KIND to kind, PocEvents.LOAD_MS to SystemClock.elapsedRealtime() - started, "kb" to scene.byteCount / 1024),
@@ -433,7 +452,7 @@ class FoldWallpaperService : WallpaperService() {
             try {
                 decoder.execute {
                     val scene = try {
-                        SceneLoader.load(dir, other)
+                        SceneLoader.load(dir, other, gpu = true)
                     } catch (e: OutOfMemoryError) {
                         null
                     }
@@ -442,6 +461,7 @@ class FoldWallpaperService : WallpaperService() {
                             scene?.recycle()
                         } else {
                             scenes[other] = scene
+                            attachVideo(scene)
                             trace("SCENE_PRELOADED", PocEvents.detail(PocEvents.KIND to other))
                         }
                     }
@@ -453,6 +473,82 @@ class FoldWallpaperService : WallpaperService() {
         private fun releaseScenes() {
             scenes.values.forEach { it.recycle() }
             scenes.clear()
+            video?.let {
+                it.removeListener(videoListener)
+                it.release()
+                trace("VIDEO_RELEASE")
+            }
+            video = null
+            if (videoDrawScheduled) Choreographer.getInstance().removeFrameCallback(videoDraw)
+            videoDrawScheduled = false
+        }
+
+        // ------------------------------------------------------------ video packs
+
+        /** A video pack's scene arrived: start (or share) its player and hand it the frames. */
+        private fun attachVideo(scene: LoadedScene) {
+            val spec = scene.video ?: return
+            val file = scene.videoFile ?: return
+            val source = video ?: try {
+                val overscan = (-(scene.layers.firstOrNull()?.first?.left ?: 0f)).coerceIn(0f, 0.25f)
+                VideoFrameSource(this@FoldWallpaperService, file, spec, overscan).also {
+                    it.addListener(videoListener)
+                    video = it
+                    trace("VIDEO_ATTACH", PocEvents.detail("fps" to spec.frameRate, "ms" to spec.durationMs))
+                }
+            } catch (e: Exception) {
+                trace("VIDEO_FAILED", e.javaClass.simpleName)
+                return
+            }
+            scene.videoFrames = source
+            updateVideoPlayback()
+        }
+
+        /** Video plays only while seen and while motion is welcome; otherwise it holds its frame. */
+        private fun updateVideoPlayback() {
+            val source = video ?: return
+            val play = state.visible && settings.livingMotion != LivingMotion.OFF && state.policy.motionAllowed
+            source.setPlaying(play)
+            voteIdleFrameRate()
+        }
+
+        /** A new video frame: draw it on the next vsync, unless a transition is drawing anyway. */
+        private fun onVideoFrame() {
+            if (!state.visible || transitionKind != null || videoDrawScheduled) return
+            val kind = state.surface?.kind ?: return
+            if (scenes[kind]?.video == null) return
+            videoDrawScheduled = true
+            Choreographer.getInstance().postFrameCallback(videoDraw)
+        }
+
+        // ------------------------------------------------------------ frame rate
+
+        /**
+         * Tells the display what this wallpaper needs: the full refresh rate while a fold animation
+         * runs (120 Hz on the Fold7), the clip's own rate while a video plays, so every frame is
+         * shown for the same time, and nothing in particular when still.
+         */
+        private fun voteFrameRate(fps: Float, fixedSource: Boolean) {
+            if (fps == frameRateVote) return
+            frameRateVote = fps
+            try {
+                surfaceHolder?.surface?.takeIf { it.isValid }?.setFrameRate(
+                    fps,
+                    if (fixedSource) Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE else Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                )
+            } catch (_: Exception) {
+            }
+        }
+
+        private fun voteIdleFrameRate() {
+            if (transitionKind != null) return
+            val kind = state.surface?.kind
+            val spec = kind?.let { scenes[it]?.video }
+            when {
+                spec != null && state.visible -> voteFrameRate(spec.frameRate, fixedSource = true)
+                ambientRunning -> voteFrameRate(AMBIENT_FPS_FULL.toFloat(), fixedSource = false)
+                else -> voteFrameRate(0f, fixedSource = false)
+            }
         }
 
         /** Called by the service when memory is tight: keep only what is on screen. */
@@ -505,13 +601,15 @@ class FoldWallpaperService : WallpaperService() {
         }
 
         private fun ambientIntervalNanos(scene: LoadedScene): Long {
-            val fps = if (settings.livingMotion == LivingMotion.SUBTLE) 20 else (scene.ambient?.fps ?: 30)
-            return 1_000_000_000L / fps.coerceIn(12, 60)
+            // Full: 60 fps for smooth drift and twinkle; Subtle saves battery at 30.
+            val fps = if (settings.livingMotion == LivingMotion.SUBTLE) AMBIENT_FPS_SUBTLE else maxOf(scene.ambient?.fps ?: 30, AMBIENT_FPS_FULL)
+            return 1_000_000_000L / fps.coerceIn(12, AMBIENT_FPS_FULL)
         }
 
         private fun startAmbient() {
             if (ambientRunning) return
             ambientRunning = true
+            voteIdleFrameRate()
             if (settings.tiltParallax && settings.livingMotion == LivingMotion.FULL) tilt.start()
             trace("AMBIENT_START", PocEvents.detail("mode" to settings.livingMotion, "tilt" to settings.tiltParallax))
             scheduleFrame()
@@ -520,6 +618,7 @@ class FoldWallpaperService : WallpaperService() {
         private fun stopAmbient() {
             if (!ambientRunning) return
             ambientRunning = false
+            voteIdleFrameRate()
             tilt.stop()
             trace("AMBIENT_STOP")
         }
@@ -566,6 +665,8 @@ class FoldWallpaperService : WallpaperService() {
             } catch (e: Exception) {
                 60f
             }.coerceIn(30f, 240f)
+            // Ask for the panel's full refresh rate while the fold animation runs.
+            voteFrameRate(refreshHz, fixedSource = false)
             trace(
                 PocEvents.TRANSITION_START,
                 PocEvents.detail(PocEvents.KIND to kind, PocEvents.DURATION_MS to motion.durationMs, PocEvents.SINCE_POSTURE_MS to sincePosture, "live" to live, "holdMs" to hold),
@@ -594,6 +695,7 @@ class FoldWallpaperService : WallpaperService() {
                     ),
                 )
                 dispatch(FoldEvent.TransitionFinished(now()))
+                voteIdleFrameRate()
             } else {
                 scheduleFrame()
             }
@@ -678,6 +780,8 @@ class FoldWallpaperService : WallpaperService() {
     }
 
     private companion object {
+        const val AMBIENT_FPS_FULL = 60
+        const val AMBIENT_FPS_SUBTLE = 30
         val COUNTER = AtomicInteger()
         const val PENDING_WINDOW_MS = 10 * 60_000L
         const val DEFAULT_IDEA = "brand_flow"

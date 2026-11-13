@@ -92,7 +92,7 @@ class FoldPackValidator(
             if (!PackPaths.isSafe(path, limits)) fail(ValidationCode.UNSAFE_PATH, path)
             if (PackPaths.extension(path) !in PackPaths.ALLOWED_EXTENSIONS) fail(ValidationCode.UNSUPPORTED_MEDIA_TYPE, path)
             val size = File(packDir, path).length()
-            if (size > limits.maxFileBytes) fail(ValidationCode.FILE_TOO_LARGE, path)
+            if (size > PackPaths.maxBytesFor(path, limits)) fail(ValidationCode.FILE_TOO_LARGE, path)
             total += size
         }
         if (total > limits.maxTotalBytes) fail(ValidationCode.PACK_TOO_LARGE, "$total")
@@ -263,6 +263,25 @@ class FoldPackValidator(
                 } &&
                 (amb.halo?.let { h -> isHex(h.color) && h.radius in 0f..2f && h.alphaMax in h.alphaMin..1f && h.periodMs in 500..120_000 } ?: true)
             if (!ok) fail(ValidationCode.INVALID_MOTION, "$path: out of bounds")
+        }
+
+        manifest.video?.let { v ->
+            referenced += v.file
+            if (!PackPaths.isSafe(v.file, limits)) return@let fail(ValidationCode.UNSAFE_PATH, v.file)
+            if (PackPaths.extension(v.file) !in PackPaths.VIDEO_EXTENSIONS) return@let fail(ValidationCode.UNSUPPORTED_MEDIA_TYPE, v.file)
+            val file = File(packDir, v.file)
+            if (!file.isFile) return@let fail(ValidationCode.FILE_MISSING, v.file)
+            if (!Mp4Probe.looksLikeMp4(file)) fail(ValidationCode.UNSUPPORTED_MEDIA_TYPE, "${v.file}: not an MP4 file")
+            if (file.length() != v.sizeBytes) fail(ValidationCode.INVALID_MANIFEST, "${v.file}: size")
+            // An older renderer would silently show only the poster, so a video pack says it needs 4.
+            if (manifest.rendererVersion.min < CoreInfo.VIDEO_RENDERER_VERSION) fail(ValidationCode.INVALID_MANIFEST, "video needs rendererVersion.min ${CoreInfo.VIDEO_RENDERER_VERSION}")
+            fun rectOk(r: List<Float>) = r.size == 4 && r.all { it in 0f..1f } && r[2] - r[0] > 0.01f && r[3] - r[1] > 0.01f
+            val ok = v.width in 16..8192 && v.height in 16..8192 &&
+                v.durationMs in VideoSpec.MIN_DURATION_MS..VideoSpec.MAX_DURATION_MS &&
+                v.frameRate in 1f..240f &&
+                v.loopCrossfadeMs in 0..minOf(VideoSpec.MAX_CROSSFADE_MS, v.durationMs / 2) &&
+                rectOk(v.crop.cover) && rectOk(v.crop.main)
+            if (!ok) fail(ValidationCode.INVALID_MANIFEST, "${v.file}: video settings out of bounds")
         }
 
         checkMotion(manifest.transitions.open, MotionSpec.KIND_OPEN, manifest.scenes.main, ValidationCode.MISSING_OPEN_MOTION)

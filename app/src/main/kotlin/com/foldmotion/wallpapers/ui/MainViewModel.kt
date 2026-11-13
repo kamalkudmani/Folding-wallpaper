@@ -72,10 +72,35 @@ data class CreateForm(
     val reference: ReferenceColors? = null,
     /** Fold animation; AUTO lets the scene choose. */
     val style: FoldStyle = FoldStyle.AUTO,
+    /** Third creation mode: a wallpaper from the user's own video. */
+    val videoMode: Boolean = false,
+    val video: VideoPick? = null,
     val error: Int? = null,
 ) {
     val interpretation: PromptInterpretation get() = PromptAnalyzer.analyze(prompt)
     val promptLength: Int get() = prompt.codePointCount(0, prompt.length)
+}
+
+/** A clip picked for a video wallpaper and the part of it to use. */
+data class VideoPick(
+    val uri: android.net.Uri,
+    val durationMs: Long,
+    val width: Int,
+    val height: Int,
+    val thumbnail: Bitmap?,
+    val startMs: Long,
+    val endMs: Long,
+    /** Cross-fade the loop seam (off for clips made to loop). */
+    val crossfade: Boolean = true,
+    /** The built-in sample clip. */
+    val sample: Boolean = false,
+)
+
+/** Progress of building a video wallpaper. */
+sealed interface VideoJob {
+    data class Running(val stage: com.foldmotion.wallpapers.generator.video.VideoStage, val progress: Float) : VideoJob
+    data class Done(val packId: String) : VideoJob
+    data class Failed(val message: Int) : VideoJob
 }
 
 sealed interface UiMessage {
@@ -226,6 +251,121 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearReferencePhoto() = _form.update { it.copy(reference = null) }
+
+    // ------------------------------------------------------------------ video wallpapers
+
+    private val _videoJob = MutableStateFlow<VideoJob?>(null)
+    val videoJob: StateFlow<VideoJob?> = _videoJob.asStateFlow()
+    private var videoWork: kotlinx.coroutines.Job? = null
+
+    /** Reads the picked clip's size and length and a first frame for the screen. */
+    fun pickVideo(uri: android.net.Uri, sample: Boolean = false) {
+        viewModelScope.launch {
+            val probe = withContext(Dispatchers.IO) {
+                val info = container.videoTools.probe(uri) ?: return@withContext null
+                val thumb = try {
+                    val r = android.media.MediaMetadataRetriever()
+                    try {
+                        r.setDataSource(getApplication<Application>(), uri)
+                        r.getScaledFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 480)
+                    } finally {
+                        r.release()
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+                info to thumb
+            }
+            if (probe == null) {
+                emit(R.string.video_error_unreadable)
+                return@launch
+            }
+            val (info, thumb) = probe
+            val end = minOf(info.durationMs, com.foldmotion.wallpapers.generator.video.VideoPackBuilder.MAX_SEGMENT_MS)
+            _form.update {
+                it.copy(videoMode = true, video = VideoPick(uri, info.durationMs, info.width, info.height, thumb, 0, end, crossfade = true, sample = sample), error = null)
+            }
+        }
+    }
+
+    /** The built-in sample clip, copied out of the app so it can be read like a picked one. */
+    fun pickSampleVideo() {
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                val out = java.io.File(getApplication<Application>().cacheDir, "samples/liquid-light.mp4")
+                if (!out.isFile) {
+                    out.parentFile?.mkdirs()
+                    getApplication<Application>().assets.open("samples/liquid-light.mp4").use { input -> out.outputStream().use { input.copyTo(it) } }
+                }
+                out
+            }
+            pickVideo(android.net.Uri.fromFile(file), sample = true)
+        }
+    }
+
+    fun setVideoRange(startMs: Long, endMs: Long) = _form.update { f ->
+        val v = f.video ?: return@update f
+        val max = com.foldmotion.wallpapers.generator.video.VideoPackBuilder.MAX_SEGMENT_MS
+        val start = startMs.coerceIn(0, maxOf(0, v.durationMs - 1_000))
+        val end = endMs.coerceIn(start + 1_000, minOf(v.durationMs, start + max))
+        f.copy(video = v.copy(startMs = start, endMs = end))
+    }
+
+    fun setVideoCrossfade(on: Boolean) = _form.update { f -> f.video?.let { f.copy(video = it.copy(crossfade = on)) } ?: f }
+
+    fun clearVideo() = _form.update { it.copy(video = null) }
+
+    /** @return true when a job was started. */
+    fun createFromVideo(): Boolean {
+        val f = _form.value
+        val v = f.video ?: return false
+        if (_videoJob.value is VideoJob.Running) return false
+        _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.TRIM, 0f)
+        videoWork = viewModelScope.launch {
+            try {
+                val pack = container.videoBuilder.build(
+                    com.foldmotion.wallpapers.generator.video.VideoRequest(
+                        uri = v.uri,
+                        startMs = v.startMs,
+                        endMs = v.endMs,
+                        style = f.style,
+                        intensity = f.intensity,
+                        crossfadeLoop = v.crossfade,
+                        seed = random.nextLong(),
+                        title = if (v.sample) com.foldmotion.core.pack.LocalizedText("ضوء سائل", "Liquid light") else com.foldmotion.core.pack.LocalizedText("فيديو خاص بي", "My video"),
+                        prepared = v.sample,
+                    ),
+                    profile,
+                ) { stage, progress -> _videoJob.value = VideoJob.Running(stage, progress) }
+                _videoJob.value = VideoJob.Done(pack.id)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _videoJob.value = null
+                throw e
+            } catch (e: com.foldmotion.wallpapers.generator.video.VideoPackException) {
+                _videoJob.value = VideoJob.Failed(
+                    when (e.code) {
+                        com.foldmotion.wallpapers.generator.video.VideoPackException.Code.TOO_SHORT -> R.string.video_error_short
+                        com.foldmotion.wallpapers.generator.video.VideoPackException.Code.STORAGE_FULL -> R.string.video_error_storage
+                        com.foldmotion.wallpapers.generator.video.VideoPackException.Code.TRANSCODE_FAILED -> R.string.video_error_transcode
+                        else -> R.string.video_error_unreadable
+                    },
+                )
+            } catch (e: Exception) {
+                PocTrace.log("video", "BUILD_FAILED", e.javaClass.simpleName + ": " + e.message)
+                _videoJob.value = VideoJob.Failed(R.string.video_error_unreadable)
+            }
+        }
+        return true
+    }
+
+    fun cancelVideo() {
+        videoWork?.cancel()
+        _videoJob.value = null
+    }
+
+    fun dismissVideoJob() {
+        _videoJob.value = null
+    }
 
     private val _restyling = MutableStateFlow<String?>(null)
 

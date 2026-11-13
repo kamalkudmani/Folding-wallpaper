@@ -47,6 +47,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -70,6 +72,8 @@ import com.foldmotion.core.scene.SceneFamily
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.ui.CreateForm
 import com.foldmotion.wallpapers.ui.MainViewModel
+import com.foldmotion.wallpapers.ui.VideoJob
+import com.foldmotion.wallpapers.ui.VideoPick
 import com.foldmotion.wallpapers.ui.components.GlassButton
 import com.foldmotion.wallpapers.ui.components.GlassCard
 import com.foldmotion.wallpapers.ui.components.GlassChip
@@ -86,11 +90,19 @@ import com.foldmotion.wallpapers.ui.components.staggerIn
 import com.foldmotion.wallpapers.ui.theme.FmColors
 
 @Composable
-fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit) {
+fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit, onOpenPack: (String) -> Unit = {}) {
     val form by vm.form.collectAsStateWithLifecycle()
     val job by vm.job.collectAsStateWithLifecycle()
     val device by vm.device.collectAsStateWithLifecycle()
-    val busy = job?.isRunning == true
+    val videoJob by vm.videoJob.collectAsStateWithLifecycle()
+    val busy = job?.isRunning == true || videoJob is VideoJob.Running
+    // A finished video wallpaper opens straight away, like a generated one.
+    LaunchedEffect(videoJob) {
+        (videoJob as? VideoJob.Done)?.let {
+            vm.dismissVideoJob()
+            onOpenPack(it.packId)
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // On the open main screen: description on one side, a live sketch of the result on the other.
@@ -102,7 +114,10 @@ fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit) {
                 }
                 Column(Modifier.weight(0.9f).padding(top = 76.dp, start = 8.dp, end = 16.dp)) {
                     SectionTitle(stringResource(R.string.create_preview_label))
-                    ShapeHint(form, device.active.screen(ScreenKind.COVER).aspect, device.active.screen(ScreenKind.MAIN).aspect)
+                    val pick = form.video
+                    if (form.videoMode && pick != null) VideoWindows(pick, device.active) else {
+                        ShapeHint(form, device.active.screen(ScreenKind.COVER).aspect, device.active.screen(ScreenKind.MAIN).aspect)
+                    }
                 }
             }
         } else {
@@ -120,16 +135,29 @@ private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGen
     ReadableColumn(Modifier.padding(top = 14.dp)) {
         ScreenTitle(stringResource(R.string.create_title), Modifier.staggerIn(0))
         PillToggle(
-            listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random)),
-            selected = if (form.mode == GenerationMode.CUSTOM) 0 else 1,
-            onSelect = { i -> vm.updateForm { it.copy(mode = if (i == 0) GenerationMode.CUSTOM else GenerationMode.RANDOM) } },
+            listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random), stringResource(R.string.create_mode_video)),
+            selected = if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1,
+            onSelect = { i ->
+                vm.updateForm {
+                    when (i) {
+                        0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false)
+                        1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false)
+                        else -> it.copy(videoMode = true)
+                    }
+                }
+            },
             modifier = Modifier.staggerIn(1),
         )
         Spacer(Modifier.height(16.dp))
 
-        AnimatedContent(form.mode, transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.97f)) togetherWith fadeOut(tween(160)) }, label = "mode") { mode ->
+        val section = if (form.videoMode) 2 else form.mode.ordinal
+        AnimatedContent(section, transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.97f)) togetherWith fadeOut(tween(160)) }, label = "mode") { which ->
             Column {
-                if (mode == GenerationMode.CUSTOM) CustomSection(vm, form, busy) else RandomSection(vm, form, busy, language)
+                when {
+                    which == 2 -> VideoSection(vm, form, busy)
+                    form.mode == GenerationMode.CUSTOM -> CustomSection(vm, form, busy)
+                    else -> RandomSection(vm, form, busy, language)
+                }
             }
         }
 
@@ -152,10 +180,14 @@ private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGen
         )
 
         Spacer(Modifier.height(24.dp))
+        val videoJob by vm.videoJob.collectAsStateWithLifecycle()
+        VideoProgress(vm, videoJob)
         GradientButton(
-            stringResource(R.string.action_generate),
-            onClick = { if (vm.generate()) onGenerate() },
-            enabled = !busy,
+            stringResource(if (form.videoMode) R.string.video_create else R.string.action_generate),
+            onClick = {
+                if (form.videoMode) vm.createFromVideo() else if (vm.generate()) onGenerate()
+            },
+            enabled = !busy && (!form.videoMode || form.video != null),
             leading = Icons.Filled.Star,
             modifier = Modifier.fillMaxWidth().testTag("generate_button"),
             height = 60.dp,
@@ -318,6 +350,140 @@ private fun ShapeHint(form: CreateForm, coverAspect: Float, mainAspect: Float) {
                 }
                 if (pal != null) Box(Modifier.align(Alignment.TopCenter).padding(top = 40.dp).size(20.dp).clip(CircleShape).background(Color(pal.glow)))
                 if (crease) Box(Modifier.align(Alignment.Center).width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.22f)))
+            }
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------- video wallpapers
+
+@Composable
+private fun VideoSection(vm: MainViewModel, form: CreateForm, busy: Boolean) {
+    val device by vm.device.collectAsStateWithLifecycle()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.pickVideo(uri)
+    }
+    fun pick() = picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+    val v = form.video
+    GlassCard(Modifier.fillMaxWidth()) {
+        if (v == null) {
+            Text(stringResource(R.string.video_title), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            GradientButton(stringResource(R.string.video_pick), ::pick, Modifier.fillMaxWidth(), enabled = !busy, height = 52.dp)
+            Spacer(Modifier.height(10.dp))
+            GlassButton(stringResource(R.string.video_sample), vm::pickSampleVideo, Modifier.fillMaxWidth(), enabled = !busy, height = 46.dp)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (v.sample) stringResource(R.string.video_sample_label) else stringResource(R.string.video_title), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.video_info, v.width, v.height, v.durationMs / 1000f),
+                        style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted,
+                    )
+                }
+                TextButton(onClick = ::pick, enabled = !busy) { Text(stringResource(R.string.video_change), color = FmColors.Aurora) }
+            }
+            Spacer(Modifier.height(10.dp))
+            VideoWindows(v, device.active)
+            Text(stringResource(R.string.video_windows), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+
+            if (v.durationMs > 1_500) {
+                Spacer(Modifier.height(14.dp))
+                Text(stringResource(R.string.video_range, v.startMs / 1000f, v.endMs / 1000f), style = MaterialTheme.typography.titleSmall)
+                androidx.compose.material3.RangeSlider(
+                    value = (v.startMs / 1000f)..(v.endMs / 1000f),
+                    onValueChange = { r -> vm.setVideoRange((r.start * 1000).toLong(), (r.endInclusive * 1000).toLong()) },
+                    valueRange = 0f..(v.durationMs / 1000f),
+                    enabled = !busy,
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = FmColors.Aurora,
+                        activeTrackColor = FmColors.Aurora,
+                        inactiveTrackColor = FmColors.GlassStrong,
+                    ),
+                )
+                Text(stringResource(R.string.video_range_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(stringResource(R.string.video_crossfade), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.video_crossfade_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted)
+                }
+                androidx.compose.material3.Switch(
+                    checked = v.crossfade,
+                    onCheckedChange = vm::setVideoCrossfade,
+                    enabled = !busy,
+                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = FmColors.Aurora),
+                )
+            }
+        }
+        Text(stringResource(R.string.video_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 10.dp))
+    }
+}
+
+/** The clip's first frame with the two screens' windows outlined, so the framing is clear. */
+@Composable
+private fun VideoWindows(v: VideoPick, profile: com.foldmotion.core.device.DeviceProfile) {
+    val crops = androidx.compose.runtime.remember(v.width, v.height, profile.id) {
+        com.foldmotion.core.pack.VideoGeometry.crops(profile, v.width, v.height)
+    }
+    val aspect = (v.width.toFloat() / v.height).coerceIn(0.4f, 2.4f)
+    Box(
+        Modifier.fillMaxWidth().widthIn(max = 520.dp).aspectRatio(aspect).clip(RoundedCornerShape(16.dp)).background(FmColors.Glass),
+    ) {
+        v.thumbnail?.let {
+            androidx.compose.foundation.Image(
+                it.asImageBitmap(), contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Canvas(Modifier.fillMaxSize()) {
+            fun outline(r: List<Float>, color: Color, width: Float) {
+                drawRect(
+                    color, topLeft = Offset(r[0] * size.width, r[1] * size.height),
+                    size = androidx.compose.ui.geometry.Size((r[2] - r[0]) * size.width, (r[3] - r[1]) * size.height),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width),
+                )
+            }
+            // Outside the inner screen's window is never shown: dim it.
+            val m = crops.main
+            drawRect(Color.Black.copy(alpha = 0.45f), size = androidx.compose.ui.geometry.Size(m[0] * size.width, size.height))
+            drawRect(Color.Black.copy(alpha = 0.45f), topLeft = Offset(m[2] * size.width, 0f), size = androidx.compose.ui.geometry.Size((1f - m[2]) * size.width, size.height))
+            outline(crops.main, FmColors.Aurora, 3.dp.toPx())
+            outline(crops.cover, FmColors.Gold, 2.dp.toPx())
+        }
+    }
+}
+
+@Composable
+private fun VideoProgress(vm: MainViewModel, job: VideoJob?) {
+    AnimatedVisibility(job is VideoJob.Running || job is VideoJob.Failed) {
+        GlassCard(Modifier.fillMaxWidth().padding(bottom = 14.dp)) {
+            when (job) {
+                is VideoJob.Running -> {
+                    val label = when (job.stage) {
+                        com.foldmotion.wallpapers.generator.video.VideoStage.TRIM -> stringResource(R.string.video_stage_trim, (job.progress * 100).toInt())
+                        com.foldmotion.wallpapers.generator.video.VideoStage.POSTERS -> stringResource(R.string.video_stage_posters)
+                        com.foldmotion.wallpapers.generator.video.VideoStage.MOTION -> stringResource(R.string.video_stage_motion)
+                        com.foldmotion.wallpapers.generator.video.VideoStage.QA -> stringResource(R.string.video_stage_qa)
+                    }
+                    Text(label, style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(10.dp))
+                    val overall = (job.stage.ordinal + if (job.stage == com.foldmotion.wallpapers.generator.video.VideoStage.TRIM) job.progress else 0.5f) / com.foldmotion.wallpapers.generator.video.VideoStage.entries.size
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { overall.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(50)),
+                        color = FmColors.Aurora,
+                        trackColor = FmColors.GlassStrong,
+                    )
+                    TextButton(onClick = vm::cancelVideo) { Text(stringResource(R.string.action_cancel), color = FmColors.TextMuted) }
+                }
+                is VideoJob.Failed -> {
+                    Text(stringResource(job.message), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = vm::dismissVideoJob) { Text(stringResource(R.string.action_close), color = FmColors.Aurora) }
+                }
+                else -> Unit
             }
         }
     }

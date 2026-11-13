@@ -166,7 +166,13 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
                         onSettings = { nav.navigate(Routes.SETTINGS) },
                     )
                 }
-                composable(Routes.CREATE) { CreateScreen(vm, onGenerate = { nav.navigate(Routes.GENERATING) }) }
+                composable(Routes.CREATE) {
+                    CreateScreen(
+                        vm,
+                        onGenerate = { nav.navigate(Routes.GENERATING) },
+                        onOpenPack = { id -> nav.navigate(Routes.preview(id)) },
+                    )
+                }
                 composable(Routes.GENERATING) {
                     GeneratingScreen(
                         vm,

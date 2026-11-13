@@ -32,18 +32,31 @@ object SceneLoader {
      * @param targetLongSide longest side of the surface in pixels, used to decode at a reduced
      *   sample size when the stored layer is much larger than needed (saves memory on small previews).
      */
-    fun load(packDir: File, kind: ScreenKind, targetLongSide: Int = 0): LoadedScene? {
+    /**
+     * @param gpu decode straight into GPU memory (Bitmap.Config.HARDWARE). The live wallpaper
+     *   uses it so the first frames of a fold animation never wait for a texture upload; previews
+     *   and tests, which may draw in software, do not.
+     */
+    fun load(packDir: File, kind: ScreenKind, targetLongSide: Int = 0, gpu: Boolean = false): LoadedScene? {
         val manifest = readManifest(packDir) ?: return null
         val scene = manifest.scene(kind)
+        val video = manifest.video
+        // A video pack's layer is only a poster until the first frame; it need not be full size.
+        val decodeLongSide = if (video != null && (targetLongSide == 0 || targetLongSide > VIDEO_POSTER_LONG_SIDE)) VIDEO_POSTER_LONG_SIDE else targetLongSide
         val layers = ArrayList<Pair<LayerEntry, Bitmap>>(scene.layers.size)
         try {
             for (layer in scene.layers) {
                 val file = File(packDir, layer.path)
-                val options = BitmapFactory.Options().apply {
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                    inSampleSize = sampleSize(layer, scene.baseWidth, scene.baseHeight, targetLongSide)
-                }
-                val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw IllegalStateException("decode ${layer.path}")
+                fun decode(config: Bitmap.Config): Bitmap? = BitmapFactory.decodeFile(
+                    file.path,
+                    BitmapFactory.Options().apply {
+                        inPreferredConfig = config
+                        inSampleSize = sampleSize(layer, scene.baseWidth, scene.baseHeight, decodeLongSide)
+                    },
+                )
+                val bitmap = (if (gpu) decode(Bitmap.Config.HARDWARE) else null)
+                    ?: decode(Bitmap.Config.ARGB_8888)
+                    ?: throw IllegalStateException("decode ${layer.path}")
                 bitmap.prepareToDraw()
                 layers += layer to bitmap
             }
@@ -85,10 +98,15 @@ object SceneLoader {
             entryMotion = if (manifest.isStaticOnly) null else motion,
             background = LoadedScene.backgroundOf(manifest),
             glow = LoadedScene.glowOf(manifest),
-            ambient = ambient,
+            // The video itself is the living motion; no particles drawn over it between folds.
+            ambient = if (video != null) null else ambient,
             world = world,
+            video = video,
+            videoFile = video?.let { File(packDir, it.file) },
         )
     }
+
+    private const val VIDEO_POSTER_LONG_SIDE = 1280
 
     /** Small preview image for lists, decoded at the requested width. */
     fun loadPreview(packDir: File, kind: ScreenKind, maxWidth: Int): Bitmap? {

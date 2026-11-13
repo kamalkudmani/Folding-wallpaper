@@ -121,6 +121,17 @@ class UiScreenshotTest {
         shoot("${prefix}_02b_create_style")
         rule.runOnUiThread { vm.startRandom("golden_dunes") }
         shoot("${prefix}_03_create_random")
+        // "My video": a picked clip (synthetic first frame; there is no decoder in unit tests).
+        rule.runOnUiThread {
+            val thumb = Bitmap.createBitmap(480, 270, Bitmap.Config.ARGB_8888).also {
+                android.graphics.Canvas(it).drawPaint(android.graphics.Paint().apply {
+                    shader = android.graphics.LinearGradient(0f, 0f, 480f, 270f, 0xFF0B1E3A.toInt(), 0xFF2DE1C2.toInt(), android.graphics.Shader.TileMode.CLAMP)
+                })
+            }
+            vm.updateForm { it.copy(videoMode = true, video = com.foldmotion.wallpapers.ui.VideoPick(android.net.Uri.parse("content://x/clip.mp4"), 24_000, 1920, 1080, thumb, 2_000, 12_000)) }
+        }
+        shoot("${prefix}_03b_create_video")
+        rule.runOnUiThread { vm.updateForm { it.copy(videoMode = false) } }
         rule.runOnUiThread { nav.navigate(Routes.preview(ids.first())) }
         Thread.sleep(1500)
         shoot("${prefix}_04_preview")
@@ -204,6 +215,45 @@ class UiScreenshotTest {
             }
         }
         shoot("fold_demo_angles")
+    }
+
+    @Test
+    @Config(sdk = [36], qualifiers = "en-w411dp-h960dp-port-xhdpi")
+    fun videoPackPreview() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        seedPacks(app)
+        val c = AppContainer.get(app)
+        c.settings.reducedMotion = true
+        val tools = object : com.foldmotion.wallpapers.generator.video.VideoTools {
+            val info = com.foldmotion.wallpapers.generator.video.ClipInfo(1920, 1080, 8_000, 30f)
+            override fun probe(uri: android.net.Uri) = info
+            override suspend fun transcode(uri: android.net.Uri, startMs: Long, endMs: Long, maxLongSide: Int, maxFrameRate: Float, out: File, onProgress: (Float) -> Unit) {
+                out.parentFile?.mkdirs()
+                out.writeBytes(ByteArray(2048).also { b -> b[3] = 24; "ftypisom".toByteArray().copyInto(b, 4) })
+            }
+            override fun frameAt(file: File, timeMs: Long, maxLongSide: Int) = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888).also {
+                android.graphics.Canvas(it).drawPaint(android.graphics.Paint().apply {
+                    shader = android.graphics.RadialGradient(900f, 400f, 900f, 0xFF2DE1C2.toInt(), 0xFF071226.toInt(), android.graphics.Shader.TileMode.CLAMP)
+                })
+            }
+        }
+        val pack = runBlocking {
+            com.foldmotion.wallpapers.generator.video.VideoPackBuilder(c.packStore, c.validator, tools)
+                .build(com.foldmotion.wallpapers.generator.video.VideoRequest(android.net.Uri.parse("content://x/clip.mp4"), 0, 8_000, seed = 5L), DeviceProfileRegistry.fold7)
+        }
+        val vm = MainViewModel(app)
+        lateinit var nav: NavHostController
+        rule.setContent {
+            nav = rememberNavController()
+            FoldMotionTheme { FoldMotionApp(vm, nav) }
+        }
+        settle()
+        rule.runOnUiThread { nav.navigate(Routes.preview(pack.id)) }
+        Thread.sleep(1500)
+        shoot("cover_en_09_video_preview")
+        // Leaving the screen releases the player without errors.
+        rule.runOnUiThread { nav.popBackStack() }
+        settle()
     }
 
     @Test

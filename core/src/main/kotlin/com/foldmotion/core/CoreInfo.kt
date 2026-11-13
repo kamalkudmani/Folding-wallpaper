@@ -13,9 +13,16 @@ object CoreInfo {
     /**
      * Version of the runtime renderer. 2 adds springs, reveals, particles and ambient motion;
      * 3 adds fold styles (book, tiles and sweep reveals, streak and rise particles, staggered
-     * tracks). Packs declare the minimum they need; this build still plays version-1 packs.
+     * tracks); 4 adds video scenes. Packs declare the minimum they need; this build still plays
+     * version-1 packs.
      */
-    const val RENDERER_VERSION = 3
+    const val RENDERER_VERSION = 4
+
+    /** First renderer with fold styles: what a drawn (non-video) pack needs at least. */
+    const val STYLES_RENDERER_VERSION = 3
+
+    /** First renderer that plays [com.foldmotion.core.pack.VideoSpec] scenes. */
+    const val VIDEO_RENDERER_VERSION = 4
     const val MIN_RENDERER_VERSION = 1
 
     const val ASSET_TYPE = "FOLD_LIVE_WALLPAPER"

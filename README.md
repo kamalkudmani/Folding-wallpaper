@@ -11,7 +11,8 @@ motion when the phone opens or closes.
 
 **Seven fold animation styles** (each with an unfold and a fold variant; chosen automatically per
 scene, picked when creating, or changed on any pack from its preview):
-[comparison video](docs/motion/fold-styles-0.4.mp4)
+[comparison video](docs/motion/fold-styles-0.4.mp4) · **video wallpaper with fold styles:**
+[demo](docs/motion/video-wallpaper-0.5.mp4)
 
 ![fold styles](docs/screenshots/fold-styles.jpg)
 
@@ -36,6 +37,18 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
   Sweep (a band of light uncovers the scene) and Iris. Auto picks per scene and alternates by
   seed; any stored pack can be restyled in place (staged, re-validated, atomically swapped, the
   live wallpaper reloads).
+- **Video wallpapers** (0.5): make a wallpaper from your own clip (trimmed to up to 15 s and
+  resized on the phone with Media3 Transformer, sound removed, nothing uploaded) or try the
+  built-in *Liquid light* sample. One clip feeds both screens: the inner screen shows a window
+  of it, the cover a slice of that window at the same physical scale. Hardware decoding into a
+  GPU texture, cropped per screen into hardware bitmaps that the normal renderer draws as the
+  back layer, so all seven fold styles, light and particles play on top of the video. Two players
+  cross-fade at the loop seam so any clip loops without a jump; video pauses when hidden, in
+  power saving, with reduced motion or Living motion off.
+- **Smoothness**: fold animations ask the display for its full refresh rate (120 Hz on the
+  Fold7) and use a clock that pauses through stalls instead of skipping; video asks for its own
+  frame rate; living motion runs at 60 fps on Full; the live wallpaper decodes layers straight
+  into GPU memory so the first frames of an unfold never wait for an upload.
 - **Living motion** between folds: twinkling stars and shooting stars, glints on water, fireflies,
   drifting sand, flowing light, a breathing halo, layer sway and tilt parallax. 30 fps cap, stops
   when hidden, in power saving and with reduced motion; Full / Subtle / Off in Settings.
@@ -70,7 +83,7 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 129 tests, Robolectric with real Skia rendering
+./gradlew :core:test :app:testDebugUnitTest   # 141 tests, Robolectric with real Skia rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ```
 

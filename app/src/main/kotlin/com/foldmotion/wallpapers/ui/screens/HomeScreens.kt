@@ -225,7 +225,7 @@ private fun HeroVisual(vm: MainViewModel, hero: com.foldmotion.wallpapers.pack.S
         return
     }
     val longSide = with(LocalDensity.current) { (height * 1.4f).roundToPx() }
-    val (cover, main) = rememberPackScenes(hero.dir, longSide)
+    val (cover, main) = rememberPackScenes(hero.dir, longSide, hero.manifest.packageVersion, playVideo = !reduced)
     val profile = DeviceProfileRegistry.byId(hero.manifest.profileIds.firstOrNull()) ?: vm.profile
     FoldDemo(cover, main, profile, height, modifier, animate = !reduced)
 }

@@ -35,6 +35,8 @@ data class FoldPackManifest(
     val ambient: String? = null,
     /** v3: the fold style of motion/open.json and close.json (a [com.foldmotion.core.motion.FoldStyle] name, never AUTO). */
     val motionStyle: String? = null,
+    /** v4: the scene is a looping video; see [VideoSpec]. */
+    val video: VideoSpec? = null,
     val previews: Previews,
     val colors: PackColors,
     val generation: GenerationRecipe? = null,
@@ -48,6 +50,8 @@ data class FoldPackManifest(
         const val SOURCE_LOCAL = "LOCAL_PROCEDURAL"
         const val SOURCE_CLOUD_AI = "CLOUD_AI"
         const val SOURCE_UPLOAD = "UPLOAD"
+        /** v4: made on the phone from the user's own video. */
+        const val SOURCE_VIDEO = "LOCAL_VIDEO"
     }
 }
 

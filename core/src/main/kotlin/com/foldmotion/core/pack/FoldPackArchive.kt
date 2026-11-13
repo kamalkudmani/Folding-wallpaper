@@ -64,13 +64,14 @@ object FoldPackArchive {
                 target.parentFile?.mkdirs()
 
                 var fileBytes = 0L
+                val maxBytes = PackPaths.maxBytesFor(name, limits)
                 target.outputStream().use { out ->
                     while (true) {
                         val read = zip.read(buffer)
                         if (read < 0) break
                         fileBytes += read
                         total += read
-                        if (fileBytes > limits.maxFileBytes) throw PackArchiveException(ValidationCode.FILE_TOO_LARGE, name)
+                        if (fileBytes > maxBytes) throw PackArchiveException(ValidationCode.FILE_TOO_LARGE, name)
                         if (total > limits.maxTotalBytes) throw PackArchiveException(ValidationCode.PACK_TOO_LARGE, name)
                         out.write(buffer, 0, read)
                     }

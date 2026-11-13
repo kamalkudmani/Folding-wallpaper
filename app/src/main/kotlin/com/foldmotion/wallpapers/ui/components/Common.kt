@@ -131,6 +131,7 @@ fun PackCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
             )
+            if (pack.manifest.video != null) StatusPill(stringResource(R.string.badge_video), accent = false)
             if (active) StatusPill(stringResource(R.string.badge_active), accent = true)
         }
     }

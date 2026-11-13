@@ -322,7 +322,8 @@ class LocalPackGenerator(
             profileIds = listOf(profile.id),
             isStaticOnly = false,
             motionIntensity = request.motionIntensity,
-            rendererVersion = VersionRange(CoreInfo.RENDERER_VERSION, CoreInfo.RENDERER_VERSION),
+            // Drawn packs need fold styles (3), not video (4), so 0.4 apps can still import them.
+            rendererVersion = VersionRange(CoreInfo.STYLES_RENDERER_VERSION, CoreInfo.RENDERER_VERSION),
             scenes = Scenes(cover = cover, main = main),
             transitions = Transitions(
                 open = TransitionRef("motion/open.json", open.durationMs),

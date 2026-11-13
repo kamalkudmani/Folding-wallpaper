@@ -24,8 +24,8 @@ android {
         // WallpaperService.Engine.getDisplayContext. Fold7 ships with Android 16.
         minSdk = 30
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.4.1"
+        versionCode = 6
+        versionName = "0.5.0"
     }
 
     signingConfigs {
@@ -98,6 +98,8 @@ android {
                 it.systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2")
                 it.systemProperty("robolectric.dependency.repo.id", "MavenCentralMirror")
                 it.systemProperty("foldmotion.screenshotDir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
+                // Optional review renders: -Dfoldmotion.videoFrames=<folder of PNG frames>.
+                System.getProperty("foldmotion.videoFrames")?.let { dir -> it.systemProperty("foldmotion.videoFrames", dir) }
             }
         }
     }
@@ -127,6 +129,10 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.core)
+    // Video wallpapers: hardware playback (ExoPlayer) and on-device trimming/scaling (Transformer).
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.transformer)
+    implementation(libs.media3.effect)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
