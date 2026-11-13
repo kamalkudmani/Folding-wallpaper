@@ -60,6 +60,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.foldmotion.core.device.DeviceProfileRegistry
+import com.foldmotion.core.poc.PocSummary
+import com.foldmotion.core.poc.PocThresholds
+import com.foldmotion.core.poc.TraceAnalyzer
+import com.foldmotion.core.poc.Verdict
 import com.foldmotion.wallpapers.BuildConfig
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.telemetry.PocTrace
@@ -203,6 +207,8 @@ fun LabScreen(vm: MainViewModel) {
     var posture by remember { mutableStateOf("—") }
     var hinge by remember { mutableStateOf<Float?>(null) }
     var events by remember { mutableStateOf(PocTrace.recent().takeLast(150).reversed()) }
+    var summary by remember { mutableStateOf<PocSummary?>(null) }
+    LaunchedEffect(Unit) { summary = withContext(Dispatchers.IO) { TraceAnalyzer.analyze(PocTrace.readAll()) } }
     val config = LocalConfiguration.current
     val activity = context as? android.app.Activity
 
@@ -253,16 +259,27 @@ fun LabScreen(vm: MainViewModel) {
         SectionTitle(stringResource(R.string.lab_steps))
         Text(stringResource(R.string.lab_steps_body), style = MaterialTheme.typography.bodyMedium)
 
+        SectionTitle(stringResource(R.string.lab_summary))
+        PocSummaryCard(summary)
+        Spacer(Modifier.height(8.dp))
+        FilledTonalButton(onClick = {
+            lifecycleOwner.lifecycleScope.launch {
+                summary = withContext(Dispatchers.IO) { TraceAnalyzer.analyze(PocTrace.readAll()) }
+            }
+        }) { Text(stringResource(R.string.lab_analyze)) }
+
         SectionTitle(stringResource(R.string.lab_events))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FilledTonalButton(onClick = {
                 lifecycleOwner.lifecycleScope.launch {
                     val file = File(context.cacheDir, "exports/fold-poc-trace-${System.currentTimeMillis()}.tsv")
                     withContext(Dispatchers.IO) {
+                        val analysis = TraceAnalyzer.analyze(PocTrace.readAll())
                         PocTrace.exportTo(
                             file,
                             "profile=${device.detected.profile.id} match=${device.detected.confidence} hinge=${device.hasHingeSensor} " +
-                                "app=${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) active=${vm.container.apply.isOurWallpaperActive()}",
+                                "app=${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) active=${vm.container.apply.isOurWallpaperActive()}\n" +
+                                analysis.toReport(),
                         )
                     }
                     val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
@@ -297,6 +314,72 @@ fun LabScreen(vm: MainViewModel) {
             }
         }
     }
+}
+
+@Composable
+private fun PocSummaryCard(summary: PocSummary?) {
+    if (summary == null) {
+        Text("…")
+        return
+    }
+    val verdictColor = when (summary.overall) {
+        Verdict.GO -> MaterialTheme.colorScheme.primary
+        Verdict.NO_GO -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.secondary
+    }
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(verdictLabel(summary.overall), style = MaterialTheme.typography.titleMedium, color = verdictColor, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.lab_summary_counts, summary.switches, PocThresholds.MIN_SWITCHES),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            for (check in summary.checks) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Text(
+                        verdictLabel(check.verdict),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = when (check.verdict) {
+                            Verdict.GO -> MaterialTheme.colorScheme.primary
+                            Verdict.NO_GO -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.secondary
+                        },
+                        modifier = Modifier.weight(0.28f),
+                    )
+                    Column(Modifier.weight(0.72f)) {
+                        Text(stringResource(checkQuestion(check.id)), style = MaterialTheme.typography.bodyMedium)
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Text(
+                                check.measured,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            }
+            Text(stringResource(R.string.lab_summary_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun verdictLabel(v: Verdict): String = stringResource(
+    when (v) {
+        Verdict.GO -> R.string.verdict_go
+        Verdict.WARN -> R.string.verdict_warn
+        Verdict.NO_GO -> R.string.verdict_no_go
+        Verdict.INSUFFICIENT_DATA -> R.string.verdict_insufficient
+    },
+)
+
+private fun checkQuestion(id: String): Int = when (id) {
+    "Q1" -> R.string.lab_q1
+    "Q2" -> R.string.lab_q2
+    "Q3" -> R.string.lab_q3
+    else -> R.string.lab_q4
 }
 
 @Composable

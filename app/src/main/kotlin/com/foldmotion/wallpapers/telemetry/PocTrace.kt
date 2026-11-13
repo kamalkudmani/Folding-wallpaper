@@ -3,6 +3,7 @@ package com.foldmotion.wallpapers.telemetry
 import android.content.Context
 import android.os.Build
 import android.os.SystemClock
+import com.foldmotion.core.poc.TraceEvent
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -67,6 +68,32 @@ object PocTrace {
     }
 
     fun recent(): List<Entry> = synchronized(memory) { memory.toList() }
+
+    /**
+     * Every event on disk, oldest first, as analyzer input. elapsedRealtime restarts at boot, so a
+     * jump backwards marks a reboot; later events are shifted to keep the timeline monotonic and
+     * at least a minute apart, which keeps pairing windows from spanning two boots.
+     */
+    fun readAll(): List<TraceEvent> {
+        val dir = file?.parentFile ?: return recent().map { TraceEvent(it.elapsedMs, it.source, it.event, it.detail) }
+        val out = ArrayList<TraceEvent>()
+        var offset = 0L
+        var previous = Long.MIN_VALUE
+        for (name in listOf("trace.1.log", "trace.log")) {
+            val part = File(dir, name)
+            if (!part.isFile) continue
+            part.forEachLine { line ->
+                val cols = line.split('\t')
+                if (cols.size < 4) return@forEachLine
+                val elapsed = cols[0].toLongOrNull() ?: return@forEachLine
+                if (previous != Long.MIN_VALUE && elapsed + offset < previous - 1_000) offset = previous - elapsed + 60_000
+                val at = elapsed + offset
+                previous = at
+                out += TraceEvent(at, cols[2], cols[3], cols.getOrElse(4) { "" })
+            }
+        }
+        return out
+    }
 
     fun clear() {
         synchronized(memory) { memory.clear() }

@@ -194,4 +194,16 @@
     <string name="preview_motion_value" formatted="true">%1$s · فتح %2$d م.ث · إغلاق %3$d م.ث</string>
     <string name="preview_size_value" formatted="true">%1$.1f ميغابايت</string>
     <string name="gen_ready" formatted="true">اكتملت في %1$.1f ث</string>
+    <string name="lab_summary">ملخص الجدوى</string>
+    <string name="lab_analyze">تحليل السجل</string>
+    <string name="lab_summary_counts">سُجّل %1$d تبديل بين الشاشتين (المطلوب %2$d على الأقل)</string>
+    <string name="lab_summary_note">حدود نجاح مبدئية من المخطط (الصفحتان 4 و24). قرار GO/NO-GO النهائي يوقّعه الفريق لا التطبيق.</string>
+    <string name="verdict_go">GO</string>
+    <string name="verdict_warn">يحتاج مراجعة</string>
+    <string name="verdict_no_go">NO-GO</string>
+    <string name="verdict_insufficient">بيانات غير كافية</string>
+    <string name="lab_q1">هل تستمر الخلفية في العمل عند تبديل الشاشة؟</string>
+    <string name="lab_q2">هل تبدأ الحركة مبكراً بما يكفي بعد الطي؟</string>
+    <string name="lab_q3">هل يجهز المشهد في الوقت المناسب؟</string>
+    <string name="lab_q4">هل الحركة سلسة؟</string>
 </resources>

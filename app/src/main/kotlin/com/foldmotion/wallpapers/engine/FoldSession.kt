@@ -6,6 +6,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.SystemClock
 import com.foldmotion.core.device.ScreenKind
+import com.foldmotion.core.poc.PocEvents
 import com.foldmotion.wallpapers.telemetry.PocTrace
 
 /**
@@ -26,7 +27,7 @@ object FoldSession {
 
     fun markPostureChange(source: String, detail: String) {
         postureChangedAtMs = SystemClock.elapsedRealtime()
-        PocTrace.log(source, "POSTURE_CHANGE", detail)
+        PocTrace.log(source, PocEvents.POSTURE_CHANGE, detail)
     }
 }
 
@@ -51,14 +52,14 @@ class HingeMonitor(private val sensors: SensorManager?) : SensorEventListener {
         if (users++ > 0) return
         val sensor = sensors?.getDefaultSensor(Sensor.TYPE_HINGE_ANGLE) ?: return
         sensors.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
-        PocTrace.log("hinge", "LISTEN", sensor.name)
+        PocTrace.log(PocEvents.SOURCE_HINGE, "LISTEN", PocEvents.detail("sensor" to sensor.name))
     }
 
     fun release() {
         if (users == 0) return
         if (--users > 0) return
         sensors?.unregisterListener(this)
-        PocTrace.log("hinge", "STOP")
+        PocTrace.log(PocEvents.SOURCE_HINGE, "STOP")
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -73,13 +74,16 @@ class HingeMonitor(private val sensors: SensorManager?) : SensorEventListener {
         }
         if (kotlin.math.abs(angle - lastLoggedAngle) >= 15f) {
             lastLoggedAngle = angle
-            PocTrace.log("hinge", "ANGLE", angle.toInt().toString())
+            PocTrace.log(PocEvents.SOURCE_HINGE, "ANGLE", PocEvents.detail(PocEvents.ANGLE to angle.toInt()))
         }
         if (next != posture) {
             val previous = posture
             posture = next
             if (previous != Posture.UNKNOWN && next != Posture.HALF) {
-                FoldSession.markPostureChange("hinge", "$previous->$next at ${angle.toInt()}°")
+                FoldSession.markPostureChange(
+                    PocEvents.SOURCE_HINGE,
+                    PocEvents.detail(PocEvents.FROM to previous, PocEvents.TO to next, PocEvents.ANGLE to angle.toInt(), PocEvents.VIA to "hinge"),
+                )
             }
         }
     }

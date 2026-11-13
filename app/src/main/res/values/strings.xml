@@ -205,4 +205,16 @@
     <string name="preview_motion_value" formatted="true">%1$s · open %2$d ms · close %3$d ms</string>
     <string name="preview_size_value" formatted="true">%1$.1f MB</string>
     <string name="gen_ready" formatted="true">Ready in %1$.1f s</string>
+    <string name="lab_summary">Feasibility summary</string>
+    <string name="lab_analyze">Analyze trace</string>
+    <string name="lab_summary_counts">%1$d fold switches recorded (at least %2$d needed)</string>
+    <string name="lab_summary_note">Provisional pass marks from the blueprint (pages 4 and 24). The final GO/NO-GO is signed by the team, not by the app.</string>
+    <string name="verdict_go">GO</string>
+    <string name="verdict_warn">Check</string>
+    <string name="verdict_no_go">NO-GO</string>
+    <string name="verdict_insufficient">Not enough data</string>
+    <string name="lab_q1">Does the wallpaper keep working across the screen switch?</string>
+    <string name="lab_q2">Does the motion start early enough after a fold?</string>
+    <string name="lab_q3">Is the scene ready in time?</string>
+    <string name="lab_q4">Is the motion smooth?</string>
 </resources>

@@ -27,6 +27,7 @@ import com.foldmotion.core.fold.FoldState
 import com.foldmotion.core.fold.FoldStateReducer
 import com.foldmotion.core.fold.MotionPolicy
 import com.foldmotion.core.fold.TransitionKind
+import com.foldmotion.core.poc.PocEvents
 import com.foldmotion.core.scene.GenerationMode
 import com.foldmotion.core.scene.GenerationRequest
 import kotlinx.coroutines.launch
@@ -122,6 +123,11 @@ class FoldWallpaperService : WallpaperService() {
         private var transitionKind: TransitionKind? = null
         private var transitionStartNanos = 0L
         private var transitionDurationMs = 0
+        private var frameCount = 0
+        private var jankFrames = 0
+        private var maxGapNanos = 0L
+        private var lastFrameNanos = 0L
+        private var refreshHz = 60f
         private var frameScheduled = false
         private var surfaceWidth = 0
         private var surfaceHeight = 0
@@ -134,7 +140,7 @@ class FoldWallpaperService : WallpaperService() {
                 AppSettings.KEY_ACTIVE, AppSettings.KEY_PENDING -> {
                     val next = resolvePackId()
                     if (next != packId) {
-                        trace("PACK_SWITCH", "$packId -> $next")
+                        trace("PACK_SWITCH", PocEvents.detail(PocEvents.FROM to packId, PocEvents.TO to next))
                         switchPack(next)
                     }
                 }
@@ -172,11 +178,14 @@ class FoldWallpaperService : WallpaperService() {
             if (!isPreview) settings.lastLiveEngineAtMs = System.currentTimeMillis()
             packId = resolvePackId()
             readPlaceholderColors()
-            trace("ENGINE_CREATE", "preview=$isPreview display=$displayId profile=${profile.id} pack=$packId")
+            trace(
+                PocEvents.ENGINE_CREATE,
+                PocEvents.detail(PocEvents.PREVIEW to isPreview, PocEvents.DISPLAY to displayId, "profile" to profile.id, "pack" to packId),
+            )
         }
 
         override fun onDestroy() {
-            trace("ENGINE_DESTROY")
+            trace(PocEvents.ENGINE_DESTROY)
             engines -= this
             stopFrames()
             settings.prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
@@ -191,7 +200,7 @@ class FoldWallpaperService : WallpaperService() {
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
-            trace("SURFACE_CREATED")
+            trace(PocEvents.SURFACE_CREATED)
             dispatch(FoldEvent.SurfaceCreated(now()))
         }
 
@@ -206,12 +215,20 @@ class FoldWallpaperService : WallpaperService() {
                 -1
             }
             if (newDisplay != displayId) {
-                trace("DISPLAY_CHANGED", "$displayId -> $newDisplay")
+                trace("DISPLAY_CHANGED", PocEvents.detail(PocEvents.FROM to displayId, PocEvents.TO to newDisplay))
                 displayId = newDisplay
             }
             val previousKind = state.lastSurfaceKind
-            trace("SURFACE_CHANGED", "${width}x$height kind=$kind exact=${ScreenClassifier.isExactPanel(profile, kind, width, height)}")
-            if (previousKind != null && previousKind != kind) FoldSession.markPostureChange(id, "$previousKind->$kind surface")
+            trace(
+                PocEvents.SURFACE_CHANGED,
+                PocEvents.detail(
+                    PocEvents.W to width, PocEvents.H to height, PocEvents.KIND to kind,
+                    "exact" to ScreenClassifier.isExactPanel(profile, kind, width, height), PocEvents.DISPLAY to displayId,
+                ),
+            )
+            if (previousKind != null && previousKind != kind) {
+                FoldSession.markPostureChange(id, PocEvents.detail(PocEvents.FROM to previousKind, PocEvents.TO to kind, PocEvents.VIA to "surface"))
+            }
             dispatch(FoldEvent.SurfaceChanged(now(), width, height, kind))
         }
 
@@ -223,14 +240,14 @@ class FoldWallpaperService : WallpaperService() {
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
-            trace("SURFACE_DESTROYED")
+            trace(PocEvents.SURFACE_DESTROYED)
             dispatch(FoldEvent.SurfaceDestroyed(now()))
             super.onSurfaceDestroyed(holder)
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
             super.onVisibilityChanged(visible)
-            trace("VISIBILITY", visible.toString())
+            trace(PocEvents.VISIBILITY, PocEvents.detail(PocEvents.VISIBLE to visible))
             dispatch(
                 FoldEvent.VisibilityChanged(
                     now(), visible,
@@ -261,7 +278,9 @@ class FoldWallpaperService : WallpaperService() {
                     val before = state.phase
                     val result = FoldStateReducer.reduce(state, e)
                     state = result.state
-                    if (state.phase != before) trace("PHASE", "$before -> ${state.phase} on ${e.javaClass.simpleName}")
+                    if (state.phase != before) {
+                        trace("PHASE", PocEvents.detail(PocEvents.FROM to before, PocEvents.TO to state.phase, "on" to e.javaClass.simpleName))
+                    }
                     result.commands.forEach(::execute)
                 }
             } finally {
@@ -276,7 +295,7 @@ class FoldWallpaperService : WallpaperService() {
                 is FoldCommand.DrawStatic -> drawStatic(command.kind)
                 is FoldCommand.StartTransition -> startTransition(command.kind, command.screen)
                 is FoldCommand.CutTransition -> {
-                    trace("TRANSITION_CUT", command.reason.name)
+                    trace(PocEvents.TRANSITION_CUT, PocEvents.detail(PocEvents.REASON to command.reason.name))
                     transitionKind = null
                     stopFrames()
                 }
@@ -305,7 +324,7 @@ class FoldWallpaperService : WallpaperService() {
         fun onPacksChanged() {
             val next = resolvePackId()
             if (next != packId) {
-                trace("PACK_SWITCH", "$packId -> $next (store)")
+                trace("PACK_SWITCH", PocEvents.detail(PocEvents.FROM to packId, PocEvents.TO to next, PocEvents.VIA to "store"))
                 switchPack(next)
             }
         }
@@ -352,12 +371,15 @@ class FoldWallpaperService : WallpaperService() {
                             return@post
                         }
                         if (scene == null) {
-                            trace("SCENE_FAILED", "$pack $kind")
+                            trace(PocEvents.SCENE_FAILED, PocEvents.detail(PocEvents.KIND to kind, "pack" to pack))
                             dispatch(FoldEvent.SceneFailed(now(), kind))
                         } else {
                             scenes[kind]?.recycle()
                             scenes[kind] = scene
-                            trace("SCENE_READY", "$kind ${SystemClock.elapsedRealtime() - started}ms ${scene.byteCount / 1024}KB")
+                            trace(
+                                PocEvents.SCENE_READY,
+                                PocEvents.detail(PocEvents.KIND to kind, PocEvents.LOAD_MS to SystemClock.elapsedRealtime() - started, "kb" to scene.byteCount / 1024),
+                            )
                             dispatch(FoldEvent.SceneReady(now(), kind))
                             preloadOther(kind)
                         }
@@ -388,7 +410,7 @@ class FoldWallpaperService : WallpaperService() {
                             scene?.recycle()
                         } else {
                             scenes[other] = scene
-                            trace("SCENE_PRELOADED", other.name)
+                            trace("SCENE_PRELOADED", PocEvents.detail(PocEvents.KIND to other))
                         }
                     }
                 }
@@ -406,7 +428,7 @@ class FoldWallpaperService : WallpaperService() {
             val current = state.surface?.kind
             val drop = scenes.keys.filter { it != current }
             drop.forEach { scenes.remove(it)?.recycle() }
-            if (drop.isNotEmpty()) trace("TRIM", drop.joinToString())
+            if (drop.isNotEmpty()) trace("TRIM", PocEvents.detail("dropped" to drop.joinToString(",")))
         }
 
         // ------------------------------------------------------------ drawing
@@ -458,21 +480,55 @@ class FoldWallpaperService : WallpaperService() {
             transitionDurationMs = motion.durationMs
             transitionStartNanos = System.nanoTime()
             val sincePosture = FoldSession.postureChangedAtMs?.let { now() - it }
-            trace("TRANSITION_START", "$kind ${motion.durationMs}ms posture+${sincePosture ?: "?"}ms")
+            frameCount = 0
+            jankFrames = 0
+            maxGapNanos = 0L
+            lastFrameNanos = transitionStartNanos
+            refreshHz = try {
+                displayContext?.display?.refreshRate ?: 60f
+            } catch (e: Exception) {
+                60f
+            }.coerceIn(30f, 240f)
+            trace(
+                PocEvents.TRANSITION_START,
+                PocEvents.detail(PocEvents.KIND to kind, PocEvents.DURATION_MS to motion.durationMs, PocEvents.SINCE_POSTURE_MS to sincePosture),
+            )
             drawTransitionFrame(transitionStartNanos)
             scheduleFrame()
         }
 
         private fun onFrame(frameTimeNanos: Long) {
             if (transitionKind == null) return
+            recordFrame(frameTimeNanos)
             val done = drawTransitionFrame(frameTimeNanos)
             if (done) {
                 transitionKind = null
-                trace("TRANSITION_END")
+                trace(
+                    PocEvents.TRANSITION_END,
+                    PocEvents.detail(
+                        PocEvents.FRAMES to frameCount,
+                        PocEvents.JANK_FRAMES to jankFrames,
+                        PocEvents.MAX_GAP_MS to maxGapNanos / 1_000_000,
+                        PocEvents.REFRESH_HZ to refreshHz.toInt(),
+                        PocEvents.ELAPSED_MS to (frameTimeNanos - transitionStartNanos) / 1_000_000,
+                    ),
+                )
                 dispatch(FoldEvent.TransitionFinished(now()))
             } else {
                 scheduleFrame()
             }
+        }
+
+        /**
+         * Frame pacing for the POC: a frame counts as jank when it arrives more than 1.5 refresh
+         * intervals after the previous one (blueprint section 24 target: jank under 5%).
+         */
+        private fun recordFrame(frameTimeNanos: Long) {
+            val gap = frameTimeNanos - lastFrameNanos
+            lastFrameNanos = frameTimeNanos
+            frameCount++
+            if (gap > maxGapNanos) maxGapNanos = gap
+            if (gap > 1.5 * 1_000_000_000L / refreshHz) jankFrames++
         }
 
         /** @return true when the last frame has been drawn. */

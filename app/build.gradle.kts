@@ -11,7 +11,8 @@ plugins {
  *  - Production: set FOLDMOTION_KEYSTORE / _PASSWORD / _ALIAS / _KEY_PASSWORD in CI from the
  *    secret manager; the release build then signs with the owner's upload key instead.
  */
-val releaseKeystore: String? = System.getenv("FOLDMOTION_KEYSTORE")
+// CI passes unset secrets as empty strings, so blank means "not configured".
+val releaseKeystore: String? = System.getenv("FOLDMOTION_KEYSTORE")?.takeIf { it.isNotBlank() }
 
 android {
     namespace = "com.foldmotion.wallpapers"
