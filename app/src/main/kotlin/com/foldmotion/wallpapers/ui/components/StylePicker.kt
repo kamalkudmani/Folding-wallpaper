@@ -72,6 +72,9 @@ fun foldStyleLabelRes(style: FoldStyle): Int = when (style) {
     FoldStyle.TILES -> R.string.style_tiles
     FoldStyle.SWEEP -> R.string.style_sweep
     FoldStyle.IRIS -> R.string.style_iris
+    FoldStyle.RIPPLE -> R.string.style_ripple
+    FoldStyle.FLOW -> R.string.style_flow
+    FoldStyle.GLASS -> R.string.style_glass
 }
 
 private fun foldStyleDescriptionRes(style: FoldStyle): Int = when (style) {
@@ -83,6 +86,9 @@ private fun foldStyleDescriptionRes(style: FoldStyle): Int = when (style) {
     FoldStyle.TILES -> R.string.style_tiles_desc
     FoldStyle.SWEEP -> R.string.style_sweep_desc
     FoldStyle.IRIS -> R.string.style_iris_desc
+    FoldStyle.RIPPLE -> R.string.style_ripple_desc
+    FoldStyle.FLOW -> R.string.style_flow_desc
+    FoldStyle.GLASS -> R.string.style_glass_desc
 }
 
 @Composable
@@ -184,6 +190,9 @@ fun StyleGlyph(style: FoldStyle, animate: Boolean, modifier: Modifier = Modifier
             FoldStyle.TILES -> tilesGlyph(t)
             FoldStyle.SWEEP -> sweepGlyph(t)
             FoldStyle.IRIS -> irisGlyph(t)
+            FoldStyle.RIPPLE -> rippleGlyph(t)
+            FoldStyle.FLOW -> flowGlyph(t)
+            FoldStyle.GLASS -> glassGlyph(t)
         }
         if (emphasis > 0f) drawRect(FmColors.Aurora.copy(alpha = 0.06f * emphasis), blendMode = BlendMode.Plus)
     }
@@ -378,6 +387,93 @@ private fun DrawScope.irisGlyph(t: Float) {
             val a = i / 10f * 2f * PI.toFloat() + gather * 2.5f
             val r = size.minDimension * 0.6f * (1f - gather)
             drawCircle(Light, radius = size.minDimension * 0.025f, center = c + Offset(cos(a), sin(a)) * r, alpha = 0.9f * (1f - open * 4f).coerceIn(0f, 1f), blendMode = BlendMode.Plus)
+        }
+    }
+}
+
+/** Rings spread from a drop and the scene appears inside the first one. */
+private fun DrawScope.rippleGlyph(t: Float) {
+    val c = Offset(size.width * 0.5f, size.height * 0.55f)
+    val far = max(size.width, size.height) * 0.85f
+    val e = ease(t)
+    val front = far * e * 1.1f
+    if (front > 1f) {
+        clipPath(Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, front)) }) {
+            // The picture wobbles slightly inside the rings while they are fresh.
+            val wobble = 1f + 0.04f * sin(t * 18f) * (1f - e)
+            withTransform({ scale(wobble, wobble, pivot = c) }) { scene() }
+        }
+    }
+    val calm = 1f - e
+    if (calm > 0.02f) {
+        for (i in 0 until 4) {
+            val r = front - i * size.minDimension * 0.09f
+            if (r <= 1f) continue
+            val a = calm * (1f - i * 0.22f)
+            drawCircle(Light.copy(alpha = 0.75f * a), radius = r, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(if (i == 0) 2.5f else 1.5f), blendMode = BlendMode.Plus)
+        }
+        // The drop itself, at the start.
+        val drop = (1f - t / 0.2f).coerceIn(0f, 1f)
+        if (drop > 0f) drawCircle(Color.White.copy(alpha = drop), radius = size.minDimension * 0.05f, center = c, blendMode = BlendMode.Plus)
+    }
+}
+
+/** The scene pours in from the left behind a wavy, glossy liquid edge. */
+private fun DrawScope.flowGlyph(t: Float) {
+    val e = ease(t)
+    val w = size.width
+    val h = size.height
+    val front = -w * 0.15f + e * w * 1.35f
+    val amp = w * 0.07f * (0.3f + (1f - e))
+    val edge = Path().apply {
+        moveTo(-w, -1f)
+        lineTo(front, -1f)
+        val steps = 18
+        for (k in 0..steps) {
+            val y = h * k / steps
+            val x = front + amp * (sin(y / h * 7f + t * 6f) * 0.7f + sin(y / h * 15f - t * 9f) * 0.3f)
+            lineTo(x, y)
+        }
+        lineTo(-w, h + 1f)
+        close()
+    }
+    clipPath(edge) { scene() }
+    if (e < 0.98f) {
+        val rim = Path().apply {
+            val steps = 18
+            for (k in 0..steps) {
+                val y = h * k / steps
+                val x = front + amp * (sin(y / h * 7f + t * 6f) * 0.7f + sin(y / h * 15f - t * 9f) * 0.3f)
+                if (k == 0) moveTo(x, y) else lineTo(x, y)
+            }
+        }
+        drawPath(rim, Light.copy(alpha = 0.85f * (1f - e)), style = androidx.compose.ui.graphics.drawscope.Stroke(3f, cap = StrokeCap.Round), blendMode = BlendMode.Plus)
+    }
+}
+
+/** The scene behind frosted, ribbed glass that melts clear while a sheen crosses it. */
+private fun DrawScope.glassGlyph(t: Float) {
+    val e = ease(t)
+    val melt = 1f - e
+    val wobble = size.width * 0.03f * melt
+    withTransform({ translate(wobble * sin(t * 9f), 0f) }) { scene() }
+    if (melt > 0.02f) {
+        drawRect(Color.Black.copy(alpha = 0.5f * melt * melt))
+        // Ribs of glass: soft light and dark bands that fade as the glass melts.
+        val ribs = 5
+        val rw = size.width / ribs
+        for (i in 0 until ribs) {
+            drawRect(
+                Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.28f * melt), Color.Transparent, Color.Black.copy(alpha = 0.18f * melt)), startX = i * rw, endX = (i + 1) * rw),
+                topLeft = Offset(i * rw, 0f), size = Size(rw + 0.5f, size.height),
+            )
+        }
+        val x = size.width * (t * 1.6f - 0.3f)
+        rotate(20f, pivot = Offset(size.width / 2f, size.height / 2f)) {
+            drawRect(
+                Brush.horizontalGradient(listOf(Color.Transparent, Light.copy(alpha = 0.55f * melt), Color.Transparent), startX = x - 16f, endX = x + 16f),
+                topLeft = Offset(x - 16f, -size.height), size = Size(32f, size.height * 3f), blendMode = BlendMode.Plus,
+            )
         }
     }
 }

@@ -10,3 +10,6 @@ captures/
 *.apk
 *.aab
 !dist/*.apk
+
+# Python caches (tools/)
+__pycache__/

@@ -1,12 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Two panels of a book-style foldable, the right one opening. -->
+<!--
+    A Galaxy Z Fold opened like a book, seen from the front: two screens meeting at a lit crease,
+    liquid light flowing across both. Kept inside the 66 dp safe zone.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FF0F3A4D" android:strokeColor="#FF8FD9D6" android:strokeWidth="2.5"
-        android:pathData="M31,33 L53,30 L53,78 L31,75 Z" />
-    <path android:fillColor="#FF19B5B0" android:strokeColor="#FFE2B861" android:strokeWidth="2.5"
-        android:pathData="M55,30 L77,35 L77,73 L55,78 Z" />
-    <path android:fillColor="#FFE2B861"
-        android:pathData="M66,45 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Left screen. -->
+    <path android:pathData="M33.5,37.2 L52,33.4 Q54,33 54,35 L54,75 Q54,77 52,76.6 L33.5,72.8 Q31.5,72.4 31.5,70.4 L31.5,39.6 Q31.5,37.6 33.5,37.2 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="31" android:startY="34" android:endX="54" android:endY="77"
+                android:startColor="#FF2DE1C2" android:endColor="#FF2F6BFF" />
+        </aapt:attr>
+    </path>
+    <!-- Right screen. -->
+    <path android:pathData="M74.5,37.2 L56,33.4 Q54,33 54,35 L54,75 Q54,77 56,76.6 L74.5,72.8 Q76.5,72.4 76.5,70.4 L76.5,39.6 Q76.5,37.6 74.5,37.2 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="34" android:endX="77" android:endY="77"
+                android:startColor="#FF8B7CFF" android:endColor="#FFFF7AC8" />
+        </aapt:attr>
+    </path>
+
+    <!-- Liquid light flowing across both screens. -->
+    <group>
+        <clip-path android:pathData="M33.5,37.2 L52,33.4 Q54,33 54,35 L54,75 Q54,77 52,76.6 L33.5,72.8 Q31.5,72.4 31.5,70.4 L31.5,39.6 Q31.5,37.6 33.5,37.2 Z M74.5,37.2 L56,33.4 Q54,33 54,35 L54,75 Q54,77 56,76.6 L74.5,72.8 Q76.5,72.4 76.5,70.4 L76.5,39.6 Q76.5,37.6 74.5,37.2 Z" />
+        <path android:pathData="M28,58 C38,48 46,66 54,56 C62,46 70,62 80,52 L80,61 C70,71 62,55 54,65 C46,75 38,57 28,67 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="28" android:startY="56" android:endX="80" android:endY="58">
+                    <item android:offset="0" android:color="#00FFFFFF" />
+                    <item android:offset="0.35" android:color="#B3FFFFFF" />
+                    <item android:offset="0.65" android:color="#99FFFFFF" />
+                    <item android:offset="1" android:color="#00FFFFFF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M28,66 C38,56 46,74 54,64 C62,54 70,70 80,60 L80,82 L28,82 Z" android:fillColor="#26000000" />
+        <!-- Glass sheen across the top. -->
+        <path android:pathData="M28,30 L80,30 L80,46 Q54,40 28,48 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="54" android:startY="30" android:endX="54" android:endY="48"
+                    android:startColor="#4DFFFFFF" android:endColor="#00FFFFFF" />
+            </aapt:attr>
+        </path>
+    </group>
+
+    <!-- The lit crease. -->
+    <path android:pathData="M54,34.2 L54,75.8" android:strokeColor="#CCFFFFFF" android:strokeWidth="0.9" android:strokeLineCap="round" />
 </vector>

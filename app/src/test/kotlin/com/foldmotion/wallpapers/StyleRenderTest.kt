@@ -98,10 +98,14 @@ class StyleRenderTest {
             val c = Canvas(sheet)
             c.drawColor(Color.rgb(12, 16, 22))
             val state = FrameState(timeMs = clock, ambient = true)
-            val cb = Bitmap.createBitmap(coverW, coverH, Bitmap.Config.ARGB_8888)
-            val mb = Bitmap.createBitmap(mainW, mainH, Bitmap.Config.ARGB_8888)
-            if (active == ScreenKind.COVER) drawer.draw(Canvas(cb), coverW, coverH, cover, coverProgress, state) else cb.eraseColor(Color.rgb(6, 8, 10))
-            if (active == ScreenKind.MAIN) drawer.draw(Canvas(mb), mainW, mainH, main, mainProgress, state) else mb.eraseColor(Color.rgb(6, 8, 10))
+            // Liquid styles run a GPU shader: draw them through the hardware pipeline, as the phone does.
+            fun screen(w: Int, h: Int, scene: LoadedScene, progress: Float?, on: Boolean): Bitmap = when {
+                !on -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.rgb(6, 8, 10)) }
+                style.isLiquid -> HwCapture.render(w, h) { drawer.draw(it, w, h, scene, progress, state) }
+                else -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { drawer.draw(Canvas(it), w, h, scene, progress, state) }
+            }
+            val cb = screen(coverW, coverH, cover, coverProgress, active == ScreenKind.COVER)
+            val mb = screen(mainW, mainH, main, mainProgress, active == ScreenKind.MAIN)
             c.drawBitmap(cb, 10f, 10f, null)
             c.drawBitmap(mb, coverW + 20f, 10f, null)
             c.drawText(caption, 14f, sheetH - 6f, label)

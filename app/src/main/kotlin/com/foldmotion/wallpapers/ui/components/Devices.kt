@@ -17,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -253,5 +254,63 @@ fun FoldPair(cover: ImageBitmap?, main: ImageBitmap?, layout: PairLayout, modifi
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------- cards
+
+/** The two card heights of the wall: the open screen (near square) or the closed one (tall). */
+enum class CardShape(val aspect: Float) {
+    OPEN(0.9f),
+    CLOSED(0.62f),
+}
+
+/**
+ * Card artwork: one state of the wallpaper large and edge to edge, the other state as a small
+ * screen in the same corner on every card, so the wall stays orderly while showing both.
+ */
+@Composable
+fun FoldCardArt(cover: ImageBitmap?, main: ImageBitmap?, shape: CardShape, modifier: Modifier = Modifier) {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Box(modifier.fillMaxWidth().aspectRatio(shape.aspect).clip(RoundedCornerShape(22.dp)).background(Color(0xFF15161B))) {
+            val big = if (shape == CardShape.OPEN) main else cover
+            if (big != null) Image(big, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (shape == CardShape.OPEN) Crease(Modifier.fillMaxSize())
+            // A soft floor of shade so the inset reads on bright pictures.
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to Color(0x66000000))))
+            val small = if (shape == CardShape.OPEN) cover else main
+            val insetShape = RoundedCornerShape(10.dp)
+            val inset = if (shape == CardShape.OPEN) {
+                Modifier.fillMaxHeight(0.44f).aspectRatio(FoldProportions.coverAspect)
+            } else {
+                Modifier.fillMaxWidth(0.52f).aspectRatio(FoldProportions.mainAspect)
+            }
+            Box(
+                Modifier.align(Alignment.BottomStart).padding(10.dp).then(inset)
+                    .shadow(10.dp, insetShape)
+                    .clip(insetShape)
+                    .background(Color(0xFF0A0B0F))
+                    .border(1.5.dp, Color(0xE60A0B0F), insetShape),
+            ) {
+                if (small != null) Image(small, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                if (shape == CardShape.CLOSED) Crease(Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+/** The fold line down the middle of an open screen. */
+@Composable
+private fun Crease(modifier: Modifier) {
+    Canvas(modifier) {
+        val cx = size.width / 2f
+        val band = size.width * 0.03f
+        drawRect(
+            Brush.horizontalGradient(
+                listOf(Color.Transparent, Color(0x2E000000), Color(0x1AFFFFFF), Color(0x2E000000), Color.Transparent),
+                startX = cx - band, endX = cx + band,
+            ),
+            topLeft = Offset(cx - band, 0f), size = androidx.compose.ui.geometry.Size(band * 2, size.height),
+        )
     }
 }

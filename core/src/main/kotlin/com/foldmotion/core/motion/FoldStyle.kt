@@ -15,13 +15,25 @@ import com.foldmotion.core.scene.SceneFamily
  *  - TILES: the scene assembles from tiles flipping over in a wave.
  *  - SWEEP: a band of light crosses the screen and the scene appears behind it.
  *  - IRIS: light gathers at the focal point and the scene opens from it as a circle.
+ *
+ * Liquid styles (renderer 5) bend the picture itself with a GPU shader, on Android 13 and later;
+ * older phones play a close cousin drawn without one (ripple as an iris, flow as a sweep, glass
+ * as a fade):
+ *  - RIPPLE: a drop falls on the focal point and the scene spreads out with the rings.
+ *  - FLOW: the scene pours in across the screen as a thick liquid with a wavy, glossy front.
+ *  - GLASS: the scene comes into focus through melting glass that refracts and clears.
  */
 enum class FoldStyle {
-    AUTO, UNFOLD, BOOK, RISE, WARP, TILES, SWEEP, IRIS;
+    AUTO, UNFOLD, BOOK, RISE, WARP, TILES, SWEEP, IRIS, RIPPLE, FLOW, GLASS;
+
+    /** Styles drawn with a liquid shader (they need renderer 5). */
+    val isLiquid: Boolean get() = this in LIQUID
 
     companion object {
         /** Styles that can actually be played; AUTO resolves to one of them. */
         val CONCRETE: List<FoldStyle> = entries.filter { it != AUTO }
+
+        val LIQUID: Set<FoldStyle> = setOf(RIPPLE, FLOW, GLASS)
 
         fun parse(name: String?): FoldStyle? = entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
 
@@ -34,11 +46,11 @@ enum class FoldStyle {
             val (first, second) = when (family) {
                 SceneFamily.MOUNTAINS -> RISE to UNFOLD
                 SceneFamily.DESERT -> SWEEP to RISE
-                SceneFamily.OCEAN -> SWEEP to IRIS
+                SceneFamily.OCEAN -> RIPPLE to IRIS
                 SceneFamily.SPACE -> WARP to IRIS
                 SceneFamily.CITY -> TILES to BOOK
-                SceneFamily.ABSTRACT -> TILES to WARP
-                SceneFamily.MINIMAL -> BOOK to SWEEP
+                SceneFamily.ABSTRACT -> FLOW to WARP
+                SceneFamily.MINIMAL -> GLASS to BOOK
             }
             return if ((seed ushr 3) and 1L == 0L) first else second
         }

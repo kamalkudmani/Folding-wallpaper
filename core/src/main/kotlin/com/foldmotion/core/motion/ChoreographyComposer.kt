@@ -29,7 +29,8 @@ data class Choreography(val open: MotionSpec, val close: MotionSpec, val ambient
  * Each [FoldStyle] is a different idea, not a different speed: a hinge unfolding from the cover
  * slice, a page swinging in perspective, layers rising out of the dark, a jump out of light
  * speed, a wave of flipping tiles, a band of scanning light, an iris opening from the focal
- * point. OPEN plays on the main screen when the phone opens, CLOSE on the cover when it closes;
+ * point; and the liquid ones, drawn by a shader that bends the picture itself: rings spreading
+ * from a drop, a thick liquid pouring across, melting glass clearing. OPEN plays on the main screen when the phone opens, CLOSE on the cover when it closes;
  * the two variants of a style share the idea but are shaped for their screen.
  *
  * Opaque layers only ever zoom in (scale >= 1 about a point inside the frame), so they keep
@@ -77,6 +78,9 @@ object ChoreographyComposer {
             FoldStyle.WARP -> warp(c)
             FoldStyle.TILES -> tiles(c)
             FoldStyle.SWEEP -> sweep(c)
+            FoldStyle.RIPPLE -> ripple(c)
+            FoldStyle.FLOW -> flow(c)
+            FoldStyle.GLASS -> glass(c)
             FoldStyle.AUTO -> error("resolved above")
         }
         return spec.copy(schemaVersion = 3, style = concrete.name)
@@ -370,6 +374,76 @@ object ChoreographyComposer {
         return spec(
             c, duration, tracks, SpringSpec.settlingIn(duration, 0.88f),
             RevealSpec(RevealSpec.SWEEP, listOf(angle), end = 0.8f, softness = 0.16f, shade = 0.9f, edgeGlow = 1f),
+            emptyList(),
+        )
+    }
+
+    // ------------------------------------------------------------------ RIPPLE (liquid)
+
+    /**
+     * A drop lands on the focal point: rings run outwards, bending the picture as they pass, and
+     * the scene is uncovered behind the first one. The layers settle from a gentle swell.
+     */
+    private fun ripple(c: Ctx): MotionSpec {
+        val duration = c.ms(1_500, 1_250, 250)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val swell = if (l.opaque) 1.05f else 1f + 0.03f * l.depth
+            tracks += layer(l, TrackPose(scale = swell, ty = if (l.opaque) 0f else 0.012f * l.depth), delay = 0.03f * l.depth, span = 0.97f)
+        }
+        tracks += glow(TrackPose(scale = 0.2f, alpha = if (c.night) 0.34f else 0.2f), TrackPose(scale = 1.6f, alpha = 0f), span = 0.55f)
+        tracks += dim(0.12f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, 0.82f),
+            RevealSpec(RevealSpec.RIPPLE, listOf(c.fx.coerceIn(0f, 1f), c.fy.coerceIn(0f, 1f), if (c.lively) 1f else 0.85f), end = 0.92f, softness = 0.1f, shade = 0.92f, edgeGlow = 0.85f),
+            emptyList(),
+        )
+    }
+
+    // ------------------------------------------------------------------ FLOW (liquid)
+
+    /**
+     * The scene pours in like a thick liquid: a wavy, glossy front crosses the screen, refracting
+     * what is under its edge, with slow ripples behind it. Open pours outwards across the main
+     * screen; close pours down the cover.
+     */
+    private fun flow(c: Ctx): MotionSpec {
+        val duration = c.ms(1_500, 1_250, 200)
+        val angle = if (c.main) (if ((c.input.seed ushr 5) and 1L == 0L) 0f else 180f) else 90f
+        val rad = Math.toRadians(angle.toDouble())
+        val dx = kotlin.math.cos(rad).toFloat()
+        val dy = kotlin.math.sin(rad).toFloat()
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val shift = if (l.opaque || l.depth <= 0.01f) 0f else 0.03f + 0.03f * l.depth
+            tracks += layer(l, TrackPose(scale = if (l.opaque) 1.04f else 1f, tx = -dx * shift, ty = -dy * shift), delay = 0.05f * l.depth, span = 0.95f)
+        }
+        tracks += dim(0.1f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, 0.86f),
+            RevealSpec(RevealSpec.FLOW, listOf(angle, if (c.lively) 1f else 0.85f), end = 0.9f, softness = 0.12f, shade = 0.92f, edgeGlow = 0.9f),
+            emptyList(),
+        )
+    }
+
+    // ------------------------------------------------------------------ GLASS (liquid)
+
+    /**
+     * The scene comes into focus behind thick glass that melts away: frosted and refracting at
+     * first, with a chromatic edge, clearing as a sheen runs across it.
+     */
+    private fun glass(c: Ctx): MotionSpec {
+        val duration = c.ms(1_300, 1_100, 200)
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val scale = if (l.opaque) 1.07f else 1.04f + 0.02f * l.depth
+            tracks += layer(l, TrackPose(scale = scale), span = 1f)
+        }
+        tracks += glow(TrackPose(scale = 1.2f, alpha = if (c.night) 0.22f else 0.14f), TrackPose(scale = 2f, alpha = 0f), span = 0.7f)
+        tracks += dim(0.16f)
+        return spec(
+            c, duration, tracks, SpringSpec.settlingIn(duration, 0.9f),
+            RevealSpec(RevealSpec.GLASS, listOf(if (c.lively) 1f else 0.85f), end = 0.92f, softness = 0.1f, shade = 0.9f, edgeGlow = 0.8f),
             emptyList(),
         )
     }

@@ -311,113 +311,106 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
     val glowColor = remember(pack.manifest.colors.primary) {
         Color(com.foldmotion.wallpapers.render.LoadedScene.parseColor(pack.manifest.colors.primary, android.graphics.Color.WHITE))
     }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val wide = maxWidth >= 600.dp
-        // The wallpaper's own light behind the page, blurred, fading into the background.
-        mainImage?.let {
-            androidx.compose.foundation.Image(
-                it, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(520.dp).blur(48.dp), alpha = 0.5f,
+    val hero: @Composable (Modifier, androidx.compose.ui.unit.Dp) -> Unit = { modifier, height ->
+        Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+            PillToggle(
+                listOf(stringResource(R.string.preview_mode_demo), stringResource(R.string.preview_cover), stringResource(R.string.preview_main), stringResource(R.string.preview_both)),
+                selected = mode.ordinal,
+                onSelect = { mode = PreviewMode.entries[it] },
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
-        }
-        Box(Modifier.fillMaxWidth().height(522.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x330A0B0F), FmColors.Night))))
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            ReadableColumn(Modifier.padding(top = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.staggerIn(0)) {
-                    GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back), onBack)
-                    Spacer(Modifier.width(12.dp))
-                    Text(pack.manifest.title.forLanguage(language), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    GlassIconButton(Icons.Filled.Share, stringResource(R.string.action_share), {
-                        vm.shareIntent(pack.id)?.let { context.startActivity(android.content.Intent.createChooser(it, context.getString(R.string.share_chooser))) }
-                    })
-                    Spacer(Modifier.width(8.dp))
-                    GlassIconButton(Icons.Filled.Delete, stringResource(R.string.action_delete), { confirmDelete = true })
-                }
-                Spacer(Modifier.height(12.dp))
-                PillToggle(
-                    listOf(stringResource(R.string.preview_mode_demo), stringResource(R.string.preview_cover), stringResource(R.string.preview_main), stringResource(R.string.preview_both)),
-                    selected = mode.ordinal,
-                    onSelect = { mode = PreviewMode.entries[it] },
-                    modifier = Modifier.staggerIn(1),
-                )
-                Spacer(Modifier.height(16.dp))
-            }
-            Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).staggerIn(2), contentAlignment = Alignment.Center) {
-                val frameHeight = if (wide) 470.dp else 430.dp
-                AnimatedContent(mode, transitionSpec = { (fadeIn(tween(280)) + scaleIn(initialScale = 0.96f)) togetherWith fadeOut(tween(160)) }, label = "mode") { m ->
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        when (m) {
-                            PreviewMode.DEMO -> FoldDemo(cover, main, profile, frameHeight, Modifier.fillMaxWidth(), animate = !reduced)
-                            PreviewMode.COVER -> SceneFrame(cover, ScreenKind.COVER, profile, Modifier.height(frameHeight), playCover, living = !reduced)
-                            PreviewMode.MAIN -> SceneFrame(main, ScreenKind.MAIN, profile, Modifier.height(frameHeight).widthIn(max = 540.dp), playMain, living = !reduced)
-                            PreviewMode.BOTH -> SideBySide(cover, main, profile, frameHeight, Modifier.widthIn(max = 740.dp), playCover, playMain, living = !reduced)
-                        }
+            Spacer(Modifier.height(14.dp))
+            val frameHeight = (height - 140.dp).coerceAtLeast(300.dp)
+            AnimatedContent(mode, transitionSpec = { (fadeIn(tween(280)) + scaleIn(initialScale = 0.96f)) togetherWith fadeOut(tween(160)) }, label = "mode") { m ->
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    when (m) {
+                        PreviewMode.DEMO -> FoldDemo(cover, main, profile, frameHeight, Modifier.fillMaxWidth(), animate = !reduced)
+                        PreviewMode.COVER -> SceneFrame(cover, ScreenKind.COVER, profile, Modifier.height(frameHeight), playCover, living = !reduced)
+                        PreviewMode.MAIN -> SceneFrame(main, ScreenKind.MAIN, profile, Modifier.height(frameHeight).widthIn(max = 540.dp), playMain, living = !reduced)
+                        PreviewMode.BOTH -> SideBySide(cover, main, profile, frameHeight, Modifier.widthIn(max = 740.dp), playCover, playMain, living = !reduced)
                     }
                 }
             }
-            ReadableColumn(Modifier.padding(bottom = NavClearance)) {
-                Spacer(Modifier.height(16.dp))
-                if (mode != PreviewMode.DEMO) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        GlassButton(stringResource(R.string.action_play_open), {
-                            if (mode == PreviewMode.COVER) mode = PreviewMode.MAIN
-                            if (!reduced) playMain++
-                        }, Modifier.weight(1f), leading = Icons.Filled.PlayArrow)
-                        GlassButton(stringResource(R.string.action_play_close), {
-                            if (mode == PreviewMode.MAIN) mode = PreviewMode.COVER
-                            if (!reduced) playCover++
-                        }, Modifier.weight(1f), leading = Icons.Filled.PlayArrow)
-                    }
-                }
-                Text(stringResource(R.string.preview_simulation_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 10.dp))
-                Spacer(Modifier.height(16.dp))
-                GradientButton(stringResource(R.string.action_apply), ::apply, Modifier.fillMaxWidth(), leading = Icons.Filled.Check, height = 60.dp)
-
-                SectionTitle(stringResource(R.string.discover_both))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(0.34f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        com.foldmotion.wallpapers.ui.components.FoldedDevice(coverImage, Modifier.fillMaxWidth(), glowColor)
-                        Text(stringResource(R.string.discover_closed), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
-                    }
-                    Column(Modifier.weight(0.66f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        com.foldmotion.wallpapers.ui.components.UnfoldedDevice(mainImage, Modifier.fillMaxWidth(), glowColor)
-                        Text(stringResource(R.string.discover_open), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
-                    }
-                }
-
-                SectionTitle(stringResource(R.string.style_title))
-                Text(
-                    stringResource(if (restyling == pack.id) R.string.style_working else R.string.style_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (restyling == pack.id) FmColors.Aurora else FmColors.TextMuted,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
-                StylePicker(
-                    styles = FoldStyle.CONCRETE,
-                    selected = style,
-                    onSelect = { if (it != style) vm.restyle(pack.id, it) },
-                    animate = !reduced,
-                    enabled = restyling == null,
-                )
-
-                SectionTitle(stringResource(R.string.preview_details))
-                GlassCard(Modifier.fillMaxWidth().testTag("preview_details")) {
-                    DetailRow(stringResource(R.string.preview_check), if (report.passed) stringResource(R.string.preview_check_passed) else stringResource(R.string.preview_check_failed, report.codes.joinToString()))
-                    DetailRow(stringResource(R.string.preview_profile), pack.manifest.profileIds.map { id -> DeviceProfileRegistry.byId(id)?.let { profileName(it) } ?: id }.joinToString())
-                    DetailRow(
-                        stringResource(R.string.preview_motion),
-                        stringResource(R.string.preview_motion_value, intensityLabel(pack.manifest.motionIntensity), main?.entryMotion?.durationMs ?: pack.manifest.transitions.open.durationMs, cover?.entryMotion?.durationMs ?: pack.manifest.transitions.close.durationMs),
-                    )
-                    DetailRow(stringResource(R.string.style_title), foldStyleLabel(style))
-                    pack.manifest.video?.let { v ->
-                        DetailRow(stringResource(R.string.preview_scene), stringResource(R.string.preview_scene_video, v.width, v.height, v.durationMs / 1000f))
-                    }
-                    DetailRow(stringResource(R.string.preview_size), stringResource(R.string.preview_size_value, pack.sizeBytes / 1_048_576f))
-                    DetailRow(stringResource(R.string.preview_source), stringResource(if (pack.imported) R.string.source_imported else R.string.source_created), last = true)
+            Spacer(Modifier.height(12.dp))
+            if (mode != PreviewMode.DEMO) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GlassButton(stringResource(R.string.action_play_open), {
+                        if (mode == PreviewMode.COVER) mode = PreviewMode.MAIN
+                        if (!reduced) playMain++
+                    }, Modifier.weight(1f), leading = Icons.Filled.PlayArrow, height = 46.dp)
+                    GlassButton(stringResource(R.string.action_play_close), {
+                        if (mode == PreviewMode.MAIN) mode = PreviewMode.COVER
+                        if (!reduced) playCover++
+                    }, Modifier.weight(1f), leading = Icons.Filled.PlayArrow, height = 46.dp)
                 }
             }
         }
     }
+    val info: @Composable () -> Unit = {
+        Text(pack.manifest.title.forLanguage(language), style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(stringResource(R.string.preview_simulation_note), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
+        Spacer(Modifier.height(18.dp))
+        GradientButton(stringResource(R.string.action_apply), ::apply, Modifier.fillMaxWidth(), leading = Icons.Filled.Check, height = 56.dp)
+
+        SectionTitle(stringResource(R.string.discover_both))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(0.34f), horizontalAlignment = Alignment.CenterHorizontally) {
+                com.foldmotion.wallpapers.ui.components.FoldedDevice(coverImage, Modifier.fillMaxWidth(), glowColor, elevation = 10.dp)
+                Text(stringResource(R.string.discover_closed), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+            }
+            Column(Modifier.weight(0.66f), horizontalAlignment = Alignment.CenterHorizontally) {
+                com.foldmotion.wallpapers.ui.components.UnfoldedDevice(mainImage, Modifier.fillMaxWidth(), glowColor, elevation = 12.dp)
+                Text(stringResource(R.string.discover_open), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+
+        SectionTitle(stringResource(R.string.style_title))
+        Text(
+            stringResource(if (restyling == pack.id) R.string.style_working else R.string.style_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (restyling == pack.id) FmColors.Aurora else FmColors.TextMuted,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+        StylePicker(
+            styles = FoldStyle.CONCRETE,
+            selected = style,
+            onSelect = { if (it != style) vm.restyle(pack.id, it) },
+            animate = !reduced,
+            enabled = restyling == null,
+        )
+
+        SectionTitle(stringResource(R.string.preview_details))
+        GlassCard(Modifier.fillMaxWidth().testTag("preview_details")) {
+            DetailRow(stringResource(R.string.preview_check), if (report.passed) stringResource(R.string.preview_check_passed) else stringResource(R.string.preview_check_failed, report.codes.joinToString()))
+            DetailRow(stringResource(R.string.preview_profile), pack.manifest.profileIds.map { id -> DeviceProfileRegistry.byId(id)?.let { profileName(it) } ?: id }.joinToString())
+            DetailRow(
+                stringResource(R.string.preview_motion),
+                stringResource(R.string.preview_motion_value, intensityLabel(pack.manifest.motionIntensity), main?.entryMotion?.durationMs ?: pack.manifest.transitions.open.durationMs, cover?.entryMotion?.durationMs ?: pack.manifest.transitions.close.durationMs),
+            )
+            DetailRow(stringResource(R.string.style_title), foldStyleLabel(style))
+            pack.manifest.video?.let { v ->
+                DetailRow(stringResource(R.string.preview_scene), stringResource(R.string.preview_scene_video, v.width, v.height, v.durationMs / 1000f))
+            }
+            DetailRow(stringResource(R.string.preview_size), stringResource(R.string.preview_size_value, pack.sizeBytes / 1_048_576f))
+            DetailRow(stringResource(R.string.preview_source), stringResource(if (pack.imported) R.string.source_imported else R.string.source_created), last = true)
+        }
+    }
+
+    com.foldmotion.wallpapers.ui.discover.DetailLayout(
+        backdrop = mainImage,
+        onBack = onBack,
+        hero = hero,
+        info = info,
+        narrowHeroHeight = 590.dp,
+        wideHeroMax = 660.dp,
+        actions = {
+            GlassIconButton(Icons.Filled.Share, stringResource(R.string.action_share), {
+                vm.shareIntent(pack.id)?.let { context.startActivity(android.content.Intent.createChooser(it, context.getString(R.string.share_chooser))) }
+            })
+            Spacer(Modifier.width(8.dp))
+            GlassIconButton(Icons.Filled.Delete, stringResource(R.string.action_delete), { confirmDelete = true })
+        },
+    )
 
     if (confirmDelete) {
         AlertDialog(

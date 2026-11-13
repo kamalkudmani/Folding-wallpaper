@@ -9,6 +9,16 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**0.7: Liquid.** Eight new liquid wallpapers (molten gold, aurora silk, liquid chrome, deep
+ocean...) that flow across both screens in loops with no seam, three liquid fold effects that bend
+the picture itself on the GPU (Ripple, Flow, Glass), a new app icon, a calmer and consistent
+design, and a Play Store release kit ([checklist](docs/store/PLAY_RELEASE.md) ·
+[privacy policy](docs/PRIVACY.md)).
+
+| Liquid wallpapers (first frames) | Liquid fold effects: Ripple · Flow · Glass |
+|---|---|
+| ![liquid](docs/screenshots/liquid-0.7.jpg) | ![liquid styles](docs/screenshots/liquid-styles-0.7.jpg) |
+
 **0.6: Discover**, a Pinterest-style wall where every wallpaper is shown on the closed and the
 open Fold7; tap one to see it fold and unfold live in any style, then make it yours in one tap.
 
@@ -16,8 +26,8 @@ open Fold7; tap one to see it fold and unfold live in any style, then make it yo
 |---|---|
 | ![discover](docs/screenshots/discover-0.6.jpg) | ![discover main](docs/screenshots/discover-main-0.6.jpg) |
 
-**Seven fold animation styles** (each with an unfold and a fold variant; chosen automatically per
-scene, picked when creating, or changed on any pack from its preview):
+**Ten fold animation styles** (each with an unfold and a fold variant; chosen automatically per
+scene, picked when creating, or changed on any pack from its preview). The original seven:
 [comparison video](docs/motion/fold-styles-0.4.mp4) · **video wallpaper with fold styles:**
 [demo](docs/motion/video-wallpaper-0.5.mp4)
 
@@ -44,6 +54,16 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
   Sweep (a band of light uncovers the scene) and Iris. Auto picks per scene and alternates by
   seed; any stored pack can be restyled in place (staged, re-validated, atomically swapped, the
   live wallpaper reloads).
+- **Liquid fold effects** (0.7, renderer 5): Ripple (a drop lands on the focal point and the scene
+  spreads out with the rings, which refract the picture as they pass), Flow (the scene pours in as
+  a thick liquid with a wavy, glossy front) and Glass (the scene clears from behind melting,
+  frosted, chromatic glass). The frame is recorded into a RenderNode and bent by an AGSL
+  RuntimeShader as its RenderEffect, on the GPU; Android 11-12 and software canvases get a drawn
+  cousin (iris, sweep, fade). Tests render them through the real HWUI pipeline.
+- **Liquid wallpapers** (0.7): eight 10-second loops rendered by `tools/liquid/liquid.py`
+  (domain-warped noise lit as a glossy height field, every time term on a circle so the last frame
+  leads straight into the first: no cross-fade needed). The Discover detail page plays the real
+  clip on the 3D fold demo; "Get" makes it a video pack in the chosen fold style.
 - **Video wallpapers** (0.5): make a wallpaper from your own clip (trimmed to up to 15 s and
   resized on the phone with Media3 Transformer, sound removed, nothing uploaded) or try the
   built-in *Liquid light* sample. One clip feeds both screens: the inner screen shows a window
@@ -81,6 +101,8 @@ accounts, moderation.
 ## Documents
 
 - [Blueprint review v1.1 (Arabic)](docs/BLUEPRINT_REVIEW_v1.1.md) — corrections, additions, status, open decisions.
+- [Publishing on Google Play](docs/store/PLAY_RELEASE.md) — what is ready, what the owner must do, listing texts, data safety and rating answers.
+- [Privacy policy (English + Arabic)](docs/PRIVACY.md)
 - [FoldPack manifest JSON Schema](docs/schema/foldpack-manifest.v1.schema.json)
 - [API contract draft (OpenAPI)](docs/api/openapi.yaml)
 - [POC report template (Arabic)](docs/POC_REPORT_TEMPLATE.md)
@@ -90,16 +112,18 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 142 tests, Robolectric with real Skia rendering
+./gradlew :core:test :app:testDebugUnitTest   # 151 tests, Robolectric with real Skia and HWUI rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
+./gradlew :app:bundleRelease                   # app/build/outputs/bundle/release/app-release.aab (for Play)
 ```
 
 Tests write review images to `app/build/screenshots/`. CI (`.github/workflows/android.yml`)
-runs the same steps and uploads the APKs and screenshots.
+runs the same steps and uploads the APKs, the App Bundle and the screenshots.
 
 Signing: `signing/dev.keystore` is a **development** key committed so test builds install over each
-other. Production builds read `FOLDMOTION_KEYSTORE`, `FOLDMOTION_KEYSTORE_PASSWORD`,
-`FOLDMOTION_KEY_ALIAS` and `FOLDMOTION_KEY_PASSWORD` from CI secrets; use Play App Signing.
+other; it must never be used for Play. CI signs with the owner's upload key when the
+`FOLDMOTION_KEYSTORE_BASE64`, `FOLDMOTION_KEYSTORE_PASSWORD`, `FOLDMOTION_KEY_ALIAS` and
+`FOLDMOTION_KEY_PASSWORD` secrets are set; use Play App Signing (see the Play checklist).
 
 ## Layout
 
@@ -115,7 +139,8 @@ app/    engine/     FoldWallpaperService, hinge monitor, shared fold session
         apply/      ApplyController (system picker, verified result)
         telemetry/  PocTrace (Fold Lab)
         ui/         Compose screens, theme, components
-docs/   Review, schema, API draft, screenshots
+tools/  liquid/liquid.py renders the seamless liquid loops (numpy + ffmpeg)
+docs/   Review, schema, API draft, privacy policy, Play release kit, screenshots
 ```
 
 ## Installing on a Fold7

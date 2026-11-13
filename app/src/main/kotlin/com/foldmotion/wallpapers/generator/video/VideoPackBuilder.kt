@@ -154,7 +154,7 @@ class VideoPackBuilder(
                 createdAt = now.toString(),
                 creationSource = FoldPackManifest.SOURCE_VIDEO,
                 profileIds = listOf(profile.id),
-                rendererVersion = VersionRange(CoreInfo.VIDEO_RENDERER_VERSION, CoreInfo.RENDERER_VERSION),
+                rendererVersion = VersionRange(CoreInfo.minRendererFor(video = true, style = choreo.style.name), CoreInfo.RENDERER_VERSION),
                 motionIntensity = request.intensity,
                 scenes = Scenes(
                     cover = scenes.getValue(ScreenKind.COVER).copy(world = rect(frames.cover)),

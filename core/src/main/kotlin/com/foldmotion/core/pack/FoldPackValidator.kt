@@ -213,6 +213,9 @@ class FoldPackValidator(
                 if (!r.isWellFormed() || r.end !in 0.05f..1f || r.start !in 0f..r.end || r.softness !in 0f..0.5f || r.shade !in 0f..1f || r.edgeGlow !in 0f..1f) {
                     fail(ValidationCode.INVALID_MOTION, "${ref.file}: reveal")
                 }
+                if (r.isLiquid && manifest.rendererVersion.min < CoreInfo.LIQUID_RENDERER_VERSION) {
+                    fail(ValidationCode.INVALID_MANIFEST, "${ref.file}: ${r.type} needs rendererVersion.min ${CoreInfo.LIQUID_RENDERER_VERSION}")
+                }
             }
             if (spec.particles.size > MotionSpec.MAX_BURSTS) fail(ValidationCode.INVALID_MOTION, "${ref.file}: too many bursts")
             for (b in spec.particles) {

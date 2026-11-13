@@ -252,6 +252,12 @@
     <string name="style_tiles_desc">يتكوّن المشهد من مربعات تنقلب في موجة، وعلى الشاشة الخارجية تنقلب صفًا بعد صف.</string>
     <string name="style_sweep_desc">يعبر شريط من الضوء الشاشة ويظهر المشهد خلفه.</string>
     <string name="style_iris_desc">يتجمع الضوء في نقطة التركيز ثم ينفتح المشهد منها كدائرة.</string>
+    <string name="style_ripple">تموّج</string>
+    <string name="style_flow">انسياب</string>
+    <string name="style_glass">زجاج</string>
+    <string name="style_ripple_desc">قطرة تسقط على نقطة التركيز: تنتشر الحلقات وتثني الصورة مثل الماء، ويظهر المشهد معها.</string>
+    <string name="style_flow_desc">ينسكب المشهد عبر الشاشة كسائل كثيف، بحافة لامعة متموّجة تثني ما تحتها.</string>
+    <string name="style_glass_desc">يتضح المشهد خلف زجاج يذوب: ضبابي ومنكسر في البداية، ثم صافٍ تماماً.</string>
     <string name="style_changed">حركة الطي: %1$s</string>
     <string name="style_failed">تعذّر تغيير الحركة، ولم يتغير شيء في الخلفية.</string>
     <string name="style_working">جارٍ تغيير الحركة…</string>
@@ -288,6 +294,8 @@
     <string name="discover_all">الكل</string>
     <string name="discover_video">فيديو</string>
     <string name="discover_night">ليل</string>
+    <string name="discover_liquid">سائل</string>
+    <string name="discover_liquid_body">حلقة سائلة صُنعت للفولد: تنساب عبر الشاشتين وتتكرر بلا أي فاصل، مع حركة الطيّ فوقها.</string>
     <string name="discover_sample_title">ضوء سائل</string>
     <string name="discover_sample_body">فيديو حقيقي: ضوء شفق يتدفق عبر الشاشتين بلا نهاية، وحركة الطي تعمل فوقه.</string>
     <string name="discover_create_title">اصنع خلفيتك</string>

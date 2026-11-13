@@ -136,6 +136,7 @@ class SceneDrawer {
     private val poseAlpha = HashMap<String, Float>()
     private val matrix = Matrix()
     private val cell = RectF()
+    private val liquid = LiquidReveal()
     private var pivotX = 0.5f
     private var pivotY = 0.5f
     /** Size of the area being drawn; the canvas may be translated (fold demo halves). */
@@ -160,8 +161,16 @@ class SceneDrawer {
         val rp = reveal?.progress(p) ?: 1f
         val revealing = reveal != null && rp < 0.999f
 
+        var liquidDrawn = false
         if (revealing && reveal!!.type == RevealSpec.BOOK) {
             drawBook(canvas, scene, motion!!, p, ambient, state, reveal, rp)
+        } else if (revealing && reveal!!.isLiquid &&
+            liquid.draw(canvas, width, height, reveal, rp, frame.left + revealOriginX(reveal) * frame.width(), frame.top + revealOriginY(reveal) * frame.height(), scene.glow) { c ->
+                c.drawColor(scene.background)
+                drawLayers(c, scene, motion, p, ambient, state)
+            }
+        ) {
+            liquidDrawn = true
         } else {
             drawLayers(canvas, scene, motion, p, ambient, state)
         }
@@ -172,7 +181,7 @@ class SceneDrawer {
             // gathering particles and the bloom glow in the dark instead of being hidden by it.
             val dim = MotionSampler.poseFor(motion, MotionSpec.TARGET_DIM, p)
             if (dim.alpha > 0.003f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, dim.alpha))
-            if (revealing && reveal!!.type != RevealSpec.BOOK && reveal.type != RevealSpec.TILES) drawReveal(canvas, reveal, rp, scene.glow)
+            if (revealing && !liquidDrawn && reveal!!.type != RevealSpec.BOOK && reveal.type != RevealSpec.TILES) drawReveal(canvas, reveal, rp, scene.glow)
             val glow = MotionSampler.poseFor(motion, MotionSpec.TARGET_GLOW, p)
             if (glow.alpha > 0.003f) {
                 val cx = frame.left + pivotX * frame.width()
@@ -247,6 +256,11 @@ class SceneDrawer {
 
     // ------------------------------------------------------------------ transition effects
 
+    /** Where a ripple starts, in the normalised frame; other reveals use the frame's centre. */
+    private fun revealOriginX(reveal: RevealSpec) = if (reveal.type == RevealSpec.RIPPLE) reveal.from[0] else 0.5f
+
+    private fun revealOriginY(reveal: RevealSpec) = if (reveal.type == RevealSpec.RIPPLE) reveal.from[1] else 0.5f
+
     private fun drawReveal(canvas: Canvas, reveal: RevealSpec, rp: Float, glowColor: Int) {
         if (rp >= 0.999f) return
         val fw = frame.width()
@@ -255,6 +269,13 @@ class SceneDrawer {
         val clear = SceneArtist.withAlpha(Color.BLACK, 0f)
         val edgeAlpha = reveal.edgeGlow * (1f - rp).pow(0.6f)
         when (reveal.type) {
+            // Liquid reveals without a runtime shader (Android 11 and 12): their closest drawn cousin.
+            RevealSpec.RIPPLE -> drawReveal(canvas, reveal.copy(type = RevealSpec.IRIS, from = listOf(reveal.from[0], reveal.from[1], 0f)), rp, glowColor)
+            RevealSpec.FLOW -> drawReveal(canvas, reveal.copy(type = RevealSpec.SWEEP, from = listOf(reveal.from[0])), rp, glowColor)
+            RevealSpec.GLASS -> {
+                val a = reveal.shade * (1f - rp) * (1f - rp)
+                if (a > 0.003f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, a))
+            }
             RevealSpec.UNFOLD -> {
                 val from = reveal.from
                 // Open past the frame edges so the soft edge leaves the screen completely.

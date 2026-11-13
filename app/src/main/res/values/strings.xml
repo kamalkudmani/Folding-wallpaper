@@ -263,6 +263,12 @@
     <string name="style_tiles_desc">The scene assembles from tiles flipping over in a wave. On the outer screen they flip row by row.</string>
     <string name="style_sweep_desc">A band of light crosses the screen and the scene appears behind it.</string>
     <string name="style_iris_desc">Light gathers at the focal point, then the scene opens from it in a circle.</string>
+    <string name="style_ripple">Ripple</string>
+    <string name="style_flow">Flow</string>
+    <string name="style_glass">Glass</string>
+    <string name="style_ripple_desc">A drop lands on the focal point: rings spread out, bending the picture like water, and the scene appears with them.</string>
+    <string name="style_flow_desc">The scene pours across the screen like thick liquid, with a glossy, wavy edge that bends what is under it.</string>
+    <string name="style_glass_desc">The scene comes into focus behind melting glass: frosted and refracting at first, then crystal clear.</string>
     <string name="style_changed">Fold animation: %1$s</string>
     <string name="style_failed">Couldn\'t change the animation. The wallpaper is unchanged.</string>
     <string name="style_working">Changing the animation…</string>
@@ -299,6 +305,8 @@
     <string name="discover_all">All</string>
     <string name="discover_video">Video</string>
     <string name="discover_night">Night</string>
+    <string name="discover_liquid">Liquid</string>
+    <string name="discover_liquid_body">A liquid loop made for the Fold: it flows across both screens and loops without a seam, with the fold animation playing on top.</string>
     <string name="discover_sample_title">Liquid light</string>
     <string name="discover_sample_body">Real video: aurora light flowing across both screens without end, with the fold animation playing on top.</string>
     <string name="discover_create_title">Create your own</string>

@@ -55,11 +55,7 @@ import com.foldmotion.wallpapers.ui.theme.FmColors
 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Row(modifier.padding(top = 22.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(4.dp).height(18.dp).clip(RoundedCornerShape(2.dp)).background(FmColors.primaryGradient))
-        Spacer(Modifier.width(10.dp))
-        Text(text, style = MaterialTheme.typography.titleMedium)
-    }
+    Text(text, style = MaterialTheme.typography.titleMedium, color = FmColors.Text, modifier = modifier.padding(top = 28.dp, bottom = 12.dp))
 }
 
 @Composable
@@ -116,18 +112,15 @@ fun PackCard(
     val main = rememberDeviceImage(DeviceImage.File(java.io.File(pack.dir, pack.manifest.previews.main), version), 520)
     val glow = remember(pack.manifest.colors.primary) { Color(LoadedSceneColors.parse(pack.manifest.colors.primary)) }
     val back = remember(pack.manifest.colors.background) { Color(LoadedSceneColors.parse(pack.manifest.colors.background)) }
-    val layouts = listOf(PairLayout.OVERLAP, PairLayout.SIDE, PairLayout.TALL, PairLayout.SIDE)
+    val shapes = listOf(CardShape.CLOSED, CardShape.OPEN, CardShape.OPEN, CardShape.CLOSED)
     Column(modifier.pressScale(interaction, 0.97f).clickable(interaction, indication = null, onClick = onClick)) {
         Box(
             Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
-                .background(Brush.radialGradient(listOf(glow.copy(alpha = 0.3f), back.copy(alpha = 0.9f), Color(0xFF0B0C10))))
-                .border(if (active) 2.dp else 0.dp, if (active) FmColors.primaryGradient else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)), RoundedCornerShape(26.dp))
-                .padding(10.dp),
+                .border(if (active) 2.dp else 0.dp, if (active) Color.White else Color.Transparent, RoundedCornerShape(22.dp)),
         ) {
-            FoldPair(cover, main, layouts[layoutIndex % layouts.size], glow = glow)
+            FoldCardArt(cover, main, shapes[layoutIndex % shapes.size])
         }
-        Row(Modifier.padding(start = 6.dp, end = 4.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 4.dp, end = 2.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 pack.manifest.title.forLanguage(language),
                 style = MaterialTheme.typography.titleSmall,
@@ -244,6 +237,6 @@ fun conceptLabel(key: String): String? {
 @Composable
 fun ReadableColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(horizontal = 16.dp), content = content)
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(horizontal = 20.dp), content = content)
     }
 }

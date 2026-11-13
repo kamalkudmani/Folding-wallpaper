@@ -8,8 +8,9 @@ plugins {
  * Signing.
  *  - "dev" key (committed in signing/dev.keystore): lets every test build install over the
  *    previous one. It is NOT a production key and must never be used for Play.
- *  - Production: set FOLDMOTION_KEYSTORE / _PASSWORD / _ALIAS / _KEY_PASSWORD in CI from the
- *    secret manager; the release build then signs with the owner's upload key instead.
+ *  - Production: CI decodes the FOLDMOTION_KEYSTORE_BASE64 secret into a file and sets
+ *    FOLDMOTION_KEYSTORE / _PASSWORD / _ALIAS / _KEY_PASSWORD; the release build then signs with
+ *    the owner's upload key instead (docs/store/PLAY_RELEASE.md).
  */
 // CI passes unset secrets as empty strings, so blank means "not configured".
 val releaseKeystore: String? = System.getenv("FOLDMOTION_KEYSTORE")?.takeIf { it.isNotBlank() }
@@ -24,8 +25,8 @@ android {
         // WallpaperService.Engine.getDisplayContext. Fold7 ships with Android 16.
         minSdk = 30
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.6.0"
+        versionCode = 8
+        versionName = "0.7.0"
     }
 
     signingConfigs {
@@ -101,6 +102,8 @@ android {
                 // Optional review renders: -Dfoldmotion.videoFrames=<folder of PNG frames>.
                 System.getProperty("foldmotion.videoFrames")?.let { dir -> it.systemProperty("foldmotion.videoFrames", dir) }
                 System.getProperty("foldmotion.discoverOut")?.let { dir -> it.systemProperty("foldmotion.discoverOut", dir) }
+                System.getProperty("foldmotion.storeOut")?.let { dir -> it.systemProperty("foldmotion.storeOut", dir) }
+                System.getProperty("foldmotion.liquidFrames")?.let { dir -> it.systemProperty("foldmotion.liquidFrames", dir) }
             }
         }
     }
@@ -142,4 +145,14 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// A bundle signed with the public dev key must never reach Play: say so loudly.
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    val devSigned = releaseKeystore == null
+    doLast {
+        if (devSigned) {
+            logger.warn("WARNING: app-release.aab is signed with the public DEV key. Do not upload it to Google Play; set the upload-key secrets (docs/store/PLAY_RELEASE.md).")
+        }
+    }
 }

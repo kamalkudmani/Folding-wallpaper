@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +73,7 @@ import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.scene.JobStatus
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.render.LoadedScene
+import com.foldmotion.wallpapers.render.VideoFrames
 import com.foldmotion.wallpapers.ui.MainViewModel
 import com.foldmotion.wallpapers.ui.VideoJob
 import com.foldmotion.wallpapers.ui.components.DeviceImage
@@ -78,7 +82,8 @@ import com.foldmotion.wallpapers.ui.components.FoldPair
 import com.foldmotion.wallpapers.ui.components.FoldedDevice
 import com.foldmotion.wallpapers.ui.components.GlassIconButton
 import com.foldmotion.wallpapers.ui.components.GradientButton
-import com.foldmotion.wallpapers.ui.components.PairLayout
+import com.foldmotion.wallpapers.ui.components.CardShape
+import com.foldmotion.wallpapers.ui.components.FoldCardArt
 import com.foldmotion.wallpapers.ui.components.SectionTitle
 import com.foldmotion.wallpapers.ui.components.StylePicker
 import com.foldmotion.wallpapers.ui.components.UnfoldedDevice
@@ -92,8 +97,8 @@ import com.foldmotion.wallpapers.ui.theme.FmColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Rhythm of the wall: card shapes cycle so neighbouring columns never line up. */
-private val rhythm = listOf(PairLayout.OVERLAP, PairLayout.SIDE, PairLayout.TALL, PairLayout.SIDE, PairLayout.OVERLAP, PairLayout.TALL)
+/** Rhythm of the wall: two card heights alternate so neighbouring columns stagger gently. */
+private val rhythm = listOf(CardShape.CLOSED, CardShape.OPEN, CardShape.OPEN, CardShape.CLOSED)
 
 /**
  * The home screen: a Pinterest-style wall of wallpapers, each shown on the closed and the open
@@ -139,7 +144,7 @@ private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
     Box(
         Modifier.clip(shape)
-            .background(if (selected) Color.White else Color(0x14FFFFFF))
+            .background(if (selected) Color.White else FmColors.Surface2)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 9.dp),
     ) {
@@ -147,9 +152,9 @@ private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** A card: the wallpaper on both phones over its own light, title underneath. */
+/** A card: the wallpaper edge to edge with its other state inset, title underneath. */
 @Composable
-private fun DiscoverCard(item: DiscoverItem, layout: PairLayout, language: String, onClick: () -> Unit) {
+private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val cover = rememberDeviceImage(DeviceImage.Asset(item.coverAsset), 360)
     val main = rememberDeviceImage(DeviceImage.Asset(item.mainAsset), 520)
@@ -160,28 +165,23 @@ private fun DiscoverCard(item: DiscoverItem, layout: PairLayout, language: Strin
             .semantics { contentDescription = title }
             .testTag("discover_${item.id}"),
     ) {
-        Box(
-            Modifier.fillMaxWidth()
-                .sharedArt("art-${item.id}")
-                .clip(RoundedCornerShape(26.dp))
-                .background(
-                    Brush.radialGradient(
-                        listOf(Color(item.glow).copy(alpha = 0.32f), Color(item.background).copy(alpha = 0.9f), Color(0xFF0B0C10)),
-                    ),
-                )
-                .padding(10.dp),
-        ) {
-            FoldPair(cover, main, layout, glow = Color(item.glow))
-        }
-        Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Box(Modifier.fillMaxWidth().sharedArt("art-${item.id}")) {
+            FoldCardArt(cover, main, shape)
             if (item.isVideo) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.badge_video), tint = FmColors.TextMuted, modifier = Modifier.size(18.dp))
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(10.dp).size(28.dp).clip(CircleShape).background(Color(0x99000000)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.badge_video), tint = Color.White, modifier = Modifier.size(18.dp)) }
             }
         }
+        Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp))
         Text(
-            if (item.isVideo) stringResource(R.string.badge_video) else familyLabel(item.family),
-            style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(start = 6.dp, top = 2.dp),
+            when {
+                item.isLiquid -> stringResource(R.string.discover_liquid)
+                item.isVideo -> stringResource(R.string.badge_video)
+                else -> familyLabel(item.family)
+            },
+            style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(start = 4.dp, top = 2.dp),
         )
     }
 }
@@ -190,19 +190,22 @@ private fun DiscoverCard(item: DiscoverItem, layout: PairLayout, language: Strin
 private fun CreateCard(onCreate: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Column(
-        Modifier.fillMaxWidth().pressScale(interaction, 0.97f).clip(RoundedCornerShape(26.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF14323A), Color(0xFF1A1440))))
-            .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(26.dp))
+        // At least as tall as a short card, taller when the text needs it (never clipped).
+        Modifier.fillMaxWidth().heightIn(min = 200.dp).pressScale(interaction, 0.97f).clip(RoundedCornerShape(22.dp))
+            .background(FmColors.Surface2)
+            .border(1.dp, FmColors.Hairline, RoundedCornerShape(22.dp))
             .clickable(interaction, indication = null, onClick = onCreate)
             .padding(18.dp)
             .testTag("discover_create"),
+        verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.Bottom),
     ) {
         Box(Modifier.size(46.dp).clip(CircleShape).background(FmColors.primaryGradient), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Add, contentDescription = null, tint = Color(0xFF04131A))
         }
-        Spacer(Modifier.height(36.dp))
-        Text(stringResource(R.string.discover_create_title), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.discover_create_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(top = 4.dp))
+        Column {
+            Text(stringResource(R.string.discover_create_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.discover_create_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, maxLines = 3, modifier = Modifier.padding(top = 4.dp))
+        }
     }
 }
 
@@ -229,10 +232,25 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
     val cover = rememberDeviceImage(DeviceImage.Asset(item.coverAsset), 720)
     val main = rememberDeviceImage(DeviceImage.Asset(item.mainAsset), 1080)
 
+    // A video wallpaper plays its real clip on both screens of the demo, as on the phone.
+    var video by remember(item.id) { mutableStateOf<VideoFrames?>(null) }
+    var videoChecked by remember(item.id) { mutableStateOf(!item.isVideo) }
+    LaunchedEffect(item.id) {
+        if (item.isVideo) {
+            video = withContext(Dispatchers.IO) { DiscoverCatalog.videoSource(context, item) }
+            videoChecked = true
+        }
+    }
+    DisposableEffect(item.id) { onDispose { video?.release() } }
+    LaunchedEffect(video, reduced) { video?.setPlaying(!reduced) }
+
     // Live scenes for the 3D demo, rebuilt when the style changes.
     var scenes by remember { mutableStateOf<Pair<LoadedScene, LoadedScene>?>(null) }
-    LaunchedEffect(item.id, style) {
+    LaunchedEffect(item.id, style, videoChecked) {
+        if (!videoChecked) return@LaunchedEffect
         val built = withContext(Dispatchers.Default) { DiscoverCatalog.scenes(context, item, style) }
+        built?.first?.videoFrames = video
+        built?.second?.videoFrames = video
         val old = scenes
         scenes = built
         kotlinx.coroutines.delay(600)
@@ -259,66 +277,91 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
     }
     val busy = waiting && ((job?.isRunning == true) || videoJob is VideoJob.Running)
 
-    Box(Modifier.fillMaxSize()) {
-        // The wallpaper's own light behind everything, blurred, fading into the background.
-        main?.let {
-            Image(
-                it, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(460.dp).blur(48.dp),
-                alpha = 0.55f,
-            )
+    val hero: @Composable (Modifier, androidx.compose.ui.unit.Dp) -> Unit = { modifier, height ->
+        Box(modifier.sharedArt("art-${item.id}"), contentAlignment = Alignment.Center) {
+            val sc = scenes
+            if (sc != null) FoldDemo(sc.first, sc.second, DeviceProfileRegistry.fold7, height, Modifier.fillMaxWidth(), animate = !reduced)
+            else Box(Modifier.height(height))
         }
-        Box(Modifier.fillMaxWidth().height(462.dp).background(Brush.verticalGradient(listOf(Color(0x330A0B0F), Color(0xFF0A0B0F)))))
+    }
+    val info: @Composable () -> Unit = {
+        Text(item.title(language, stringResource(R.string.discover_sample_title)), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            item.description(language) ?: stringResource(if (item.isLiquid) R.string.discover_liquid_body else R.string.discover_sample_body),
+            style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 6.dp),
+        )
+        Spacer(Modifier.height(18.dp))
+        GradientButton(
+            stringResource(if (busy) R.string.discover_preparing else R.string.discover_get),
+            onClick = {
+                waiting = true
+                if (item.isVideo) vm.createSampleVideoWallpaper(style, item) else vm.getDiscoverIdea(item, style)
+            },
+            modifier = Modifier.fillMaxWidth().testTag("discover_get"),
+            enabled = !busy,
+            height = 56.dp,
+        )
+        SectionTitle(stringResource(R.string.discover_both))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(0.34f), horizontalAlignment = Alignment.CenterHorizontally) {
+                FoldedDevice(cover, Modifier.fillMaxWidth(), Color(item.glow), elevation = 10.dp)
+                Text(stringResource(R.string.discover_closed), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+            }
+            Column(Modifier.weight(0.66f), horizontalAlignment = Alignment.CenterHorizontally) {
+                UnfoldedDevice(main, Modifier.fillMaxWidth(), Color(item.glow), elevation = 12.dp)
+                Text(stringResource(R.string.discover_open), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+        SectionTitle(stringResource(R.string.style_title))
+        Text(stringResource(R.string.discover_style_hint, foldStyleLabel(if (style == FoldStyle.AUTO) item.autoStyle else style)), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(bottom = 12.dp))
+        StylePicker(FoldStyle.entries, style, { style = it }, animate = !reduced, enabled = !busy)
+    }
 
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = NavClearance)) {
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    DetailLayout(backdrop = main, onBack = onBack, hero = hero, info = info)
+}
+
+/**
+ * Layout of a wallpaper page. Narrow (cover): back button, the picture, then the details below.
+ * Wide (open phone): the picture stays on the left while the details scroll on the right, both
+ * starting on the same line under the back button.
+ */
+@Composable
+fun DetailLayout(
+    backdrop: androidx.compose.ui.graphics.ImageBitmap?,
+    onBack: () -> Unit,
+    hero: @Composable (Modifier, androidx.compose.ui.unit.Dp) -> Unit,
+    info: @Composable () -> Unit,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    narrowHeroHeight: androidx.compose.ui.unit.Dp = 400.dp,
+    wideHeroMax: androidx.compose.ui.unit.Dp = 520.dp,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 680.dp
+        // The wallpaper's own light behind the page, blurred, fading into the background.
+        backdrop?.let {
+            Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(440.dp).blur(56.dp), alpha = 0.5f)
+        }
+        Box(Modifier.fillMaxWidth().height(442.dp).background(Brush.verticalGradient(listOf(Color(0x330A0B0F), FmColors.Night))))
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 GlassIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back), onBack)
+                Spacer(Modifier.weight(1f))
+                actions()
             }
-            BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp).sharedArt("art-${item.id}"), contentAlignment = Alignment.Center) {
-                val height = if (maxWidth >= 600.dp) 460.dp else 400.dp
-                val s = scenes
-                if (s != null) {
-                    FoldDemo(s.first, s.second, DeviceProfileRegistry.fold7, height, Modifier.fillMaxWidth(), animate = !reduced)
-                } else {
-                    Box(Modifier.height(height))
-                }
-            }
-            Column(Modifier.fillMaxWidth().widthIn(max = 760.dp).align(Alignment.CenterHorizontally).padding(horizontal = 20.dp)) {
-                Spacer(Modifier.height(8.dp))
-                Text(item.title(language, stringResource(R.string.discover_sample_title)), style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    item.description(language) ?: stringResource(R.string.discover_sample_body),
-                    style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 6.dp),
-                )
-                Spacer(Modifier.height(16.dp))
-                GradientButton(
-                    stringResource(if (busy) R.string.discover_preparing else R.string.discover_get),
-                    onClick = {
-                        waiting = true
-                        if (item.isVideo) vm.createSampleVideoWallpaper(style) else vm.getDiscoverIdea(item, style)
-                    },
-                    modifier = Modifier.fillMaxWidth().testTag("discover_get"),
-                    enabled = !busy,
-                    height = 58.dp,
-                )
-
-                SectionTitle(stringResource(R.string.discover_both))
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
-                        Column(Modifier.weight(0.34f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            FoldedDevice(cover, Modifier.fillMaxWidth(), Color(item.glow))
-                            Text(stringResource(R.string.discover_closed), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
-                        }
-                        Column(Modifier.weight(0.66f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            UnfoldedDevice(main, Modifier.fillMaxWidth(), Color(item.glow))
-                            Text(stringResource(R.string.discover_open), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
-                        }
+            if (wide) {
+                Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 8.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    BoxWithConstraints(Modifier.weight(1.05f).fillMaxHeight().padding(bottom = NavClearance)) {
+                        hero(Modifier.fillMaxWidth().align(Alignment.TopCenter), minOf(maxHeight, wideHeroMax))
+                    }
+                    Column(Modifier.weight(0.95f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 12.dp, bottom = NavClearance)) {
+                        info()
                     }
                 }
-
-                SectionTitle(stringResource(R.string.style_title))
-                Text(stringResource(R.string.discover_style_hint, foldStyleLabel(if (style == FoldStyle.AUTO) item.autoStyle else style)), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(bottom = 12.dp))
-                StylePicker(FoldStyle.entries, style, { style = it }, animate = !reduced, enabled = !busy)
+            } else {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = NavClearance)) {
+                    hero(Modifier.fillMaxWidth().padding(horizontal = 16.dp), narrowHeroHeight)
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) { info() }
+                }
             }
         }
     }

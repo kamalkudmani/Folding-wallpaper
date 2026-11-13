@@ -333,17 +333,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Discover: the sample video as a wallpaper of your own, in the chosen fold style. */
-    fun createSampleVideoWallpaper(style: FoldStyle) {
+    fun createSampleVideoWallpaper(style: FoldStyle, item: com.foldmotion.wallpapers.ui.discover.DiscoverItem? = null) {
         if (_videoJob.value is VideoJob.Running) return
         _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.TRIM, 0f)
+        val asset = item?.let(com.foldmotion.wallpapers.ui.discover.DiscoverCatalog::videoAsset) ?: com.foldmotion.wallpapers.ui.discover.DiscoverCatalog.SAMPLE_VIDEO
+        val title = item?.idea?.let { com.foldmotion.core.pack.LocalizedText(it.titleAr, it.titleEn) }
+            ?: item?.entry?.let { e -> if (e.titleEn != null && e.titleAr != null) com.foldmotion.core.pack.LocalizedText(e.titleAr, e.titleEn) else null }
+            ?: SAMPLE_TITLE
+        val seamless = item?.entry?.seamless == true
         videoWork = viewModelScope.launch {
-            val file = withContext(Dispatchers.IO) { sampleVideoFile() }
+            val file = withContext(Dispatchers.IO) { assetVideoFile(asset) }
             val uri = android.net.Uri.fromFile(file)
             val length = withContext(Dispatchers.IO) { container.videoTools.probe(uri)?.durationMs } ?: 10_000L
             runVideoJob(
                 com.foldmotion.wallpapers.generator.video.VideoRequest(
                     uri = uri, startMs = 0, endMs = minOf(length, com.foldmotion.wallpapers.generator.video.VideoPackBuilder.MAX_SEGMENT_MS),
-                    style = style, seed = random.nextLong(), title = SAMPLE_TITLE, prepared = true,
+                    style = style, seed = random.nextLong(), title = title, prepared = true,
+                    // Liquid loops are made to loop perfectly: no cross-fade needed.
+                    crossfadeLoop = !seamless,
                 ),
             )
         }
@@ -368,14 +375,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    private fun sampleVideoFile(): java.io.File {
-        val out = java.io.File(getApplication<Application>().cacheDir, "samples/liquid-light.mp4")
-        if (!out.isFile) {
-            out.parentFile?.mkdirs()
-            getApplication<Application>().assets.open("samples/liquid-light.mp4").use { input -> out.outputStream().use { input.copyTo(it) } }
-        }
-        return out
-    }
+    private fun sampleVideoFile(): java.io.File = assetVideoFile(com.foldmotion.wallpapers.ui.discover.DiscoverCatalog.SAMPLE_VIDEO)
+
+    /** A bundled clip copied out of the app once, so it can be read like a picked one. */
+    private fun assetVideoFile(asset: String): java.io.File =
+        com.foldmotion.wallpapers.ui.discover.DiscoverCatalog.assetFile(getApplication(), asset)
 
     private suspend fun runVideoJob(request: com.foldmotion.wallpapers.generator.video.VideoRequest) {
         run {

@@ -27,7 +27,7 @@ object FmColors {
     val Violet = Color(0xFF8B7CFF)
     val Gold = Color(0xFFF2C26B)
     val Text = Color(0xFFF2F6FA)
-    val TextMuted = Color(0xFFA4B3C4)
+    val TextMuted = Color(0xFFA1A7B2)
     val Error = Color(0xFFFF8A8A)
 
     // Kept for components drawn on the scene previews.
@@ -41,7 +41,13 @@ object FmColors {
     val GlassBorderTop = Color(0x33FFFFFF)
     val GlassBorderBottom = Color(0x0AFFFFFF)
 
-    val primaryGradient = Brush.horizontalGradient(listOf(Aurora, Color(0xFF5BC8F5), Violet))
+    // Surfaces of the 0.7 design system: flat, solid, a hairline edge.
+    val Surface1 = Color(0xFF121318)
+    val Surface2 = Color(0xFF1B1C22)
+    val Hairline = Color(0x1AFFFFFF)
+
+    // Selected states and the primary action are white; colour comes from the wallpapers.
+    val primaryGradient = Brush.horizontalGradient(listOf(Color.White, Color(0xFFE8EBF0)))
     val glassBorder = Brush.verticalGradient(listOf(GlassBorderTop, GlassBorderBottom))
 }
 

@@ -31,14 +31,28 @@ jobs:
       - name: Unit tests (core + app, Robolectric with native graphics)
         run: ./gradlew :core:test :app:testDebugUnitTest --stacktrace
 
-      - name: Build APKs
+      # Production signing: the upload key comes from repository secrets as base64
+      # (docs/store/PLAY_RELEASE.md). Without it, release builds use the public dev key and must
+      # not be uploaded to Play.
+      - name: Upload key
         env:
-          # Production signing comes from repository secrets; without them the dev key is used.
-          FOLDMOTION_KEYSTORE: ${{ secrets.FOLDMOTION_KEYSTORE_PATH }}
+          KEYSTORE_BASE64: ${{ secrets.FOLDMOTION_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            echo "FOLDMOTION_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APKs and App Bundle
+        env:
           FOLDMOTION_KEYSTORE_PASSWORD: ${{ secrets.FOLDMOTION_KEYSTORE_PASSWORD }}
           FOLDMOTION_KEY_ALIAS: ${{ secrets.FOLDMOTION_KEY_ALIAS }}
           FOLDMOTION_KEY_PASSWORD: ${{ secrets.FOLDMOTION_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease :app:assembleDebug
+        run: ./gradlew :app:assembleRelease :app:assembleDebug :app:bundleRelease
+
+      - name: Remove upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -47,6 +61,11 @@ jobs:
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/mapping/release/mapping.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fold-motion-aab
+          path: app/build/outputs/bundle/release/*.aab
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -145,6 +145,9 @@ data class RevealSpec(
             IRIS, TILES -> STANDARD
             SWEEP -> SWEEP_CURVE
             BOOK -> PAGE_CURVE
+            RIPPLE -> RIPPLE_CURVE
+            FLOW -> SWEEP_CURVE
+            GLASS -> STANDARD
             // A cover-wide slice snaps open like a hinge; a thin seam opens evenly, or it would
             // be gone in a frame or two.
             UNFOLD -> if (from.size == 4 && from[2] - from[0] < 0.2f) STANDARD else EMPHASIZED
@@ -162,8 +165,14 @@ data class RevealSpec(
             from[0] == kotlin.math.floor(from[0]) && from[1] == kotlin.math.floor(from[1]) &&
             from[2] in 0f..1f && from[3] in 0f..1f && (from[4] == 0f || from[4] == 1f)
         BOOK -> from.size == 2 && from[0] in 0f..0.9f && from[1] in 10f..170f
+        RIPPLE -> from.size == 3 && from[0] in 0f..1f && from[1] in 0f..1f && from[2] in 0f..1f
+        FLOW -> from.size == 2 && from[0] in -360f..360f && from[1] in 0f..1f
+        GLASS -> from.size == 1 && from[0] in 0f..1f
         else -> false
     }
+
+    /** Drawn with a liquid shader where the phone has one (renderer 5). */
+    val isLiquid: Boolean get() = type in LIQUID_TYPES
 
     companion object {
         const val UNFOLD = "UNFOLD"
@@ -171,12 +180,21 @@ data class RevealSpec(
         const val SWEEP = "SWEEP"
         const val TILES = "TILES"
         const val BOOK = "BOOK"
+        /** v5, liquid: [originX, originY, strength]; rings spread from the origin and uncover the scene. */
+        const val RIPPLE = "RIPPLE"
+        /** v5, liquid: [angle, strength]; the scene pours in along angle with a viscous, glossy front. */
+        const val FLOW = "FLOW"
+        /** v5, liquid: [strength]; the scene clears from behind refracting, frosted glass. */
+        const val GLASS = "GLASS"
+        val LIQUID_TYPES = setOf(RIPPLE, FLOW, GLASS)
         const val MAX_TILES_PER_SIDE = 12
         val EMPHASIZED = EasingSpec(0.05f, 0.7f, 0.1f, 1f)
         val STANDARD = EasingSpec(0.4f, 0f, 0.2f, 1f)
         val SWEEP_CURVE = EasingSpec(0.3f, 0.12f, 0.3f, 1f)
         /** A page falls slowly at first, then gathers speed and lands softly. */
         val PAGE_CURVE = EasingSpec(0.32f, 0f, 0.12f, 1f)
+        /** Water spreads briskly from the drop and slows as the rings widen. */
+        val RIPPLE_CURVE = EasingSpec(0.3f, 0.12f, 0.3f, 1f)
     }
 }
 

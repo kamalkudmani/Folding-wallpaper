@@ -166,6 +166,43 @@ class FoldPackValidatorTest {
         assertTrue(codes(base.copy(particles = listOf(base.particles[0].copy(mode = "LASER")))).contains(ValidationCode.INVALID_MOTION))
     }
 
+    @Test
+    fun `liquid reveals pass on renderer 5 and are refused to packs that claim an older one`() {
+        val base = MotionSpec(
+            schemaVersion = 3, kind = MotionSpec.KIND_OPEN, durationMs = 1500, pivot = listOf(0.7f, 0.4f),
+            tracks = listOf(MotionTrack("layer:far", TrackPose(scale = 1.05f), span = 0.95f)),
+            spring = SpringSpec.settlingIn(1500, 0.82f),
+            style = "RIPPLE",
+        )
+        val liquids = listOf(
+            RevealSpec(RevealSpec.RIPPLE, listOf(0.7f, 0.4f, 0.85f), end = 0.92f),
+            RevealSpec(RevealSpec.FLOW, listOf(180f, 0.85f), end = 0.9f),
+            RevealSpec(RevealSpec.GLASS, listOf(0.85f), end = 0.92f),
+        )
+        fun codes(spec: MotionSpec, min: Int = CoreInfo.LIQUID_RENDERER_VERSION) = validator.validate(
+            buildPack(openSpec = spec, ambient = goodAmbient, mutateManifest = { it.copy(rendererVersion = VersionRange(min, CoreInfo.RENDERER_VERSION)) }),
+        ).codes
+        for (r in liquids) {
+            assertTrue(r.type, r.isLiquid && r.isWellFormed())
+            assertTrue(r.type, codes(base.copy(reveal = r)).isEmpty())
+            // An app before 0.7 cannot draw it: the pack must say so.
+            assertTrue(r.type, codes(base.copy(reveal = r), min = CoreInfo.STYLES_RENDERER_VERSION).contains(ValidationCode.INVALID_MANIFEST))
+        }
+        // Malformed liquid reveals.
+        for (bad in listOf(
+            RevealSpec(RevealSpec.RIPPLE, listOf(0.5f, 0.5f)),
+            RevealSpec(RevealSpec.RIPPLE, listOf(1.5f, 0.5f, 0.5f)),
+            RevealSpec(RevealSpec.FLOW, listOf(0f, 3f)),
+            RevealSpec(RevealSpec.GLASS, listOf(0.5f, 0.5f)),
+        )) assertTrue(bad.from.toString(), codes(base.copy(reveal = bad)).contains(ValidationCode.INVALID_MOTION))
+        // Non-liquid styles keep the lower requirement.
+        assertTrue(codes(base.copy(reveal = RevealSpec(RevealSpec.SWEEP, listOf(22f)), style = "SWEEP"), min = CoreInfo.STYLES_RENDERER_VERSION).isEmpty())
+        assertEquals(CoreInfo.LIQUID_RENDERER_VERSION, CoreInfo.minRendererFor(video = false, style = "FLOW"))
+        assertEquals(CoreInfo.LIQUID_RENDERER_VERSION, CoreInfo.minRendererFor(video = true, style = "GLASS"))
+        assertEquals(CoreInfo.VIDEO_RENDERER_VERSION, CoreInfo.minRendererFor(video = true, style = "IRIS"))
+        assertEquals(CoreInfo.STYLES_RENDERER_VERSION, CoreInfo.minRendererFor(video = false, style = null))
+    }
+
     private val fakeMp4 = ByteArray(64).also {
         it[3] = 24
         "ftypisom".toByteArray().copyInto(it, 4)

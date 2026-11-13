@@ -127,11 +127,13 @@ fun GlassCard(
     contentPadding: PaddingValues = PaddingValues(18.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // 0.7: flat, solid surface with a hairline edge; content carries the colour.
+    val flat = if (shape == MaterialTheme.shapes.large) RoundedCornerShape(24.dp) else shape
     Column(
         modifier
-            .clip(shape)
-            .background(if (strong) FmColors.GlassStrong else FmColors.Glass)
-            .border(1.dp, FmColors.glassBorder, shape)
+            .clip(flat)
+            .background(if (strong) FmColors.Surface2 else FmColors.Surface1)
+            .border(1.dp, FmColors.Hairline, flat)
             .padding(contentPadding),
         content = content,
     )
@@ -168,38 +170,28 @@ fun GradientButton(
     leading: ImageVector? = null,
     height: Dp = 56.dp,
 ) {
+    // 0.7: the primary action is a white pill with dark text, quiet and unmistakable.
     val interaction = remember { MutableInteractionSource() }
     val haptics = LocalHapticFeedback.current
-    val sheen = rememberInfiniteTransition(label = "sheen")
-    val sweep by sheen.animateFloat(-0.6f, 1.6f, infiniteRepeatable(tween(3_400, easing = LinearEasing)), label = "sweep")
     val shape = RoundedCornerShape(50)
     Box(
         modifier
             .heightIn(min = height)
-            .pressScale(interaction)
+            .pressScale(interaction, 0.97f)
             .clip(shape)
-            .background(if (enabled) FmColors.primaryGradient else Brush.horizontalGradient(listOf(FmColors.GlassStrong, FmColors.GlassStrong)))
+            .background(if (enabled) Color.White else FmColors.Surface2)
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button) {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 onClick()
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (enabled) {
-            BoxWithConstraints(Modifier.matchParentSize()) {
-                val w = constraints.maxWidth.toFloat()
-                Canvas(Modifier.fillMaxSize()) {
-                    val x = sweep * w
-                    drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.28f), Color.Transparent), start = Offset(x - w * 0.25f, 0f), end = Offset(x + w * 0.25f, size.height)))
-                }
-            }
-        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 22.dp)) {
             if (leading != null) {
-                Icon(leading, contentDescription = null, tint = if (enabled) Color(0xFF04131A) else FmColors.TextMuted, modifier = Modifier.size(20.dp))
+                Icon(leading, contentDescription = null, tint = if (enabled) FmColors.Night else FmColors.TextMuted, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
             }
-            Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Color(0xFF04131A) else FmColors.TextMuted, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) FmColors.Night else FmColors.TextMuted, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -221,8 +213,8 @@ fun GlassButton(
             .heightIn(min = height)
             .pressScale(interaction)
             .clip(shape)
-            .background(FmColors.GlassStrong)
-            .border(1.dp, FmColors.glassBorder, shape)
+            .background(FmColors.Surface2)
+            .border(1.dp, FmColors.Hairline, shape)
             .clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -245,8 +237,8 @@ fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit,
             .size(46.dp)
             .pressScale(interaction, 0.88f)
             .clip(RoundedCornerShape(50))
-            .background(FmColors.Glass)
-            .border(1.dp, FmColors.glassBorder, RoundedCornerShape(50))
+            .background(FmColors.Surface2.copy(alpha = 0.9f))
+            .border(1.dp, FmColors.Hairline, RoundedCornerShape(50))
             .clickable(interaction, indication = null, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -265,10 +257,10 @@ fun PillToggle(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mo
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(46.dp)
             .clip(shape)
-            .background(FmColors.Glass)
-            .border(1.dp, FmColors.glassBorder, shape)
+            .background(FmColors.Surface1)
+            .border(1.dp, FmColors.Hairline, shape)
             .padding(4.dp),
     ) {
         val count = options.size.coerceAtLeast(1)
@@ -282,7 +274,7 @@ fun PillToggle(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mo
                 .width(itemWidth)
                 .fillMaxHeight()
                 .clip(shape)
-                .background(FmColors.primaryGradient),
+                .background(Color.White),
         )
         Row(Modifier.fillMaxSize()) {
             options.forEachIndexed { i, label ->
@@ -302,7 +294,7 @@ fun PillToggle(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mo
                     Text(
                         label,
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (chosen) Color(0xFF04131A) else FmColors.TextMuted,
+                        color = if (chosen) FmColors.Night else FmColors.TextMuted,
                         maxLines = 1,
                     )
                 }
@@ -391,22 +383,23 @@ fun GlassChip(text: String, modifier: Modifier = Modifier, selected: Boolean = f
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier
-            .pressScale(interaction, 0.93f)
+            .pressScale(interaction, 0.95f)
             .clip(shape)
-            .background(if (selected) FmColors.primaryGradient else Brush.horizontalGradient(listOf(FmColors.Glass, FmColors.Glass)))
-            .border(1.dp, if (selected) Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)) else FmColors.glassBorder, shape)
+            .background(if (selected) Color.White else FmColors.Surface2)
+            .border(1.dp, if (selected) Color.White else FmColors.Hairline, shape)
             .let { if (onClick != null) it.clickable(interaction, indication = null, onClick = onClick) else it }
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 15.dp, vertical = 9.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, color = if (selected) Color(0xFF04131A) else FmColors.Text, maxLines = 2)
+        Text(text, style = MaterialTheme.typography.labelLarge, color = if (selected) FmColors.Night else FmColors.Text, maxLines = 2)
     }
 }
 
 /** Large screen title with an optional trailing slot. */
 @Composable
 fun ScreenTitle(text: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
-    Row(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+    // Same size and place on every top-level screen, matching Discover.
+    Row(modifier.fillMaxWidth().padding(top = 6.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = MaterialTheme.typography.displaySmall, modifier = Modifier.weight(1f))
         trailing()
     }
 }

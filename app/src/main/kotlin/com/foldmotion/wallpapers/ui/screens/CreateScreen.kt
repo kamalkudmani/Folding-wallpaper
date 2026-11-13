@@ -16,6 +16,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -108,15 +109,20 @@ fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit, onOpenPack: (String)
         // On the open main screen: description on one side, a live sketch of the result on the other.
         val twoPane = maxWidth >= 600.dp
         if (twoPane) {
-            Row(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-                Column(Modifier.weight(1.1f).verticalScroll(rememberScrollState()).padding(bottom = NavClearance)) {
-                    CreateForm(vm, form, busy, onGenerate)
-                }
-                Column(Modifier.weight(0.9f).padding(top = 76.dp, start = 8.dp, end = 16.dp)) {
-                    SectionTitle(stringResource(R.string.create_preview_label))
-                    val pick = form.video
-                    if (form.videoMode && pick != null) VideoWindows(pick, device.active) else {
-                        ShapeHint(form, device.active.screen(ScreenKind.COVER).aspect, device.active.screen(ScreenKind.MAIN).aspect)
+            // Title and mode across the top; below, the form and the live sketch start on the
+            // same line, the sketch staying in view while the form scrolls.
+            Column(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp)) { CreateHeader(vm, form) }
+                Row(Modifier.fillMaxSize()) {
+                    Column(Modifier.weight(1.15f).verticalScroll(rememberScrollState()).padding(bottom = NavClearance)) {
+                        CreateForm(vm, form, busy, onGenerate, header = false)
+                    }
+                    Column(Modifier.weight(0.85f).padding(end = 20.dp, start = 4.dp)) {
+                        Text(stringResource(R.string.create_preview_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
+                        val pick = form.video
+                        if (form.videoMode && pick != null) VideoWindows(pick, device.active) else {
+                            ShapeHint(form, device.active.screen(ScreenKind.COVER).aspect, device.active.screen(ScreenKind.MAIN).aspect)
+                        }
                     }
                 }
             }
@@ -130,25 +136,31 @@ fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit, onOpenPack: (String)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGenerate: () -> Unit) {
-    val language = vm.language()
-    ReadableColumn(Modifier.padding(top = 14.dp)) {
-        ScreenTitle(stringResource(R.string.create_title), Modifier.staggerIn(0))
-        PillToggle(
-            listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random), stringResource(R.string.create_mode_video)),
-            selected = if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1,
-            onSelect = { i ->
-                vm.updateForm {
-                    when (i) {
-                        0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false)
-                        1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false)
-                        else -> it.copy(videoMode = true)
-                    }
+private fun CreateHeader(vm: MainViewModel, form: CreateForm) {
+    ScreenTitle(stringResource(R.string.create_title))
+    PillToggle(
+        listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random), stringResource(R.string.create_mode_video)),
+        selected = if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1,
+        onSelect = { i ->
+            vm.updateForm {
+                when (i) {
+                    0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false)
+                    1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false)
+                    else -> it.copy(videoMode = true)
                 }
-            },
-            modifier = Modifier.staggerIn(1),
-        )
-        Spacer(Modifier.height(16.dp))
+            }
+        },
+        modifier = Modifier.widthIn(max = 520.dp),
+    )
+    Spacer(Modifier.height(18.dp))
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CreateForm(vm: MainViewModel, form: CreateForm, busy: Boolean, onGenerate: () -> Unit, header: Boolean = true) {
+    val language = vm.language()
+    ReadableColumn(Modifier.padding(top = if (header) 14.dp else 0.dp)) {
+        if (header) CreateHeader(vm, form)
 
         val section = if (form.videoMode) 2 else form.mode.ordinal
         AnimatedContent(section, transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.97f)) togetherWith fadeOut(tween(160)) }, label = "mode") { which ->
@@ -226,10 +238,18 @@ private fun CustomSection(vm: MainViewModel, form: CreateForm, busy: Boolean) {
         )
     }
     Text(stringResource(R.string.create_examples), style = MaterialTheme.typography.labelLarge, color = FmColors.TextMuted, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (res in listOf(R.string.example_1, R.string.example_2, R.string.example_3, R.string.example_4)) {
+    // One tidy row of equal cards instead of chips of every width wrapping.
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(listOf(R.string.example_1, R.string.example_2, R.string.example_3, R.string.example_4).size) { index ->
+            val res = listOf(R.string.example_1, R.string.example_2, R.string.example_3, R.string.example_4)[index]
             val text = stringResource(res)
-            GlassChip(text, Modifier.widthIn(max = 520.dp)) { vm.updateForm { it.copy(prompt = text) } }
+            Box(
+                Modifier.width(230.dp).height(72.dp).clip(RoundedCornerShape(18.dp)).background(FmColors.Surface2)
+                    .border(1.dp, FmColors.Hairline, RoundedCornerShape(18.dp))
+                    .clickable { vm.updateForm { it.copy(prompt = text) } }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) { Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
         }
     }
 

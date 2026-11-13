@@ -13,6 +13,8 @@ import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.motion.MotionIntensity
 import com.foldmotion.core.motion.MotionLayer
 import com.foldmotion.core.pack.LayerEntry
+import com.foldmotion.core.pack.VideoGeometry
+import com.foldmotion.core.pack.VideoSpec
 import com.foldmotion.core.scene.Celestial
 import com.foldmotion.core.scene.IdeaBank
 import com.foldmotion.core.scene.SceneFamily
@@ -22,6 +24,7 @@ import com.foldmotion.core.scene.TimeOfDay
 import com.foldmotion.core.scene.WorldRect
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.render.LoadedScene
+import com.foldmotion.wallpapers.render.video.VideoFrameSource
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 
@@ -38,6 +41,19 @@ data class CatalogEntry(
     val focus: List<Float>,
     val seed: Long,
     val style: String? = null,
+    /** Video items: the clip inside the app's assets. */
+    val videoAsset: String? = null,
+    /** Video made to loop perfectly (no cross-fade). */
+    val seamless: Boolean = false,
+    /** Titles for items that are not curated ideas (the liquid set). */
+    val titleEn: String? = null,
+    val titleAr: String? = null,
+    /** Filters this item belongs to beyond its scene type, e.g. "liquid". */
+    val tags: List<String> = emptyList(),
+    /** Video items: the clip's size and length, so the detail page can play it straight away. */
+    val videoWidth: Int = 0,
+    val videoHeight: Int = 0,
+    val videoMs: Int = 0,
 )
 
 /** A wallpaper in the Discover wall: a curated idea, or the sample video. */
@@ -51,9 +67,12 @@ data class DiscoverItem(val entry: CatalogEntry, val idea: SceneIdea?) {
     val accent: Int get() = parse(entry.accent)
     val family: SceneFamily get() = idea?.family ?: SceneFamily.ABSTRACT
     val autoStyle: FoldStyle get() = FoldStyle.parse(entry.style) ?: FoldStyle.AUTO
+    val isLiquid: Boolean get() = DiscoverCatalog.LIQUID_TAG in entry.tags
 
     fun title(language: String, sampleTitle: String): String =
-        idea?.let { if (language == "ar") it.titleAr else it.titleEn } ?: sampleTitle
+        idea?.let { if (language == "ar") it.titleAr else it.titleEn }
+            ?: (if (language == "ar") entry.titleAr else entry.titleEn)
+            ?: sampleTitle
 
     fun description(language: String): String? = idea?.let { if (language == "ar") it.promptAr else it.promptEn }
 
@@ -67,6 +86,7 @@ data class DiscoverItem(val entry: CatalogEntry, val idea: SceneIdea?) {
 /** Filters of the wall, Pinterest style. */
 enum class DiscoverCategory(val label: Int) {
     ALL(R.string.discover_all),
+    LIQUID(R.string.discover_liquid),
     VIDEO(R.string.discover_video),
     NIGHT(R.string.discover_night),
     MOUNTAINS(R.string.family_mountains),
@@ -79,6 +99,7 @@ enum class DiscoverCategory(val label: Int) {
 
     fun accepts(item: DiscoverItem): Boolean = when (this) {
         ALL -> true
+        LIQUID -> item.isLiquid
         VIDEO -> item.isVideo
         NIGHT -> item.idea?.timeOfDay == TimeOfDay.NIGHT || item.family == SceneFamily.SPACE
         else -> !item.isVideo && item.family.name == name
@@ -97,11 +118,78 @@ object DiscoverCatalog {
         } catch (e: Exception) {
             emptyList()
         }
-        // Video first: it is the newest kind of wallpaper; then the curated ideas in their order.
-        val items = entries.map { DiscoverItem(it, IdeaBank.byId(it.id)) }.sortedByDescending { it.isVideo }
+        val items = interleave(entries.map { DiscoverItem(it, IdeaBank.byId(it.id)) })
         cached = items
         return items
     }
+
+    /**
+     * Order of the wall: a moving (video) wallpaper, then two drawn ones, and so on, so every
+     * screenful mixes liquid motion with scenes instead of grouping them.
+     */
+    internal fun interleave(items: List<DiscoverItem>): List<DiscoverItem> {
+        // The liquid set leads; the older sample clip follows it.
+        val videos = ArrayDeque(items.filter { it.isVideo }.sortedByDescending { it.isLiquid })
+        val drawn = ArrayDeque(items.filterNot { it.isVideo })
+        val out = ArrayList<DiscoverItem>(items.size)
+        while (videos.isNotEmpty() || drawn.isNotEmpty()) {
+            videos.removeFirstOrNull()?.let(out::add)
+            repeat(2) { drawn.removeFirstOrNull()?.let(out::add) }
+        }
+        return out
+    }
+
+    /** The clip a video item plays, inside the app's assets. */
+    fun videoAsset(item: DiscoverItem): String = item.entry.videoAsset ?: SAMPLE_VIDEO
+
+    /** A bundled clip copied out of the app once, so it can be read like a picked one. */
+    fun assetFile(context: Context, asset: String): java.io.File {
+        val out = java.io.File(context.cacheDir, asset)
+        if (!out.isFile || out.length() == 0L) {
+            out.parentFile?.mkdirs()
+            val tmp = java.io.File(out.path + ".part")
+            context.assets.open(asset).use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            tmp.renameTo(out)
+        }
+        return out
+    }
+
+    /**
+     * Live frames of a video item for its detail page: the clip cropped for each screen of the
+     * Fold exactly as the wallpaper will show it, looping as the wallpaper will (seamless clips
+     * without a cross-fade). Null when the item is not a video or the clip cannot be read.
+     */
+    fun videoSource(context: Context, item: DiscoverItem): VideoFrameSource? {
+        if (!item.isVideo) return null
+        val e = item.entry
+        val w = if (e.videoWidth > 0) e.videoWidth else SAMPLE_WIDTH
+        val h = if (e.videoHeight > 0) e.videoHeight else SAMPLE_HEIGHT
+        val ms = if (e.videoMs > 0) e.videoMs else SAMPLE_MS
+        return try {
+            val file = assetFile(context, videoAsset(item))
+            val spec = VideoSpec(
+                file = VideoSpec.FILE,
+                width = w,
+                height = h,
+                durationMs = ms,
+                loopCrossfadeMs = if (e.seamless) 0 else VideoSpec.DEFAULT_CROSSFADE_MS,
+                crop = VideoGeometry.crops(DeviceProfileRegistry.fold7, w, h),
+                sizeBytes = file.length(),
+            )
+            VideoFrameSource(context, file, spec, OVERSCAN, maxLongSide = 1440)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    const val LIQUID_TAG = "liquid"
+    const val SAMPLE_VIDEO = "samples/liquid-light.mp4"
+    private const val SAMPLE_WIDTH = 1296
+    private const val SAMPLE_HEIGHT = 1440
+    private const val SAMPLE_MS = 10_000
+
+    /** Overscan of the pictures in [scenes]: a hair, so springs never show an edge. */
+    private const val OVERSCAN = 0.015f
 
     fun byId(context: Context, id: String?): DiscoverItem? = load(context).firstOrNull { it.id == id }
 
@@ -121,7 +209,7 @@ object DiscoverCatalog {
         fun rect(v: List<Float>) = WorldRect(v[0], v[1], v[2], v[3])
         val frames = SceneFrames(rect(e.coverWorld), rect(e.mainWorld), e.focus[0], e.focus[1])
         // The picture is the whole frame; a hair of overscan keeps springs from showing an edge.
-        val o = 0.015f
+        val o = OVERSCAN
         val layer = listOf(MotionLayer("far", 0f, -o, -o, 1 + o, 1 + o, opaque = true))
         val idea = item.idea
         val input = ChoreoInput(

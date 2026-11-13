@@ -17,6 +17,9 @@ import com.foldmotion.core.scene.IdeaBank
 import com.foldmotion.wallpapers.generator.LocalPackGenerator
 import com.foldmotion.wallpapers.render.SceneDrawer
 import com.foldmotion.wallpapers.render.SceneLoader
+import com.foldmotion.wallpapers.ui.discover.CatalogEntry
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -55,7 +58,8 @@ class DiscoverAssetsRender {
     @Test
     fun `render discover catalogue`() {
         val out = System.getProperty("foldmotion.discoverOut")?.let(::File)
-        assumeTrue(out != null)
+        // The liquid step alone when its frames are given.
+        assumeTrue(out != null && System.getProperty("foldmotion.liquidFrames") == null)
         out!!.mkdirs()
         val drawer = SceneDrawer()
         val entries = ArrayList<String>()
@@ -85,28 +89,93 @@ class DiscoverAssetsRender {
         // The sample video: its first frame, framed per screen exactly as the player crops it.
         System.getProperty("foldmotion.videoFrames")?.let(::File)?.listFiles { f -> f.name.endsWith(".png") }?.minByOrNull { it.name }?.let { first ->
             val frame = BitmapFactory.decodeFile(first.path)
-            val crops = VideoGeometry.crops(fold7, frame.width, frame.height)
-            for ((kind, width) in listOf(ScreenKind.COVER to COVER_WIDTH, ScreenKind.MAIN to MAIN_WIDTH)) {
-                val c = if (kind == ScreenKind.MAIN) crops.main else crops.cover
-                val height = (width / fold7.screen(kind).aspect).toInt()
-                val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val sx = width / ((c[2] - c[0]) * frame.width)
-                val sy = height / ((c[3] - c[1]) * frame.height)
-                val shader = BitmapShader(frame, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
-                    setLocalMatrix(Matrix().apply { setTranslate(-c[0] * frame.width, -c[1] * frame.height); postScale(sx, sy) })
-                }
-                Canvas(bmp).drawRect(0f, 0f, width.toFloat(), height.toFloat(), Paint(Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader })
-                save(bmp, File(out, "liquid_light_${if (kind == ScreenKind.MAIN) "main" else "cover"}.webp"))
-            }
-            val unit = maxOf(frame.width, frame.height).toFloat()
-            fun world(r: List<Float>) = listOf(r[0] * frame.width / unit, r[1] * frame.height / unit, r[2] * frame.width / unit, r[3] * frame.height / unit)
+            val (main, cover) = videoThumbs(frame, out, "liquid_light")
             entries += """{"id":"liquid_light","video":true,"glow":"#9FF5E6","accent":"#8B7CFF","background":"#050B14",""" +
-                """"mainWorld":${arr(world(crops.main))},"coverWorld":${arr(world(crops.cover))},"focus":${arr(listOf(0.5f * frame.width / unit, 0.5f * frame.height / unit))},"seed":7,"style":"WARP"}"""
+                """"mainWorld":${arr(main)},"coverWorld":${arr(cover)},"focus":${arr(listOf(0.5f * frame.width / maxOf(frame.width, frame.height), 0.5f * frame.height / maxOf(frame.width, frame.height)))},"seed":7,"style":"WARP",""" +
+                """"videoAsset":"samples/liquid-light.mp4","videoWidth":${frame.width},"videoHeight":${frame.height},"videoMs":10000}"""
         }
-        File(out, "catalog.json").writeText(entries.joinToString(",\n", "[\n", "\n]\n"))
+        // Keep the liquid set (its own step, below) when the rest is rebuilt.
+        val catalog = File(out, "catalog.json")
+        if (catalog.isFile) {
+            val oneLine = Json { encodeDefaults = false; explicitNulls = false }
+            Json { ignoreUnknownKeys = true }.decodeFromString(ListSerializer(CatalogEntry.serializer()), catalog.readText())
+                .filter { it.isLiquidEntry() }
+                .forEach { entries += oneLine.encodeToString(CatalogEntry.serializer(), it) }
+        }
+        catalog.writeText(entries.joinToString(",\n", "[\n", "\n]\n"))
     }
 
+    /**
+     * Folded and unfolded pictures of a clip from its first [frame], framed per screen exactly
+     * as the player crops it. @return the main and cover windows in world units (long side = 1).
+     */
+    private fun videoThumbs(frame: Bitmap, out: File, id: String): Pair<List<Float>, List<Float>> {
+        val crops = VideoGeometry.crops(fold7, frame.width, frame.height)
+        for ((kind, width) in listOf(ScreenKind.COVER to COVER_WIDTH, ScreenKind.MAIN to MAIN_WIDTH)) {
+            val c = if (kind == ScreenKind.MAIN) crops.main else crops.cover
+            val height = (width / fold7.screen(kind).aspect).toInt()
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val sx = width / ((c[2] - c[0]) * frame.width)
+            val sy = height / ((c[3] - c[1]) * frame.height)
+            val shader = BitmapShader(frame, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                setLocalMatrix(Matrix().apply { setTranslate(-c[0] * frame.width, -c[1] * frame.height); postScale(sx, sy) })
+            }
+            Canvas(bmp).drawRect(0f, 0f, width.toFloat(), height.toFloat(), Paint(Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader })
+            save(bmp, File(out, "${id}_${if (kind == ScreenKind.MAIN) "main" else "cover"}.webp"))
+        }
+        val unit = maxOf(frame.width, frame.height).toFloat()
+        fun world(r: List<Float>) = listOf(r[0] * frame.width / unit, r[1] * frame.height / unit, r[2] * frame.width / unit, r[3] * frame.height / unit)
+        return world(crops.main) to world(crops.cover)
+    }
+
+    /** One clip of the liquid set (tools/liquid/liquid.py renders them into assets/liquid/). */
+    private data class Liquid(val name: String, val titleEn: String, val titleAr: String, val glow: String, val accent: String, val background: String, val style: String)
+
+    /**
+     * Adds the liquid set to the catalogue: thumbnails from each clip's first frame and one
+     * entry per clip, replacing earlier liquid entries. Runs with -Dfoldmotion.discoverOut and
+     * -Dfoldmotion.liquidFrames=<folder of <name>.png first frames>.
+     */
+    @Test
+    fun `render liquid catalogue`() {
+        val out = System.getProperty("foldmotion.discoverOut")?.let(::File)
+        val frames = System.getProperty("foldmotion.liquidFrames")?.let(::File)
+        assumeTrue(out != null && frames != null)
+        val catalog = File(out, "catalog.json")
+        val serializer = ListSerializer(CatalogEntry.serializer())
+        val oneLine = Json { encodeDefaults = false; explicitNulls = false }
+        val kept = Json { ignoreUnknownKeys = true }.decodeFromString(serializer, catalog.readText()).filterNot { it.isLiquidEntry() }
+        val added = LIQUIDS.mapIndexedNotNull { i, l ->
+            val png = File(frames, "${l.name}.png").takeIf { it.isFile } ?: return@mapIndexedNotNull null
+            val frame = BitmapFactory.decodeFile(png.path)
+            val (main, cover) = videoThumbs(frame, out!!, "liquid_${l.name}")
+            val unit = maxOf(frame.width, frame.height).toFloat()
+            CatalogEntry(
+                id = "liquid_${l.name}", video = true, glow = l.glow, accent = l.accent, background = l.background,
+                mainWorld = main, coverWorld = cover, focus = listOf(0.5f * frame.width / unit, 0.5f * frame.height / unit),
+                seed = 100L + i, style = l.style, videoAsset = "liquid/${l.name}.mp4", seamless = true,
+                titleEn = l.titleEn, titleAr = l.titleAr, tags = listOf("liquid"),
+                videoWidth = frame.width, videoHeight = frame.height, videoMs = LIQUID_MS,
+            ).also { frame.recycle() }
+        }
+        catalog.writeText((kept + added).joinToString(",\n", "[\n", "\n]\n") { oneLine.encodeToString(CatalogEntry.serializer(), it) })
+    }
+
+    private fun CatalogEntry.isLiquidEntry() = "liquid" in tags
+
     companion object {
+        const val LIQUID_MS = 10_000
+
+        private val LIQUIDS = listOf(
+            Liquid("gold", "Molten gold", "ذهب منصهر", "#FFE7B0", "#E0A030", "#0B0703", "FLOW"),
+            Liquid("aurora", "Aurora silk", "حرير الشفق", "#B8FFF4", "#7A6CFF", "#03080E", "GLASS"),
+            Liquid("neon", "Neon tide", "مدّ النيون", "#FFB8FA", "#22D8FF", "#0A0312", "WARP"),
+            Liquid("rose", "Rose quartz", "كوارتز وردي", "#FFE0DC", "#E06A7E", "#1A070C", "SWEEP"),
+            Liquid("abyss", "Deep ocean", "أعماق المحيط", "#A0F4FF", "#0A9ED0", "#00030A", "RIPPLE"),
+            Liquid("lava", "Ember flow", "تدفّق الجمر", "#FFD38A", "#FF6A10", "#070101", "RISE"),
+            Liquid("pearl", "Liquid chrome", "كروم سائل", "#FFFFFF", "#B9BCC8", "#050507", "RIPPLE"),
+            Liquid("emerald", "Emerald glass", "زجاج زمردي", "#C8FFE4", "#2BD18F", "#000805", "GLASS"),
+        )
         const val DISCOVER_SEED = 2026_11_13L
         const val MAIN_WIDTH = 760
         const val COVER_WIDTH = 360

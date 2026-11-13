@@ -13,16 +13,26 @@ object CoreInfo {
     /**
      * Version of the runtime renderer. 2 adds springs, reveals, particles and ambient motion;
      * 3 adds fold styles (book, tiles and sweep reveals, streak and rise particles, staggered
-     * tracks); 4 adds video scenes. Packs declare the minimum they need; this build still plays
-     * version-1 packs.
+     * tracks); 4 adds video scenes; 5 adds the liquid styles (ripple, flow and glass reveals).
+     * Packs declare the minimum they need; this build still plays version-1 packs.
      */
-    const val RENDERER_VERSION = 4
+    const val RENDERER_VERSION = 5
 
     /** First renderer with fold styles: what a drawn (non-video) pack needs at least. */
     const val STYLES_RENDERER_VERSION = 3
 
     /** First renderer that plays [com.foldmotion.core.pack.VideoSpec] scenes. */
     const val VIDEO_RENDERER_VERSION = 4
+
+    /** First renderer with the liquid fold styles. */
+    const val LIQUID_RENDERER_VERSION = 5
+
+    /** The lowest renderer a pack needs, so older apps can still import what they can play. */
+    fun minRendererFor(video: Boolean, style: String?): Int = when {
+        com.foldmotion.core.motion.FoldStyle.parse(style)?.isLiquid == true -> LIQUID_RENDERER_VERSION
+        video -> VIDEO_RENDERER_VERSION
+        else -> STYLES_RENDERER_VERSION
+    }
     const val MIN_RENDERER_VERSION = 1
 
     const val ASSET_TYPE = "FOLD_LIVE_WALLPAPER"
