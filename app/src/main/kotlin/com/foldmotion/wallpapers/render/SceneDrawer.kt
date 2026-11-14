@@ -16,6 +16,7 @@ import com.foldmotion.core.device.ScreenKind
 import com.foldmotion.core.motion.AmbientSpec
 import com.foldmotion.core.motion.AmbientSystem
 import com.foldmotion.core.motion.MotionSampler
+import com.foldmotion.core.motion.ChoreographyComposer
 import com.foldmotion.core.motion.MotionSpec
 import com.foldmotion.core.motion.ParticleBurst
 import com.foldmotion.core.motion.RevealSpec
@@ -58,12 +59,22 @@ class LoadedScene(
     /** Live liquid scene (pack v6): the back layer is computed on the GPU every frame. */
     val liquid: LiquidSpec? = null,
 ) {
+    /** Taps, tilt drift and hinge for live liquid, owned by whoever shows this scene. */
+    val liquidMotion: LiquidMotion by lazy { LiquidMotion() }
+
+    /** World point at ([fx], [fy]) of this scene's frame, as fractions; null without a world. */
+    fun worldAt(fx: Float, fy: Float): Pair<Float, Float>? = world?.let { it.left + fx * it.width to it.top + fy * it.height }
+
     /** Live frames for a video scene; set by whoever plays the video (engine or preview). */
     @Volatile
     var videoFrames: VideoFrames? = null
 
     val byteCount: Int get() = layers.sumOf { it.second.allocationByteCount }
-    val isAlive: Boolean get() = (ambient != null && !ambient.isStill) || liquid != null
+    /**
+     * Something moves between folds. Live liquid only counts where this phone can draw it; on
+     * Android 11-12 (or after a shader failure) its still poster must not be redrawn every frame.
+     */
+    val isAlive: Boolean get() = (ambient != null && !ambient.isStill) || (liquid != null && LiquidField.deviceSupported)
 
     fun recycle() {
         layers.forEach { it.second.recycle() }
@@ -278,7 +289,7 @@ class SceneDrawer {
         )
         // The fold line runs down the middle of the main screen (only the main screen uses it).
         val crease = world.left + world.width / 2f
-        val motion = LiquidMotion.frame(state.timeMs, state.tiltX, state.tiltY, scene.kind, crease)
+        val motion = scene.liquidMotion.frame(state.timeMs, state.tiltX, state.tiltY, scene.kind, crease)
         liquidField.prepare(spec, layerWorld, frame.width() * (back.right - back.left), frame.height() * (back.bottom - back.top), motion)
     }
 
@@ -399,46 +410,69 @@ class SceneDrawer {
      * startAngle in perspective, darker while it stands up and lit along its free edge. Behind
      * the page is darkness, and the flat side carries the page's shadow near the crease.
      */
+    /**
+     * BOOK: a page turns on [RevealSpec.from][0] (the hinge, as a fraction of the width) and lands
+     * flat. With the hinge inside the screen (the main screen's crease) the LEFT part swings: on
+     * the Fold the left panel carries the cover screen and swings from right to left as the phone
+     * opens. With the hinge on the left edge (the cover) the whole screen swings shut around it
+     * like a door, as the closed phone's hinge is on its left.
+     */
     private fun drawBook(canvas: Canvas, scene: LoadedScene, motion: MotionSpec, p: Float, ambient: AmbientSpec?, state: FrameState, reveal: RevealSpec, rp: Float) {
         val fw = frame.width()
         val fh = frame.height()
         val hinge = frame.left + reveal.from[0] * fw
+        // Motion written since 0.8.1 (and this app's older packs, recomposed on load) swing the
+        // left part; motion from elsewhere keeps the right part swinging, as it was written for.
+        val leftSwings = hinge > frame.left + 1f && motion.schemaVersion >= ChoreographyComposer.MOTION_SCHEMA
         val angle = reveal.from[1] * (1f - rp)
         val tilt = sin(Math.toRadians(angle.toDouble()).toFloat()).coerceIn(0f, 1f)
         val top = frame.top - 2f
         val bottom = frame.bottom + 2f
+        // The still side and the turning side.
+        val stillL = if (leftSwings) hinge else frame.left - 2f
+        val stillR = if (leftSwings) frame.right + 2f else hinge
+        val turnL = if (leftSwings) frame.left - 2f else hinge
+        val turnR = if (leftSwings) hinge else frame.right + 2f
 
-        // The flat side, which also computes this frame's layer poses.
+        // The still side, which also computes this frame's layer poses.
         canvas.save()
-        canvas.clipRect(frame.left - 2f, top, hinge, bottom)
+        canvas.clipRect(stillL, top, stillR, bottom)
         drawLayers(canvas, scene, motion, p, ambient, state)
         canvas.restore()
         fillPaint.color = SceneArtist.withAlpha(Color.BLACK, 0.55f)
-        canvas.drawRect(hinge, top, frame.right + 2f, bottom, fillPaint)
-        if (hinge > frame.left + 1f && tilt > 0.01f) {
+        canvas.drawRect(turnL, top, turnR, bottom, fillPaint)
+        // The turning page shades the still side next to the hinge.
+        if (stillR - stillL > 2f && tilt > 0.01f) {
             val reach = fw * 0.22f
-            overlayPaint.shader = LinearGradient(hinge - reach, 0f, hinge, 0f, SceneArtist.withAlpha(Color.BLACK, 0f), SceneArtist.withAlpha(Color.BLACK, reveal.shade * 0.65f * tilt), Shader.TileMode.CLAMP)
-            canvas.drawRect(hinge - reach, top, hinge, bottom, overlayPaint)
+            val shadow = SceneArtist.withAlpha(Color.BLACK, reveal.shade * 0.65f * tilt)
+            val clear = SceneArtist.withAlpha(Color.BLACK, 0f)
+            overlayPaint.shader = if (leftSwings) LinearGradient(hinge, 0f, hinge + reach, 0f, shadow, clear, Shader.TileMode.CLAMP)
+            else LinearGradient(hinge - reach, 0f, hinge, 0f, clear, shadow, Shader.TileMode.CLAMP)
+            if (leftSwings) canvas.drawRect(hinge, top, hinge + reach, bottom, overlayPaint) else canvas.drawRect(hinge - reach, top, hinge, bottom, overlayPaint)
             overlayPaint.shader = null
         }
         if (angle >= 89.5f) return
 
         // The eye sits in front of the screen centre, far enough that the free edge, lifted
         // towards the viewer, never reaches it.
-        val eye = max(frame.right - hinge, fh) * 1.6f
-        if (!turn(matrix, hinge, top, frame.right + 2f, bottom, hinge, vertical = true, degrees = angle, eyeX = drawWidth / 2f, eyeY = drawHeight / 2f, eye = eye)) return
+        val eye = max(turnR - turnL, fh) * 1.6f
+        // The free edge lifts towards the viewer on either side of the hinge.
+        if (!turn(matrix, turnL, top, turnR, bottom, hinge, vertical = true, degrees = if (leftSwings) -angle else angle, eyeX = drawWidth / 2f, eyeY = drawHeight / 2f, eye = eye)) return
 
         canvas.save()
         canvas.concat(matrix)
-        canvas.clipRect(hinge, top, frame.right + 2f, bottom)
+        canvas.clipRect(turnL, top, turnR, bottom)
         drawLayers(canvas, scene, motion, p, ambient, state)
         if (tilt > 0.01f) canvas.drawColor(SceneArtist.withAlpha(Color.BLACK, reveal.shade * tilt.pow(0.8f)))
         val edgeAlpha = reveal.edgeGlow * sin(PI.toFloat() * tilt.coerceAtMost(1f)).coerceAtLeast(0f) + reveal.edgeGlow * 0.25f * tilt
         if (edgeAlpha > 0.01f) {
-            val band = max(6f, (frame.right - hinge) * 0.06f)
+            // Light along the free edge of the page.
+            val band = max(6f, (turnR - turnL) * 0.06f)
+            val edge = if (leftSwings) frame.left else frame.right
+            val inner = if (leftSwings) edge + band else edge - band
             overlayPaint.blendMode = BlendMode.PLUS
-            overlayPaint.shader = LinearGradient(frame.right - band, 0f, frame.right, 0f, SceneArtist.withAlpha(scene.glow, 0f), SceneArtist.withAlpha(scene.glow, edgeAlpha * 0.6f), Shader.TileMode.CLAMP)
-            canvas.drawRect(frame.right - band, top, frame.right + 2f, bottom, overlayPaint)
+            overlayPaint.shader = LinearGradient(inner, 0f, edge, 0f, SceneArtist.withAlpha(scene.glow, 0f), SceneArtist.withAlpha(scene.glow, edgeAlpha * 0.6f), Shader.TileMode.CLAMP)
+            canvas.drawRect(min(inner, edge) - 2f, top, max(inner, edge) + 2f, bottom, overlayPaint)
             overlayPaint.shader = null
             overlayPaint.blendMode = null
         }

@@ -265,6 +265,11 @@ class VideoFrameSource(
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 failed = true
                 PocTrace.log("video", "VIDEO_FAILED", error.errorCodeName)
+                // Stop for good: no more loop ticks, players paused; the scene keeps its last
+                // frame or poster, and whoever listens learns to stop asking for video frame rates.
+                gl.removeCallbacks(seamTick)
+                players.forEach { it.player.pause() }
+                main.post { listeners.forEach { it() } }
             }
         })
         return track
@@ -288,7 +293,7 @@ class VideoFrameSource(
     /** Starts the standby player and updates the cross-fade; runs a few times a second. */
     private val seamTick = object : Runnable {
         override fun run() {
-            if (!playing || released) return
+            if (!playing || released || failed) return
             seam()
             gl.postDelayed(this, SEAM_TICK_MS)
         }

@@ -367,14 +367,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * Discover: live liquid made into a pack in [style] (or any [spec] from Create). Two posters
      * rendered on the GPU, so it takes well under a second; progress goes through [videoJob].
      */
-    fun createLiquidWallpaper(spec: com.foldmotion.core.pack.LiquidSpec, style: FoldStyle, title: com.foldmotion.core.pack.LocalizedText) {
+    fun createLiquidWallpaper(
+        spec: com.foldmotion.core.pack.LiquidSpec,
+        style: FoldStyle,
+        title: com.foldmotion.core.pack.LocalizedText,
+        intensity: MotionIntensity = MotionIntensity.LOW,
+    ) {
         if (_videoJob.value is VideoJob.Running) return
         _videoJob.value = VideoJob.Running(com.foldmotion.wallpapers.generator.video.VideoStage.POSTERS, 0f)
         videoWork = viewModelScope.launch {
             try {
                 val pack = withContext(Dispatchers.Default) {
                     container.liquidBuilder.build(
-                        com.foldmotion.wallpapers.generator.liquid.LiquidRequest(spec = spec, style = style, seed = random.nextLong(), title = title),
+                        com.foldmotion.wallpapers.generator.liquid.LiquidRequest(spec = spec, style = style, intensity = intensity, seed = random.nextLong(), title = title),
                         profile,
                     )
                 }
@@ -442,7 +447,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Create > Liquid: the chosen look as a live liquid wallpaper. */
     fun createLiquidFromForm() {
         val f = _form.value
-        createLiquidWallpaper(f.liquidSpec, f.style, com.foldmotion.wallpapers.ui.discover.LiquidLooks.byName(f.liquidLook).title)
+        createLiquidWallpaper(f.liquidSpec, f.style, com.foldmotion.wallpapers.ui.discover.LiquidLooks.byName(f.liquidLook).title, f.intensity)
     }
 
     /** Discover: a curated idea made into a pack exactly as pictured (same seed), in [style]. */

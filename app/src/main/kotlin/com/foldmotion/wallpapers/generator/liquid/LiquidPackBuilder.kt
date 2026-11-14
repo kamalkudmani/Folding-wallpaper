@@ -164,7 +164,8 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
             val w = main.widthPx
             val h = main.heightPx
             val unit = max(w, h).toFloat()
-            val crops = VideoGeometry.crops(profile, w, h)
+            // The cover window over the right half: the closed phone lies there.
+            val crops = VideoGeometry.crops(profile, w, h, focusX = 0.75f)
             fun world(r: List<Float>) = WorldRect(r[0] * w / unit, r[1] * h / unit, r[2] * w / unit, r[3] * h / unit)
             return Geometry(world(crops.main), world(crops.cover))
         }

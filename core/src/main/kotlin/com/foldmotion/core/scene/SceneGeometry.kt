@@ -74,7 +74,10 @@ object SceneGeometry {
 
     /**
      * Default horizontal focus: the centre of one half of the main screen, away from the crease.
-     * @param rightHalf which side of the fold line carries the focal element.
+     * @param rightHalf which side of the fold line carries the focal element. Scenes use the right
+     *   half: the closed Fold lies over it, so the cover shows that part and the scene opens from it
+     *   towards the left. (The random draw that used to choose is still taken, so every other
+     *   detail of a scene stays as it was.)
      */
     fun defaultFocusX(profile: DeviceProfile, rightHalf: Boolean): Float {
         val main = profile.main ?: return 0f

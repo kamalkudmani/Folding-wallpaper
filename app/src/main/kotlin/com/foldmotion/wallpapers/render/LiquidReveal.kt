@@ -230,8 +230,9 @@ half4 main(float2 xy) {
     float3 g = float3(glow.rgb);
     rgb = mix(rgb, float3(luma, luma, luma) * 0.75 + g * 0.15, m2 * 0.5);
     float lit = smoothstep(0.0, 0.42, progress);
-    float s = dot(xy / size, float2(0.64, 0.77));
-    float z = (s - (progress * 1.7 - 0.35)) / 0.07;
+    // The sheen runs from the top right to the bottom left, the way the panel swings.
+    float s = dot(xy / size, float2(-0.64, 0.77)) + 0.64;
+    float z = (s - (progress * 1.75 - 0.35)) / 0.07;
     float sheen = exp(-z * z) * melt;
     rgb = rgb * (1.0 - shade * (1.0 - lit)) + g * (sheen * 0.45 * edge);
     return half4(half3(rgb), half(mid.a));

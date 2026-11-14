@@ -18,6 +18,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -142,21 +143,39 @@ fun CreateScreen(vm: MainViewModel, onGenerate: () -> Unit, onOpenPack: (String)
 @Composable
 private fun CreateHeader(vm: MainViewModel, form: CreateForm) {
     ScreenTitle(stringResource(R.string.create_title))
-    PillToggle(
-        listOf(stringResource(R.string.create_mode_custom), stringResource(R.string.create_mode_random), stringResource(R.string.create_mode_video), stringResource(R.string.create_mode_liquid)),
-        selected = if (form.liquidMode) 3 else if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1,
-        onSelect = { i ->
-            vm.updateForm {
-                when (i) {
-                    0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false, liquidMode = false)
-                    1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false, liquidMode = false)
-                    2 -> it.copy(videoMode = true, liquidMode = false)
-                    else -> it.copy(liquidMode = true, videoMode = false)
-                }
+    // Four ways to create, as chips that scroll sideways: their names never squeeze or overlap,
+    // whatever the screen width or language.
+    val labels = listOf(R.string.create_mode_custom, R.string.create_mode_random, R.string.create_mode_video, R.string.create_mode_liquid)
+    val selected = if (form.liquidMode) 3 else if (form.videoMode) 2 else if (form.mode == GenerationMode.CUSTOM) 0 else 1
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        labels.forEachIndexed { i, res ->
+            val chosen = i == selected
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (chosen) Color.White else FmColors.Surface2)
+                    .border(1.dp, if (chosen) Color.White else FmColors.Hairline, RoundedCornerShape(50))
+                    .clickable(role = androidx.compose.ui.semantics.Role.Tab) {
+                        vm.updateForm {
+                            when (i) {
+                                0 -> it.copy(mode = GenerationMode.CUSTOM, videoMode = false, liquidMode = false)
+                                1 -> it.copy(mode = GenerationMode.RANDOM, videoMode = false, liquidMode = false)
+                                2 -> it.copy(videoMode = true, liquidMode = false)
+                                else -> it.copy(liquidMode = true, videoMode = false)
+                            }
+                        }
+                    }
+                    .semantics { this.selected = chosen }
+                    .padding(horizontal = 18.dp, vertical = 11.dp)
+                    .testTag("create_mode_$i"),
+            ) {
+                Text(stringResource(res), style = MaterialTheme.typography.labelLarge, color = if (chosen) Color(0xFF0A0B0F) else FmColors.Text, maxLines = 1)
             }
-        },
-        modifier = Modifier.widthIn(max = 520.dp),
-    )
+        }
+    }
     Spacer(Modifier.height(18.dp))
 }
 
@@ -251,7 +270,9 @@ private fun LiquidSection(vm: MainViewModel, form: CreateForm, busy: Boolean, pr
                             )
                             Text(
                                 look.title.forLanguage(language), style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                                color = if (chosen) FmColors.Text else FmColors.TextMuted, modifier = Modifier.padding(top = 4.dp),
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                color = if (chosen) FmColors.Text else FmColors.TextMuted, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             )
                         }
                     }

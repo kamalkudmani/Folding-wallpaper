@@ -82,7 +82,13 @@ object SceneLoader {
         // their scene would get today; nothing on disk changes.
         val restyle = PackChoreography.wantsStyleUpgrade(manifest, stored?.style)
         val legacy = if (stored == null || stored.schemaVersion < 2 || storedAmbient == null || restyle) PackChoreography.upgrade(manifest) else null
-        val motion = if (stored != null && stored.schemaVersion >= 2 && !restyle) stored else legacy?.choreography?.let { if (kind == ScreenKind.MAIN) it.open else it.close }
+        // ...and this app's packs from before 0.8.1 get their style with openings right to left.
+        val redirected = if (!restyle && PackChoreography.wantsDirectionUpgrade(manifest, stored?.schemaVersion, stored?.style)) {
+            PackChoreography.upgrade(manifest, com.foldmotion.core.motion.FoldStyle.parse(stored?.style)!!).choreography.let { if (kind == ScreenKind.MAIN) it.open else it.close }
+        } else {
+            null
+        }
+        val motion = redirected ?: if (stored != null && stored.schemaVersion >= 2 && !restyle) stored else legacy?.choreography?.let { if (kind == ScreenKind.MAIN) it.open else it.close }
         val ambient = storedAmbient ?: legacy?.choreography?.ambient
         val world = scene.world?.takeIf { it.size == 4 }?.let { WorldRect(it[0], it[1], it[2], it[3]) }
             ?: legacy?.frames?.frame(kind)

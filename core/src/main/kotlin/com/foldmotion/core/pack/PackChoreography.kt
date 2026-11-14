@@ -34,6 +34,22 @@ object PackChoreography {
     fun wantsStyleUpgrade(manifest: FoldPackManifest, storedStyle: String?): Boolean =
         manifest.creationSource == FoldPackManifest.SOURCE_LOCAL && manifest.motionStyle == null && storedStyle == null
 
+    /**
+     * This app's own packs made before 0.8.1 animate their openings left to right in some
+     * styles. Their motion is recomposed in memory, in the style they record, so every opening
+     * moves right to left like the phone; packs from anywhere else keep exactly what they declare.
+     */
+    fun wantsDirectionUpgrade(manifest: FoldPackManifest, storedSchema: Int?, storedStyle: String?): Boolean =
+        storedSchema != null && storedSchema in 3 until ChoreographyComposer.MOTION_SCHEMA &&
+            manifest.creationSource in OWN_SOURCES && FoldStyle.parse(storedStyle)?.takeIf { it != FoldStyle.AUTO } != null
+
+    private val OWN_SOURCES = setOf(
+        FoldPackManifest.SOURCE_LOCAL,
+        FoldPackManifest.SOURCE_VIDEO,
+        FoldPackManifest.SOURCE_LIQUID,
+        FoldPackManifest.SOURCE_PHOTO,
+    )
+
     /** The style a pack plays, or what AUTO would pick for it when it records none. */
     fun styleOf(manifest: FoldPackManifest): FoldStyle =
         FoldStyle.parse(manifest.motionStyle)?.takeIf { it != FoldStyle.AUTO }
@@ -84,13 +100,25 @@ object PackChoreography {
 
     private fun seedOf(m: FoldPackManifest): Long = m.generation?.seed ?: m.id.hashCode().toLong()
 
+    /** Video, liquid and photo packs are built as ABSTRACT scenes; drawn ones record their family. */
+    private val BUILT_ABSTRACT = setOf(FoldPackManifest.SOURCE_VIDEO, FoldPackManifest.SOURCE_LIQUID, FoldPackManifest.SOURCE_PHOTO)
+
     private fun familyOf(m: FoldPackManifest): SceneFamily {
+        if (m.creationSource in BUILT_ABSTRACT) return SceneFamily.ABSTRACT
         val name = m.generation?.family ?: m.tags.firstOrNull()
         return SceneFamily.entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: SceneFamily.MOUNTAINS
     }
 
-    private fun timeOf(m: FoldPackManifest): TimeOfDay =
-        TimeOfDay.entries.firstOrNull { t -> m.tags.any { it.equals(t.name, ignoreCase = true) } } ?: TimeOfDay.NIGHT
+    private fun timeOf(m: FoldPackManifest): TimeOfDay {
+        TimeOfDay.entries.firstOrNull { t -> m.tags.any { it.equals(t.name, ignoreCase = true) } }?.let { return it }
+        if (m.creationSource in BUILT_ABSTRACT) {
+            // Their builders chose night for a dark body colour (stored as the tertiary colour).
+            val c = parseHex(m.colors.tertiary, 0xFF000000.toInt())
+            val lum = (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)) / 255f
+            return if (lum < 0.45f) TimeOfDay.NIGHT else TimeOfDay.DAY
+        }
+        return TimeOfDay.NIGHT
+    }
 
     fun parseHex(hex: String, fallback: Int): Int {
         if (hex.length != 7 || hex[0] != '#') return fallback

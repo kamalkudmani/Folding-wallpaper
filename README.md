@@ -9,6 +9,14 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**0.8.1: Right to left.** On the Fold the front panel (with the cover screen) swings from right
+to left as the phone opens, so now every opening does too: the 3D fold demo swings the left panel,
+Book turns the left half like a page, Unfold, Tiles, Sweep and Flow travel from the right edge,
+and folding runs left to right. Scenes put the cover's slice over the right half, where the closed
+phone lies. Wallpapers made with older versions get the new motion when loaded (nothing on disk
+changes; imported packs keep theirs). Plus a round of fixes from a full review (see the review
+document, 9.7).
+
 **0.8: Live.** The liquid wallpapers are now computed live on the GPU instead of played from
 videos: they never repeat, drift when you tilt the phone, ripple where you tap the home screen and
 pool along the fold when the phone is half open (and the APK is a third smaller: the 23 MB of clips are gone). Create >
@@ -134,7 +142,7 @@ accounts, moderation.
 Requirements: JDK 21, Android SDK with platform 37 and build-tools 36.
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # 164 tests, Robolectric with real Skia and HWUI rendering
+./gradlew :core:test :app:testDebugUnitTest   # 168 tests, Robolectric with real Skia and HWUI rendering
 ./gradlew :app:assembleRelease                 # app/build/outputs/apk/release/app-release.apk
 ./gradlew :app:bundleRelease                   # app/build/outputs/bundle/release/app-release.aab (for Play)
 ```

@@ -13,7 +13,6 @@ import com.foldmotion.core.pack.LiquidSpec
 import com.foldmotion.wallpapers.generator.liquid.LiquidRequest
 import com.foldmotion.wallpapers.pack.RestyleResult
 import com.foldmotion.wallpapers.render.FrameState
-import com.foldmotion.wallpapers.render.LiquidMotion
 import com.foldmotion.wallpapers.render.SceneDrawer
 import com.foldmotion.wallpapers.render.SceneLoader
 import org.junit.Assert.assertEquals
@@ -53,7 +52,6 @@ class LiquidPackTest {
 
     @Test
     fun `a liquid pack is built, validated, drawn live and as a poster, and restyled`() {
-        LiquidMotion.reset()
         val spec = LiquidSpec.PRESETS.getValue("emerald")
         val pack = container.liquidBuilder.build(LiquidRequest(spec, FoldStyle.GLASS, seed = 5L), fold7)
         val m = pack.manifest

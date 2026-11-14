@@ -148,9 +148,14 @@ data class RevealSpec(
             RIPPLE -> RIPPLE_CURVE
             FLOW -> SWEEP_CURVE
             GLASS -> STANDARD
-            // A cover-wide slice snaps open like a hinge; a thin seam opens evenly, or it would
-            // be gone in a frame or two.
-            UNFOLD -> if (from.size == 4 && from[2] - from[0] < 0.2f) STANDARD else EMPHASIZED
+            // A thin seam opens evenly, or it would be gone in a frame or two. The opening slice
+            // against the right edge (0.8.1) travels with the panel's steady swing so its right
+            // to left movement reads; other slices (older or imported packs) keep their curve.
+            UNFOLD -> when {
+                from.size == 4 && from[2] - from[0] < 0.2f -> STANDARD
+                from.size == 4 && from[2] >= 0.999f && from[0] > 0.2f -> SWEEP_CURVE
+                else -> EMPHASIZED
+            }
             else -> EMPHASIZED
         }
         return curve.ease(((p - start) / span).coerceIn(0f, 1f))

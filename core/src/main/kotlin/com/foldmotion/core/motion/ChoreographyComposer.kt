@@ -41,6 +41,13 @@ data class Choreography(val open: MotionSpec, val close: MotionSpec, val ambient
  */
 object ChoreographyComposer {
 
+    /**
+     * Version of the motion this composer writes. 4: every opening moves right to left and every
+     * folding left to right, like the Fold's front panel (0.8.1). Older motion of this app's own
+     * packs is recomposed in memory on load.
+     */
+    const val MOTION_SCHEMA = 4
+
     fun compose(input: ChoreoInput, style: FoldStyle = FoldStyle.AUTO): Choreography {
         val resolved = FoldStyle.resolve(style, input.family, input.seed)
         return Choreography(open(input, resolved), close(input, resolved), ambient(input), resolved)
@@ -83,7 +90,7 @@ object ChoreographyComposer {
             FoldStyle.GLASS -> glass(c)
             FoldStyle.AUTO -> error("resolved above")
         }
-        return spec.copy(schemaVersion = 3, style = concrete.name)
+        return spec.copy(schemaVersion = MOTION_SCHEMA, style = concrete.name)
     }
 
     // ------------------------------------------------------------------ track helpers
@@ -101,7 +108,7 @@ object ChoreographyComposer {
         MotionTrack(MotionSpec.TARGET_DIM, from = TrackPose(alpha = alpha), to = TrackPose.HIDDEN, span = span)
 
     private fun spec(c: Ctx, duration: Int, tracks: List<MotionTrack>, spring: SpringSpec?, reveal: RevealSpec?, particles: List<ParticleBurst>) = MotionSpec(
-        schemaVersion = 3,
+        schemaVersion = MOTION_SCHEMA,
         kind = c.kind,
         durationMs = duration.coerceIn(MotionSpec.MIN_DURATION_MS, MotionSpec.MAX_DURATION_MS),
         easing = EasingSpec(0.2f, 0f, 0f, 1f),
@@ -114,7 +121,10 @@ object ChoreographyComposer {
 
     // ------------------------------------------------------------------ UNFOLD
 
-    /** The scene widens from exactly the slice the cover was showing, like the phone itself. */
+    /**
+     * The scene widens from the right part of the main screen, where the closed phone sat, out to
+     * the left: on the Fold the front panel swings from right to left as it opens.
+     */
     private fun unfoldOpen(c: Ctx): MotionSpec {
         val duration = c.ms(1_100, 1_000, 300)
         val tracks = ArrayList<MotionTrack>()
@@ -129,7 +139,7 @@ object ChoreographyComposer {
         tracks += dim(0.22f)
         return spec(
             c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.68f else 0.78f),
-            RevealSpec(RevealSpec.UNFOLD, coverWindowInMain(c.input.frames), end = 0.62f, softness = 0.07f, shade = 0.9f, edgeGlow = 0.85f),
+            RevealSpec(RevealSpec.UNFOLD, openingWindow(c.input.frames), end = 0.62f, softness = 0.07f, shade = 0.9f, edgeGlow = 0.85f),
             listOf(
                 ParticleBurst(
                     ParticleBurst.BURST, count = if (c.lively) 160 else 100, colors = burstColors(c.input),
@@ -234,9 +244,9 @@ object ChoreographyComposer {
     // ------------------------------------------------------------------ BOOK
 
     /**
-     * Main: the right half swings down flat in perspective around the centre crease, exactly the
-     * way the panel just moved, and light escapes from the crease as it lands. Cover: the whole
-     * scene swings shut around its left edge like a door.
+     * Main: the left half swings down flat in perspective around the centre crease, from right to
+     * left, exactly the way the panel just moved, and light escapes from the crease as it lands.
+     * Cover: the whole scene swings shut around its left edge (the closed phone's hinge) like a door.
      */
     private fun book(c: Ctx): MotionSpec {
         val duration = c.ms(1_200, 1_050, 250)
@@ -330,8 +340,8 @@ object ChoreographyComposer {
     // ------------------------------------------------------------------ TILES
 
     /**
-     * The scene assembles from square tiles flipping over in a wave: from the focal point on the
-     * main screen, top to bottom like a split-flap board on the cover.
+     * The scene assembles from square tiles flipping over in a wave: from the right edge towards the
+     * left on the main screen, top to bottom like a split-flap board on the cover.
      */
     private fun tiles(c: Ctx): MotionSpec {
         val duration = c.ms(1_350, 1_200, 200)
@@ -340,7 +350,8 @@ object ChoreographyComposer {
         val tracks = ArrayList<MotionTrack>()
         for (l in c.layers) tracks += layer(l, TrackPose(scale = 1f + (0.03f + 0.04f * l.depth) * c.gain))
         tracks += dim(0.15f, span = 0.9f)
-        val from = if (c.main) listOf(cols.toFloat(), rows.toFloat(), c.fx.coerceIn(0f, 1f), c.fy.coerceIn(0f, 1f), 0f)
+        // Main: the wave rolls in from the right edge, the way the panel opens. Cover: rows from the top.
+        val from = if (c.main) listOf(cols.toFloat(), rows.toFloat(), 1f, c.fy.coerceIn(0f, 1f), 0f)
         else listOf(cols.toFloat(), rows.toFloat(), 0.5f, 0f, 1f)
         return spec(
             c, duration, tracks, SpringSpec.settlingIn(duration, 0.85f),
@@ -357,7 +368,8 @@ object ChoreographyComposer {
      */
     private fun sweep(c: Ctx): MotionSpec {
         val duration = c.ms(1_300, 1_100, 200)
-        val angle = if (c.main) (if ((c.input.seed ushr 4) and 1L == 0L) 22f else 158f) else 90f
+        // Opening, the band travels right to left (the panel's way); folding, left to right.
+        val angle = if (c.main) 158f else 22f
         val rad = Math.toRadians(angle.toDouble())
         val dx = kotlin.math.cos(rad).toFloat()
         val dy = kotlin.math.sin(rad).toFloat()
@@ -404,12 +416,13 @@ object ChoreographyComposer {
 
     /**
      * The scene pours in like a thick liquid: a wavy, glossy front crosses the screen, refracting
-     * what is under its edge, with slow ripples behind it. Open pours outwards across the main
-     * screen; close pours down the cover.
+     * what is under its edge, with slow ripples behind it. Open pours from right to left across the
+     * main screen; close pours from left to right over the cover.
      */
     private fun flow(c: Ctx): MotionSpec {
         val duration = c.ms(1_500, 1_250, 200)
-        val angle = if (c.main) (if ((c.input.seed ushr 5) and 1L == 0L) 0f else 180f) else 90f
+        // Opening, it pours from right to left (the panel's way); folding, left to right.
+        val angle = if (c.main) 180f else 0f
         val rad = Math.toRadians(angle.toDouble())
         val dx = kotlin.math.cos(rad).toFloat()
         val dy = kotlin.math.sin(rad).toFloat()
@@ -456,13 +469,14 @@ object ChoreographyComposer {
         tracks = listOf(MotionTrack(MotionSpec.TARGET_DIM, from = TrackPose(alpha = 0.4f), to = TrackPose.HIDDEN)),
     )
 
-    /** The cover window expressed in the main screen's normalised frame. */
-    fun coverWindowInMain(frames: SceneFrames): List<Float> {
-        val m = frames.main
-        val c = frames.cover
-        fun nx(x: Float) = ((x - m.left) / m.width).coerceIn(0f, 1f)
-        fun ny(y: Float) = ((y - m.top) / m.height).coerceIn(0f, 1f)
-        return listOf(nx(c.left), ny(c.top), nx(c.right), ny(c.bottom))
+    /**
+     * Where an unfold starts: a slice as wide as the cover's share of the main screen, against the
+     * main screen's right edge (the closed phone lies over the right half), so the scene opens
+     * from right to left.
+     */
+    fun openingWindow(frames: SceneFrames): List<Float> {
+        val share = (frames.cover.width / frames.main.width).coerceIn(0.2f, 0.8f)
+        return listOf(1f - share, 0f, 1f, 1f)
     }
 
     private fun burstColors(input: ChoreoInput): List<String> {

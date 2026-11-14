@@ -11,7 +11,6 @@ import com.foldmotion.wallpapers.render.LiquidFrame
 import com.foldmotion.wallpapers.render.LiquidMotion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -35,8 +34,6 @@ class LiquidFieldTest {
     private val w = 270
     private val h = 300
 
-    @Before
-    fun reset() = LiquidMotion.reset()
 
     private fun render(spec: LiquidSpec, world: WorldRect, frame: LiquidFrame, width: Int = w, height: Int = h): Bitmap =
         HwCapture.render(width, height) { c ->
@@ -132,17 +129,24 @@ class LiquidFieldTest {
         assertEquals(0f, LiquidMotion.hingeAmount(180f), 1e-3f)
         assertEquals(1f, LiquidMotion.hingeAmount(90f), 1e-3f)
         assertEquals(0f, LiquidMotion.hingeAmount(5f), 1e-3f)
-        assertEquals(0f, LiquidMotion.frame(0, 0f, 0f, ScreenKind.COVER, 0.45f).hinge, 0f)
+        assertEquals(0f, LiquidMotion().frame(0, 0f, 0f, ScreenKind.COVER, 0.45f).hinge, 0f)
     }
 
     @Test
     fun `tilt drifts the liquid and the drift stays bounded`() {
+        val m = LiquidMotion()
         var t = 0L
-        repeat(600) { LiquidMotion.frame(t, 1f, 0f, ScreenKind.MAIN, 0.45f); t += 100 }
-        val f = LiquidMotion.frame(t, 1f, 0f, ScreenKind.MAIN, 0.45f)
+        repeat(600) { m.frame(t, 1f, 0f, ScreenKind.MAIN, 0.45f); t += 100 }
+        val f = m.frame(t, 1f, 0f, ScreenKind.MAIN, 0.45f)
         assertTrue("drift ${f.flowX}", f.flowX > 2f && f.flowX < 0.32f / 0.04f)
-        LiquidMotion.tap(0.2f, 0.3f, t)
-        assertEquals(1, LiquidMotion.frame(t + 100, 0f, 0f, ScreenKind.MAIN, 0.45f).ripples.size)
-        assertEquals(0, LiquidMotion.frame(t + 10_000, 0f, 0f, ScreenKind.MAIN, 0.45f).ripples.size)
+        m.tap(0.2f, 0.3f, t)
+        assertEquals(1, m.frame(t + 100, 0f, 0f, ScreenKind.MAIN, 0.45f).ripples.size)
+        assertEquals(0, m.frame(t + 10_000, 0f, 0f, ScreenKind.MAIN, 0.45f).ripples.size)
+        // Another owner (a preview) never sees this one's taps or drift.
+        m.tap(0.2f, 0.3f, t + 10_000)
+        val other = LiquidMotion().frame(t + 10_100, 0f, 0f, ScreenKind.MAIN, 0.45f)
+        assertEquals(0, other.ripples.size)
+        assertEquals(0f, other.flowX, 0f)
     }
+
 }

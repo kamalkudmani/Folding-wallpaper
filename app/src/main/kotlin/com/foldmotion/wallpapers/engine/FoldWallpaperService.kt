@@ -318,9 +318,9 @@ class FoldWallpaperService : WallpaperService() {
             val kind = state.surface?.kind ?: return
             val scene = scenes[kind] ?: return
             val spec = scene.liquid ?: return
-            val world = scene.world ?: return
             if (!spec.touch || !livingAllowed(scene) || surfaceWidth <= 0 || surfaceHeight <= 0) return
-            LiquidMotion.tap(world.left + x / surfaceWidth.toFloat() * world.width, world.top + y / surfaceHeight.toFloat() * world.height, now())
+            val (wx, wy) = scene.worldAt(x / surfaceWidth.toFloat(), y / surfaceHeight.toFloat()) ?: return
+            scene.liquidMotion.tap(wx, wy, now())
             trace("LIQUID_TAP", PocEvents.detail("x" to x, "y" to y))
         }
 
@@ -562,7 +562,8 @@ class FoldWallpaperService : WallpaperService() {
             val kind = state.surface?.kind
             val spec = kind?.let { scenes[it]?.video }
             when {
-                spec != null && state.visible -> voteFrameRate(spec.frameRate, fixedSource = true)
+                // A clip that failed to play shows a still frame: nothing to pace.
+                spec != null && state.visible && video?.failed != true -> voteFrameRate(spec.frameRate, fixedSource = true)
                 ambientRunning -> voteFrameRate(AMBIENT_FPS_FULL.toFloat(), fixedSource = false)
                 else -> voteFrameRate(0f, fixedSource = false)
             }

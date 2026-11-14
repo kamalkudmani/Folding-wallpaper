@@ -57,7 +57,6 @@ class PromoRender {
         assumeTrue(out != null)
         out!!.mkdirs()
         out.listFiles()?.forEach { if (it.name.endsWith(".png")) it.delete() }
-        LiquidMotion.reset()
         val drawer = SceneDrawer()
         val gold = shot("gold", FoldStyle.FLOW)
         val aurora = shot("aurora", FoldStyle.GLASS)
@@ -124,8 +123,8 @@ class PromoRender {
         val glassMs = aurora.main.entryMotion!!.durationMs
         for (i in 0 until seconds(glassMs / 1000f)) emit(aurora.main.glow) { c, st -> phone(c, aurora.main, mainW, mainH, H * 0.52f, i / (glassMs / 1000f * fps), st, true) }
         val world = aurora.main.world!!
-        LiquidMotion.tap(world.left + world.width * 0.3f, world.top + world.height * 0.4f, clock + 200)
-        LiquidMotion.tap(world.left + world.width * 0.7f, world.top + world.height * 0.62f, clock + 1_100)
+        aurora.main.liquidMotion.tap(world.left + world.width * 0.3f, world.top + world.height * 0.4f, clock + 200)
+        aurora.main.liquidMotion.tap(world.left + world.width * 0.7f, world.top + world.height * 0.62f, clock + 1_100)
         repeat(seconds(2.6f)) { emit(aurora.main.glow) { c, st -> phone(c, aurora.main, mainW, mainH, H * 0.52f, null, st, true) } }
         // 4. Deep ocean through Ripple.
         val rippleMs = abyss.main.entryMotion!!.durationMs

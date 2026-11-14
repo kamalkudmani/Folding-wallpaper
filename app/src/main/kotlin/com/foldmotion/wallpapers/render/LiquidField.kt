@@ -41,7 +41,7 @@ class LiquidField {
     var ready = false
         private set
 
-    val supported: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !broken
+    val supported: Boolean get() = deviceSupported && !broken
 
     /**
      * Records this frame's liquid for a layer covering [layerWorld], at about [pixelsW] x
@@ -56,6 +56,7 @@ class LiquidField {
         } catch (e: Throwable) {
             Log.w(TAG, "live liquid unavailable, showing the poster", e)
             broken = true
+            failedOnThisPhone = true
         }
     }
 
@@ -68,12 +69,14 @@ class LiquidField {
     fun draw(canvas: Canvas, dst: RectF, alpha: Float = 1f): Boolean {
         val n = node ?: return false
         if (!ready || !canvas.isHardwareAccelerated || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        n.alpha = alpha.coerceIn(0f, 1f)
-        canvas.save()
+        // A node's properties are read once per frame, and this node may be placed several times
+        // (tiles, a turning page): fade each placement with its own layer instead.
+        val a = alpha.coerceIn(0f, 1f)
+        val count = if (a < 0.999f) canvas.saveLayerAlpha(dst, (a * 255).toInt()) else canvas.save()
         canvas.translate(dst.left, dst.top)
         canvas.scale(dst.width() / nodeW, dst.height() / nodeH)
         canvas.drawRenderNode(n)
-        canvas.restore()
+        canvas.restoreToCount(count)
         return true
     }
 
@@ -100,6 +103,12 @@ class LiquidField {
 
     companion object {
         private const val TAG = "LiquidField"
+
+        @Volatile
+        private var failedOnThisPhone = false
+
+        /** This phone can draw live liquid (Android 13+, and the shader has not failed here). */
+        val deviceSupported: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !failedOnThisPhone
 
         /** Screen pixels per liquid pixel. */
         const val DOWNSCALE = 2.5f

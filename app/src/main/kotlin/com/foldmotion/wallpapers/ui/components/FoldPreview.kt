@@ -199,12 +199,12 @@ class ScenePreviewView(context: Context) : View(context) {
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
         val s = scene
-        val world = s?.world
-        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN && s?.liquid?.touch == true && living && world != null && width > 0) {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN && s?.liquid?.touch == true && living && width > 0 && height > 0) {
             val span = (sliceEnd - sliceStart).coerceAtLeast(0.05f)
-            val fx = sliceStart + event.x / width * span
-            LiquidMotion.tap(world.left + fx * world.width, world.top + event.y / height * world.height, SystemClock.elapsedRealtime())
-            invalidate()
+            s.worldAt(sliceStart + event.x / width * span, event.y / height)?.let { (wx, wy) ->
+                s.liquidMotion.tap(wx, wy, SystemClock.elapsedRealtime())
+                invalidate()
+            }
         }
         return super.onTouchEvent(event)
     }
@@ -375,7 +375,8 @@ private enum class DemoPhase { CLOSED, UNFOLDING, OPEN, FOLDING }
 
 /**
  * A Fold that folds and unfolds in 3D, on a loop, while the real wallpaper choreography plays on
- * its screens: the right half swings on the crease with perspective, the cover screen on its back;
+ * its screens: the left half swings on the crease with perspective (right to left as it opens,
+ * like the phone), the cover screen on its back;
  * the main screen lights up and unfolds as the device opens, the cover gathers light as it closes.
  */
 @Composable
@@ -389,7 +390,7 @@ fun FoldDemo(
     /** Holds the hinge at this angle instead of looping (design review and tests). */
     staticAngle: Float? = null,
 ) {
-    // Angle of the right half: 0 = flat open, -180 = folded shut with the cover facing us.
+    // Fold angle of the left panel: 0 = flat open, -180 = folded shut with the cover facing us.
     val angle = remember { Animatable(staticAngle ?: -180f) }
     var mainProgress by remember { mutableStateOf<Float?>(null) }
     var coverProgress by remember { mutableStateOf<Float?>(null) }
@@ -452,8 +453,10 @@ fun FoldDemo(
                 val density = LocalDensity.current
                 val a = angle.value
                 val closedness = (-a / 180f).coerceIn(0f, 1f)
-                // Keep the closed phone centred: shift right by a quarter as it folds.
-                val shift = with(density) { (half / 2).toPx() } * closedness
+                // Like the real Fold: the left panel carries the cover screen on its back and swings
+                // over onto the right half, which stays put. Keep the closed phone centred by
+                // shifting left by a quarter as it folds.
+                val shift = -with(density) { (half / 2).toPx() } * closedness
                 Box(
                     Modifier
                         .size(deviceW, deviceH)
@@ -461,30 +464,33 @@ fun FoldDemo(
                 ) {
                     val bezel = Color(0xFF0A0E13)
                     val rim = Brush.verticalGradient(listOf(Color(0xFF9FB2C4), Color(0xFF3B4A59)))
-                    // Left half: the main screen's left side. Its hinge-side corners round off as
-                    // the phone closes so they never peek out from under the folded cover.
+                    // Right half: the main screen's right side, which stays still. Its hinge-side
+                    // corners round off as the phone closes so they never peek out from under the
+                    // folded panel.
                     val hingeCorner = 20.dp * closedness
-                    val leftShape = RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp, topEnd = hingeCorner, bottomEnd = hingeCorner)
-                    Box(
-                        Modifier
-                            .size(half, deviceH)
-                            .clip(leftShape)
-                            .background(bezel)
-                            .border(2.dp, rim, leftShape)
-                            .padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
-                    ) {
-                        SceneView(main, Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)), living = animate, progress = mainProgress, sliceStart = 0f, sliceEnd = 0.5f, dark = mainDark)
-                        // The folding half casts a shadow over this side while it is above it.
-                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f * sin(Math.toRadians(-a.toDouble())).toFloat().coerceAtLeast(0f))))
-                    }
-                    // Right half: rotates on the crease. Front = main right side, back = cover screen.
+                    val rightShape = RoundedCornerShape(topStart = hingeCorner, bottomStart = hingeCorner, topEnd = 18.dp, bottomEnd = 18.dp)
+                    val leftShape = RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp)
                     Box(
                         Modifier
                             .offset(x = half)
                             .size(half, deviceH)
+                            .clip(rightShape)
+                            .background(bezel)
+                            .border(2.dp, rim, rightShape)
+                            .padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
+                    ) {
+                        SceneView(main, Modifier.fillMaxSize().clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)), living = animate, progress = mainProgress, sliceStart = 0.5f, sliceEnd = 1f, dark = mainDark)
+                        // The folding panel casts a shadow over this side while it is above it.
+                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f * sin(Math.toRadians(-a.toDouble())).toFloat().coerceAtLeast(0f))))
+                    }
+                    // Left half: turns on the crease (its right edge). Front = main left side,
+                    // back = cover screen. Opening, it swings from right to left.
+                    Box(
+                        Modifier
+                            .size(half, deviceH)
                             .graphicsLayer {
-                                rotationY = a
-                                transformOrigin = TransformOrigin(0f, 0.5f)
+                                rotationY = -a
+                                transformOrigin = TransformOrigin(1f, 0.5f)
                                 cameraDistance = 14f * density.density
                             },
                     ) {
@@ -492,12 +498,12 @@ fun FoldDemo(
                             Box(
                                 Modifier
                                     .fillMaxSize()
-                                    .clip(RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
+                                    .clip(leftShape)
                                     .background(bezel)
-                                    .border(2.dp, rim, RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
-                                    .padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                    .border(2.dp, rim, leftShape)
+                                    .padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
                             ) {
-                                SceneView(main, Modifier.fillMaxSize().clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)), living = animate, progress = mainProgress, sliceStart = 0.5f, sliceEnd = 1f, dark = mainDark)
+                                SceneView(main, Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)), living = animate, progress = mainProgress, sliceStart = 0f, sliceEnd = 0.5f, dark = mainDark)
                                 // Light falls off as the panel turns away.
                                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f * (abs(a) / 90f).coerceIn(0f, 1f))))
                             }

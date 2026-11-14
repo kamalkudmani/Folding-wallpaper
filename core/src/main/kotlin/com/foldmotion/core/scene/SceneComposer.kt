@@ -91,7 +91,7 @@ object SceneComposer {
             starDensity = stars,
             aurora = aurora,
             vegetation = vegetation,
-            focusX = SceneGeometry.defaultFocusX(profile, rightHalf = random.chance(0.7f)),
+            focusX = SceneGeometry.defaultFocusX(profile, rightHalf = true).also { keepRandomSequence(random) },
             focusY = focusY(family, random),
             titleAr = "${familyAr(family)} · ${timeAr(time, family)}",
             titleEn = "${familyEn(family)} · ${timeEn(time, family)}",
@@ -110,12 +110,21 @@ object SceneComposer {
             starDensity = idea.starDensity,
             aurora = idea.aurora,
             vegetation = idea.vegetation,
-            focusX = SceneGeometry.defaultFocusX(profile, rightHalf = random.chance(0.7f)),
+            focusX = SceneGeometry.defaultFocusX(profile, rightHalf = true).also { keepRandomSequence(random) },
             focusY = focusY(idea.family, random),
             titleAr = idea.titleAr,
             titleEn = idea.titleEn,
             tags = listOf(idea.family.name.lowercase(), idea.timeOfDay.name.lowercase(), idea.paletteId, "idea:${idea.id}"),
         )
+
+    /**
+     * Scenes used to put the focal element on the right half 70% of the time; it is always the
+     * right half now (the closed Fold lies over it, so openings run right to left). The draw that
+     * chose is still taken so every other detail of a seeded scene stays exactly as before.
+     */
+    private fun keepRandomSequence(random: SeededRandom) {
+        random.chance(0.7f)
+    }
 
     private fun defaultTime(family: SceneFamily, seen: PromptInterpretation, random: SeededRandom): TimeOfDay {
         // A named sky object implies its time of day.

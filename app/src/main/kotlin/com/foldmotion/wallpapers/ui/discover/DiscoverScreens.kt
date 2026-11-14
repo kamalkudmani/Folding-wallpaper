@@ -95,6 +95,7 @@ import com.foldmotion.wallpapers.ui.components.sharedArt
 import com.foldmotion.wallpapers.ui.screens.NavClearance
 import com.foldmotion.wallpapers.ui.theme.FmColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /** Rhythm of the wall: two card heights alternate so neighbouring columns stagger gently. */
@@ -246,7 +247,14 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
     var videoChecked by remember(item.id) { mutableStateOf(!item.isVideo) }
     LaunchedEffect(item.id) {
         if (item.isVideo) {
-            video = withContext(Dispatchers.IO) { DiscoverCatalog.videoSource(context, item) }
+            // Always finish making the source, then keep it or release it: leaving the page
+            // while it is being made must not leak a player.
+            val made = withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { DiscoverCatalog.videoSource(context, item) }
+            if (!isActive) {
+                made?.release()
+                return@LaunchedEffect
+            }
+            video = made
             videoChecked = true
         }
     }
@@ -305,12 +313,14 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
             onClick = {
                 waiting = true
                 val liquid = item.entry.liquid
+                // The page previews AUTO as the item's own style: make exactly that.
+                val chosen = if (style == FoldStyle.AUTO) item.autoStyle else style
                 when {
                     liquid != null -> vm.createLiquidWallpaper(
-                        liquid, style,
+                        liquid, chosen,
                         com.foldmotion.core.pack.LocalizedText(item.entry.titleAr ?: "سائل حيّ", item.entry.titleEn ?: "Live liquid"),
                     )
-                    item.isVideo -> vm.createSampleVideoWallpaper(style, item)
+                    item.isVideo -> vm.createSampleVideoWallpaper(chosen, item)
                     else -> vm.getDiscoverIdea(item, style)
                 }
             },

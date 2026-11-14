@@ -259,35 +259,36 @@ private fun DrawScope.autoGlyph(t: Float) {
     drawPath(star, Brush.linearGradient(listOf(FmColors.Aurora, FmColors.Violet), start = Offset(c.x - r, c.y - r), end = Offset(c.x + r, c.y + r)))
 }
 
+/** The scene opens from the right part (where the closed phone was) out to the left. */
 private fun DrawScope.unfoldGlyph(t: Float) {
     val e = ease(t)
-    val l = size.width * (0.36f * (1f - e))
-    val r = size.width * (0.64f + 0.36f * e)
-    clipRect(l, 0f, r, size.height) { scene() }
+    val l = size.width * (0.52f * (1f - e))
+    clipRect(l, 0f, size.width, size.height) { scene() }
     val a = 1f - e
-    if (a > 0.02f) {
-        drawLine(Light.copy(alpha = a), Offset(l, 0f), Offset(l, size.height), strokeWidth = 2.5f, blendMode = BlendMode.Plus)
-        drawLine(Light.copy(alpha = a), Offset(r, 0f), Offset(r, size.height), strokeWidth = 2.5f, blendMode = BlendMode.Plus)
-    }
+    if (a > 0.02f) drawLine(Light.copy(alpha = a), Offset(l, 0f), Offset(l, size.height), strokeWidth = 2.5f, blendMode = BlendMode.Plus)
 }
 
+/** The left page swings down from right to left, the way the Fold's front panel opens. */
 private fun DrawScope.bookGlyph(t: Float) {
     val e = ease(t)
     val half = size.width / 2f
-    clipRect(0f, 0f, half, size.height) { scene() }
+    clipRect(half, 0f, size.width, size.height) { scene() }
     val angle = 95f * (1f - e)
     val open = cos(angle / 180f * PI.toFloat()).coerceAtLeast(0f)
     if (open > 0.01f) {
-        // The right page, foreshortened and taller at its free edge as it lifts towards us.
+        // The left page, foreshortened and taller at its free edge as it lifts towards us.
         val lift = 1f + 0.25f * sin(angle / 180f * PI.toFloat())
         withTransform({ scale(open, 1f, pivot = Offset(half, size.height / 2f)) }) {
-            clipRect(half, 0f, size.width, size.height) {
-                withTransform({ scale(1f, lift, pivot = Offset(size.width, size.height / 2f)) }) { scene() }
+            clipRect(0f, 0f, half, size.height) {
+                withTransform({ scale(1f, lift, pivot = Offset(0f, size.height / 2f)) }) { scene() }
                 drawRect(Color.Black.copy(alpha = 0.75f * (1f - open)))
             }
         }
     }
-    drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f * (1f - e))), startX = half * 0.6f, endX = half), size = Size(half, size.height))
+    drawRect(
+        Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.5f * (1f - e)), Color.Transparent), startX = half, endX = half * 1.4f),
+        topLeft = Offset(half, 0f), size = Size(half, size.height),
+    )
 }
 
 private fun DrawScope.riseGlyph(t: Float) {
@@ -337,7 +338,8 @@ private fun DrawScope.tilesGlyph(t: Float) {
     val cw = size.width / cols
     val ch = size.height / rows
     for (j in 0 until rows) for (i in 0 until cols) {
-        val start = (i + j) / 4f * 0.55f
+        // The wave rolls in from the right.
+        val start = ((cols - 1 - i) + j * 0.3f) / 2.6f * 0.55f
         val p = ((t - start) / 0.45f).coerceIn(0f, 1f)
         if (p >= 1f) continue
         val left = i * cw
@@ -356,7 +358,8 @@ private fun DrawScope.tilesGlyph(t: Float) {
 
 private fun DrawScope.sweepGlyph(t: Float) {
     val e = t.coerceIn(0f, 1f)
-    val angle = 22f
+    // The band crosses from right to left.
+    val angle = 158f
     val extent = size.width + size.height
     val x = -size.height * 0.4f + e * extent
     rotate(angle, pivot = Offset(size.width / 2f, size.height / 2f)) {
@@ -418,33 +421,31 @@ private fun DrawScope.rippleGlyph(t: Float) {
     }
 }
 
-/** The scene pours in from the left behind a wavy, glossy liquid edge. */
+/** The scene pours in from the right behind a wavy, glossy liquid edge. */
 private fun DrawScope.flowGlyph(t: Float) {
     val e = ease(t)
     val w = size.width
     val h = size.height
-    val front = -w * 0.15f + e * w * 1.35f
+    val front = w * 1.15f - e * w * 1.35f
     val amp = w * 0.07f * (0.3f + (1f - e))
+    fun edgeX(y: Float) = front + amp * (sin(y / h * 7f + t * 6f) * 0.7f + sin(y / h * 15f - t * 9f) * 0.3f)
+    val steps = 18
     val edge = Path().apply {
-        moveTo(-w, -1f)
+        moveTo(2 * w, -1f)
         lineTo(front, -1f)
-        val steps = 18
         for (k in 0..steps) {
             val y = h * k / steps
-            val x = front + amp * (sin(y / h * 7f + t * 6f) * 0.7f + sin(y / h * 15f - t * 9f) * 0.3f)
-            lineTo(x, y)
+            lineTo(edgeX(y), y)
         }
-        lineTo(-w, h + 1f)
+        lineTo(2 * w, h + 1f)
         close()
     }
     clipPath(edge) { scene() }
     if (e < 0.98f) {
         val rim = Path().apply {
-            val steps = 18
             for (k in 0..steps) {
                 val y = h * k / steps
-                val x = front + amp * (sin(y / h * 7f + t * 6f) * 0.7f + sin(y / h * 15f - t * 9f) * 0.3f)
-                if (k == 0) moveTo(x, y) else lineTo(x, y)
+                if (k == 0) moveTo(edgeX(y), y) else lineTo(edgeX(y), y)
             }
         }
         drawPath(rim, Light.copy(alpha = 0.85f * (1f - e)), style = androidx.compose.ui.graphics.drawscope.Stroke(3f, cap = StrokeCap.Round), blendMode = BlendMode.Plus)
