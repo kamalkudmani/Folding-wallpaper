@@ -120,16 +120,28 @@ class LiquidField {
         const val DOWNSCALE = 2.5f
         const val GLASS_DOWNSCALE = 1.6f
 
-        fun downscaleFor(spec: LiquidSpec) = if (spec.isGlass) GLASS_DOWNSCALE else DOWNSCALE
+        fun downscaleFor(spec: LiquidSpec) = when {
+            spec.isGlass -> GLASS_DOWNSCALE
+            spec.isScene -> LiveScenes.downscale(spec.look)
+            else -> DOWNSCALE
+        }
 
         /** The shader source for [spec]'s look. */
-        fun agslFor(spec: LiquidSpec): String = if (spec.isGlass) GLASS_AGSL else AGSL
+        fun agslFor(spec: LiquidSpec): String = when {
+            spec.isGlass -> GLASS_AGSL
+            spec.isScene -> LiveScenes.agsl(spec.look)
+            else -> AGSL
+        }
 
         /** Sets every uniform of [agslFor] for one frame. Shared with offscreen poster rendering. */
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         fun configure(s: RuntimeShader, spec: LiquidSpec, world: WorldRect, w: Int, h: Int, frame: LiquidFrame) {
             if (spec.isGlass) {
                 configureGlass(s, spec, world, w, h, frame)
+                return
+            }
+            if (spec.isScene) {
+                LiveScenes.configure(s, spec, world, w, h, frame)
                 return
             }
             s.setFloatUniform("origin", world.left, world.top)

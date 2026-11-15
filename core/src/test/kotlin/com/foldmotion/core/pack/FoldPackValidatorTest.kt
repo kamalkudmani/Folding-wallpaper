@@ -221,7 +221,7 @@ class FoldPackValidatorTest {
             )
         }, ambient = goodAmbient)
         assertTrue(validator.validate(liquidPack()).codes.toString(), validator.validate(liquidPack()).passed)
-        for (preset in LiquidSpec.PRESETS.values + LiquidSpec.METAL.values) assertTrue(preset.isWellFormed())
+        for (preset in LiquidSpec.PRESETS.values + LiquidSpec.METAL.values + LiquidSpec.SCENES.values) assertTrue(preset.isWellFormed())
         assertTrue(validator.validate(liquidPack(min = CoreInfo.VIDEO_RENDERER_VERSION)).codes.contains(ValidationCode.INVALID_MANIFEST))
         assertTrue(validator.validate(liquidPack(world = false)).codes.contains(ValidationCode.INVALID_MANIFEST))
         for (bad in listOf(

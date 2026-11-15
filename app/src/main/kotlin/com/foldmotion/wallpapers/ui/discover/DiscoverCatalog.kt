@@ -52,6 +52,10 @@ data class CatalogEntry(
     /** Drawn items: the depth layers of each screen (assets discover/layers/<id>_<screen>_<layer>.webp). */
     val coverLayers: List<CatalogLayer> = emptyList(),
     val mainLayers: List<CatalogLayer> = emptyList(),
+    /** Items that are not curated ideas: their scene type (a SceneFamily name) and a description. */
+    val family: String? = null,
+    val descEn: String? = null,
+    val descAr: String? = null,
 )
 
 /** A wallpaper in the Discover wall: a curated drawn scene or a liquid glass wallpaper. */
@@ -62,18 +66,24 @@ data class DiscoverItem(val entry: CatalogEntry, val idea: SceneIdea?) {
     val glow: Int get() = parse(entry.glow)
     val background: Int get() = parse(entry.background)
     val accent: Int get() = parse(entry.accent)
-    val family: SceneFamily get() = idea?.family ?: SceneFamily.ABSTRACT
+    val family: SceneFamily get() = idea?.family ?: entry.family?.let { f -> SceneFamily.entries.firstOrNull { it.name == f } } ?: SceneFamily.ABSTRACT
     /** The motion built into this wallpaper. */
     val style: FoldStyle get() = FoldStyle.parse(entry.style)?.takeIf { it != FoldStyle.AUTO } ?: FoldStyle.NATURAL
     /** Live liquid glass, drawn on the GPU in real time. */
     val isGlass: Boolean get() = entry.liquid?.isGlass == true
+    /** A realistic live scene (ocean, sky, aurora, rain, space). */
+    val isScene: Boolean get() = entry.liquid?.isScene == true
+    /** Computed live on the phone (glass or a scene): its content is its motion. */
+    val isLive: Boolean get() = entry.liquid != null
+    val isNight: Boolean get() = idea?.timeOfDay == TimeOfDay.NIGHT || family == SceneFamily.SPACE || "night" in entry.tags
 
     fun title(language: String): String =
         idea?.let { if (language == "ar") it.titleAr else it.titleEn }
             ?: (if (language == "ar") entry.titleAr else entry.titleEn)
             ?: id
 
-    fun description(language: String): String? = idea?.let { if (language == "ar") it.promptAr else it.promptEn }
+    fun description(language: String): String? =
+        idea?.let { if (language == "ar") it.promptAr else it.promptEn } ?: (if (language == "ar") entry.descAr else entry.descEn)
 
     private fun parse(hex: String) = try {
         Color.parseColor(hex)
@@ -86,6 +96,7 @@ data class DiscoverItem(val entry: CatalogEntry, val idea: SceneIdea?) {
 enum class DiscoverCategory(val label: Int) {
     ALL(R.string.discover_all),
     GLASS(R.string.discover_glass),
+    SKY(R.string.discover_sky),
     NIGHT(R.string.discover_night),
     MOUNTAINS(R.string.family_mountains),
     OCEAN(R.string.family_ocean),
@@ -98,8 +109,9 @@ enum class DiscoverCategory(val label: Int) {
     fun accepts(item: DiscoverItem): Boolean = when (this) {
         ALL -> true
         GLASS -> item.isGlass
-        NIGHT -> item.idea?.timeOfDay == TimeOfDay.NIGHT || item.family == SceneFamily.SPACE
-        else -> !item.isGlass && item.family.name == name
+        SKY -> item.entry.liquid?.look == com.foldmotion.core.pack.LiquidSpec.LOOK_SKY
+        NIGHT -> item.isNight
+        else -> !item.isGlass && item.entry.liquid?.look != com.foldmotion.core.pack.LiquidSpec.LOOK_SKY && item.family.name == name
     }
 }
 
@@ -121,16 +133,18 @@ object DiscoverCatalog {
     }
 
     /**
-     * Order of the wall: a glass wallpaper, then two drawn ones, and so on, so every screenful
-     * mixes them instead of grouping them.
+     * Order of the wall: a live wallpaper, then a drawn one, and so on; the live ones take turns
+     * by kind (glass, ocean, sky, aurora, rain, space), so every screenful mixes them.
      */
     internal fun interleave(items: List<DiscoverItem>): List<DiscoverItem> {
-        val glass = ArrayDeque(items.filter { it.isGlass })
-        val drawn = ArrayDeque(items.filterNot { it.isGlass })
+        val byKind = items.filter { it.isLive }.groupBy { it.entry.liquid!!.look }.values.map { ArrayDeque(it) }
+        val live = ArrayDeque<DiscoverItem>()
+        while (byKind.any { it.isNotEmpty() }) byKind.forEach { q -> q.removeFirstOrNull()?.let(live::add) }
+        val drawn = ArrayDeque(items.filterNot { it.isLive })
         val out = ArrayList<DiscoverItem>(items.size)
-        while (glass.isNotEmpty() || drawn.isNotEmpty()) {
-            glass.removeFirstOrNull()?.let(out::add)
-            repeat(2) { drawn.removeFirstOrNull()?.let(out::add) }
+        while (live.isNotEmpty() || drawn.isNotEmpty()) {
+            live.removeFirstOrNull()?.let(out::add)
+            drawn.removeFirstOrNull()?.let(out::add)
         }
         return out
     }
@@ -147,8 +161,9 @@ object DiscoverCatalog {
 
     /**
      * The item as live scenes for the 3D fold demo, moving exactly as the wallpaper will: a drawn
-     * scene from its depth layers (its built-in motion and living motion), a glass wallpaper
-     * live on the GPU (its drops are the motion; the thumbnails stand in where shaders cannot).
+     * scene from its depth layers (its built-in motion and living motion), a glass wallpaper or
+     * a live scene on the GPU (its content is the motion; the thumbnails stand in where shaders
+     * cannot).
      */
     fun scenes(context: Context, item: DiscoverItem): Pair<LoadedScene, LoadedScene>? {
         fun decode(path: String): Bitmap? = try {
@@ -195,7 +210,7 @@ object DiscoverCatalog {
             glow = item.glow,
             accent = item.accent,
             seed = e.seed,
-            intrinsic = item.isGlass,
+            intrinsic = item.isLive,
         )
         val choreo = ChoreographyComposer.compose(input, item.style)
         val fold7 = DeviceProfileRegistry.fold7
@@ -213,7 +228,7 @@ object DiscoverCatalog {
                 entryMotion = if (kind == ScreenKind.MAIN) choreo.open else choreo.close,
                 background = item.background,
                 glow = item.glow,
-                ambient = if (item.isGlass) null else choreo.ambient,
+                ambient = if (item.isLive) null else choreo.ambient,
                 world = frames.frame(kind),
                 liquid = e.liquid,
                 mainWorld = frames.main,

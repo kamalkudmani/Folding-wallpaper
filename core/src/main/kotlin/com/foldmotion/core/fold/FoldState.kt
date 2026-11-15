@@ -62,6 +62,12 @@ data class MotionPolicy(
 
         /** An unlock still plays the animation if the wallpaper becomes visible this soon after. */
         const val UNLOCK_WINDOW_MS = 2_000L
+
+        /**
+         * Right after an unlock the lock screen is still fading out and can still report itself
+         * as showing; a "locked" reading this soon after an unlock is stale and is ignored.
+         */
+        const val STALE_LOCK_MS = 1_500L
         val LIVE_SWITCH_HOLD_CHOICES = listOf(0L, 150L, 250L, 400L, 600L)
     }
 }
@@ -94,6 +100,8 @@ data class FoldState(
     val locked: Boolean = false,
     /** When the user last unlocked, until the animation that unlock owes has played. */
     val unlockedAtMs: Long? = null,
+    /** When the last unlock was taken into account, so the two signals of one unlock count once. */
+    val unlockHandledAtMs: Long? = null,
     /** System wallpaper picker preview: plays the entry motion once as a demonstration. */
     val isPreview: Boolean = false,
     val previewDemoPlayed: Boolean = false,

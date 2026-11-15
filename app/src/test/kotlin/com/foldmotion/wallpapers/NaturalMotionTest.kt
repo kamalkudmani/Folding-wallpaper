@@ -162,4 +162,30 @@ class NaturalMotionTest {
         main.recycle()
         container.packStore.dir(pack.id).deleteRecursively()
     }
+
+    @Test
+    fun `a live scene is a pack whose own picture plays the fold`() {
+        for (name in listOf("ocean_sunset", "aurora_green")) {
+            val spec = LiquidSpec.SCENES.getValue(name)
+            val pack = container.liquidBuilder.build(LiquidRequest(spec, FoldStyle.BOOK, seed = 4L), fold7)
+            assertEquals("NATURAL", pack.manifest.motionStyle)
+            assertEquals(CoreInfo.SCENES_RENDERER_VERSION, pack.manifest.rendererVersion.min)
+            assertTrue(container.validator.validate(pack.dir, fold7.id).passed)
+            val main = SceneLoader.load(pack.dir, ScreenKind.MAIN)!!
+            val drawer = SceneDrawer()
+            val w = 300
+            val h = (w / fold7.screen(ScreenKind.MAIN).aspect).toInt()
+            fun live(p: Float?) = HwCapture.render(w, h) { drawer.draw(it, w, h, main, p, FrameState(timeMs = 9_000, ambient = true)) }
+            val rest = live(null)
+            assertTrue("$name opens ${diff(live(0f), rest)}", diff(live(0f), rest) > 1.5)
+            assertTrue(diff(live(1f), rest) < 1.0)
+            main.recycle()
+            // An older renderer (0.9.0) cannot draw it: a pack claiming it could is rejected.
+            val older = pack.manifest.copy(rendererVersion = pack.manifest.rendererVersion.copy(min = CoreInfo.NATURAL_RENDERER_VERSION))
+            File(pack.dir, com.foldmotion.core.pack.FoldPackManifest.FILE_NAME).writeText(CoreInfo.json.encodeToString(com.foldmotion.core.pack.FoldPackManifest.serializer(), older))
+            com.foldmotion.core.pack.Checksums.write(pack.dir)
+            assertTrue(!container.validator.validate(pack.dir, fold7.id).passed)
+            container.packStore.dir(pack.id).deleteRecursively()
+        }
+    }
 }

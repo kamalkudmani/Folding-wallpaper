@@ -29,7 +29,7 @@ object FoldStateReducer {
             is FoldEvent.PolicyChanged -> onPolicyChanged(prev, event, out)
             is FoldEvent.PackChanged -> onPackChanged(prev, event, out)
             is FoldEvent.PostureChanged -> onPosture(prev, event, out)
-            is FoldEvent.KeyguardChanged -> onKeyguard(prev, event)
+            is FoldEvent.KeyguardChanged -> onKeyguard(prev, event, out)
             is FoldEvent.Unlocked -> onUnlocked(prev, event, out)
         }
         return Reduction(next, out)
@@ -166,17 +166,32 @@ object FoldStateReducer {
         return present(st, e.atMs, out)
     }
 
-    private fun onKeyguard(s: FoldState, e: FoldEvent.KeyguardChanged): FoldState =
-        // Locking forgets an unlock that had not played yet.
-        if (e.locked) s.copy(locked = true, unlockedAtMs = null) else s.copy(locked = false)
+    /**
+     * The lock screen showed or went away. Locking forgets an unlock that had not played yet,
+     * except a "locked" reading just after an unlock, which is the lock screen still fading out.
+     * The lock screen going away is itself an unlock, so the animation plays even when the
+     * system's unlock broadcast is late or missing.
+     */
+    private fun onKeyguard(s: FoldState, e: FoldEvent.KeyguardChanged, out: MutableList<FoldCommand>): FoldState {
+        if (e.locked) {
+            val handled = s.unlockHandledAtMs
+            if (!s.locked && handled != null && e.atMs - handled in 0..MotionPolicy.STALE_LOCK_MS) return s
+            return s.copy(locked = true, unlockedAtMs = null)
+        }
+        if (!s.locked) return s
+        return onUnlocked(s, FoldEvent.Unlocked(e.atMs), out)
+    }
 
     /**
      * The user unlocked: the screen in use owes its animation. It plays now if the wallpaper is
      * on screen and ready, or as soon as it is (within [MotionPolicy.UNLOCK_WINDOW_MS]); never
-     * twice when an animation is already running.
+     * twice for one unlock (the broadcast and the lock screen going away both report it) and
+     * never over an animation already running.
      */
     private fun onUnlocked(s: FoldState, e: FoldEvent.Unlocked, out: MutableList<FoldCommand>): FoldState {
-        val st = s.copy(locked = false, unlockedAtMs = if (s.policy.waitForUnlock) e.atMs else null)
+        val handled = s.unlockHandledAtMs
+        if (!s.locked && handled != null && e.atMs - handled in 0..MotionPolicy.UNLOCK_WINDOW_MS) return s
+        val st = s.copy(locked = false, unlockedAtMs = if (s.policy.waitForUnlock) e.atMs else null, unlockHandledAtMs = e.atMs)
         if (!st.policy.waitForUnlock || st.activeTransition != null) return st.copy(unlockedAtMs = null)
         if (!st.visible || st.surface == null) return st
         return present(st, e.atMs, out)

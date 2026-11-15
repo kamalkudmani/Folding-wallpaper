@@ -432,9 +432,43 @@ class FoldStateReducerTest {
         h.send(FoldEvent.TransitionFinished(2_500))
         h.send(FoldEvent.VisibilityChanged(3_000, false))
         h.send(FoldEvent.Unlocked(4_000))
-        h.send(FoldEvent.KeyguardChanged(4_100, locked = true))
+        h.send(FoldEvent.KeyguardChanged(4_000 + MotionPolicy.STALE_LOCK_MS + 100, locked = true))
         assertNull(h.state.unlockedAtMs)
-        assertTrue(starts(h.sendAndLoad(FoldEvent.VisibilityChanged(4_200, true))).isEmpty())
+        assertTrue(starts(h.sendAndLoad(FoldEvent.VisibilityChanged(5_700, true))).isEmpty())
+    }
+
+    @Test
+    fun `a stale locked reading just after an unlock does not swallow the animation`() {
+        // Samsung: USER_PRESENT arrives while the lock screen is still fading out, and the
+        // wallpaper then becomes visible while KeyguardManager still says "locked".
+        val h = Harness()
+        boot(h, main)
+        h.send(FoldEvent.VisibilityChanged(1_000, false))
+        h.send(FoldEvent.KeyguardChanged(1_000, locked = true))
+        h.send(FoldEvent.Unlocked(5_000))
+        h.send(FoldEvent.KeyguardChanged(5_100, locked = true))
+        assertTrue(!h.state.locked)
+        val shown = h.sendAndLoad(FoldEvent.VisibilityChanged(5_150, true))
+        assertEquals(TransitionKind.OPEN, starts(shown).single().kind)
+        // The lock screen finally reported as gone: the same unlock, no second animation.
+        h.send(FoldEvent.TransitionFinished(6_600))
+        assertTrue(starts(h.send(FoldEvent.KeyguardChanged(6_700, locked = false))).isEmpty())
+    }
+
+    @Test
+    fun `the lock screen going away plays the animation even without the unlock broadcast`() {
+        val h = Harness()
+        boot(h, main)
+        h.send(FoldEvent.KeyguardChanged(1_000, locked = true))
+        assertTrue(starts(h.sendAndLoad(FoldEvent.VisibilityChanged(1_000, true))).isEmpty())
+        val gone = h.send(FoldEvent.KeyguardChanged(3_000, locked = false))
+        assertEquals(TransitionKind.OPEN, starts(gone).single().kind)
+        // The broadcast arriving afterwards is the same unlock: nothing replays.
+        h.send(FoldEvent.TransitionFinished(4_500))
+        assertTrue(starts(h.send(FoldEvent.Unlocked(3_200))).isEmpty())
+        assertTrue(starts(h.send(FoldEvent.Unlocked(4_600))).isEmpty())
+        // Folding afterwards still plays: the phone is known to be unlocked.
+        assertEquals(TransitionKind.CLOSE, starts(h.sendAndLoad(FoldEvent.SurfaceChanged(9_000, 1080, 2520, cover))).single().kind)
     }
 
     @Test

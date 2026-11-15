@@ -129,6 +129,11 @@ class UiScreenshotTest {
         shoot("${prefix}_01c_discover_glass")
         rule.runOnUiThread { nav.popBackStack() }
         settle()
+        rule.runOnUiThread { nav.navigate(Routes.discover("ocean_sunset")) }
+        Thread.sleep(800)
+        shoot("${prefix}_01d_discover_scene")
+        rule.runOnUiThread { nav.popBackStack() }
+        settle()
         rule.runOnUiThread { nav.navigate(Routes.ADD) }
         shoot("${prefix}_02_add")
         // A picked photo (a synthetic one: there is no gallery in unit tests).
@@ -203,6 +208,30 @@ class UiScreenshotTest {
     @Test
     @Config(sdk = [36], qualifiers = "ar-ldrtl-w750dp-h832dp-port-xhdpi")
     fun mainArabic() = tour("main_ar")
+
+    /** The open phone turned sideways: the app's main screens in landscape. */
+    @Test
+    @Config(sdk = [36], qualifiers = "en-w832dp-h750dp-land-xhdpi")
+    fun mainLandscape() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val ids = seedPacks(app)
+        AppContainer.get(app).settings.reducedMotion = true
+        val vm = MainViewModel(app)
+        lateinit var nav: NavHostController
+        rule.setContent {
+            nav = rememberNavController()
+            FoldMotionTheme { FoldMotionApp(vm, nav) }
+        }
+        shoot("land_01_home")
+        rule.runOnUiThread { nav.navigate(Routes.discover("ocean_sunset")) }
+        Thread.sleep(800)
+        shoot("land_02_detail")
+        rule.runOnUiThread { nav.navigate(Routes.preview(ids[1])) }
+        Thread.sleep(1500)
+        shoot("land_03_preview")
+        rule.runOnUiThread { nav.navigate(Routes.ADD) }
+        shoot("land_04_add")
+    }
 
     @Test
     @Config(sdk = [36], qualifiers = "en-w750dp-h832dp-port-xhdpi")

@@ -15,9 +15,10 @@ object CoreInfo {
      * 3 adds fold styles (book, tiles and sweep reveals, streak and rise particles, staggered
      * tracks); 4 adds video scenes; 5 adds the liquid styles (ripple, flow and glass reveals);
      * 6 adds live liquid scenes; 7 adds liquid glass and the NATURAL style (the picture itself
-     * moves). Packs declare the minimum they need; this build still plays version-1 packs.
+     * moves); 8 adds realistic live scenes (ocean, sky, aurora, rain, space). Packs declare the
+     * minimum they need; this build still plays version-1 packs.
      */
-    const val RENDERER_VERSION = 7
+    const val RENDERER_VERSION = 8
 
     /** First renderer with fold styles: what a drawn (non-video) pack needs at least. */
     const val STYLES_RENDERER_VERSION = 3
@@ -34,8 +35,12 @@ object CoreInfo {
     /** First renderer with liquid glass scenes and the NATURAL style. */
     const val NATURAL_RENDERER_VERSION = 7
 
+    /** First renderer with realistic live scenes. */
+    const val SCENES_RENDERER_VERSION = 8
+
     /** The lowest renderer a pack needs, so older apps can still import what they can play. */
-    fun minRendererFor(video: Boolean, style: String?, liquid: Boolean = false, glass: Boolean = false): Int = when {
+    fun minRendererFor(video: Boolean, style: String?, liquid: Boolean = false, glass: Boolean = false, scene: Boolean = false): Int = when {
+        scene -> SCENES_RENDERER_VERSION
         glass || com.foldmotion.core.motion.FoldStyle.parse(style) == com.foldmotion.core.motion.FoldStyle.NATURAL -> NATURAL_RENDERER_VERSION
         liquid -> LIVE_LIQUID_RENDERER_VERSION
         com.foldmotion.core.motion.FoldStyle.parse(style)?.isLiquid == true -> LIQUID_RENDERER_VERSION

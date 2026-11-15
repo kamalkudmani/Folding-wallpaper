@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://foldmotion.app/schema/foldpack-manifest.v1.json",
   "title": "FoldPack manifest, schema version 1",
-  "description": "manifest.json at the root of a FoldPack. Mirrors com.foldmotion.core.pack.FoldPackManifest; FoldPackValidator adds the checks JSON Schema cannot express (files exist, checksums match, images are WebP of the declared size, motion never exposes the background). Renderer 2 adds springs, reveals, particle bursts (motion/*.json) and ambient motion (motion/ambient.json); packs that need them declare rendererVersion.min = 2. Renderer 3 adds fold styles: per-track delay/span, BOOK, TILES and SWEEP reveals, STREAK and RISE particles; such packs declare rendererVersion.min = 3. Renderer 4 adds video scenes (video section, an MP4 clip); such packs declare rendererVersion.min = 4, drawn packs declare 3. Renderer 5 adds the liquid fold styles RIPPLE, FLOW and GLASS (reveals of the same names, drawn by a GPU shader); packs using them declare rendererVersion.min = 5. Renderer 6 adds live liquid scenes (liquid section); such packs declare rendererVersion.min = 6. Renderer 7 adds liquid glass (liquid.look = \"glass\") and the NATURAL style (the picture itself moves: no reveal, overlay or particles); packs using either declare rendererVersion.min = 7.",
+  "description": "manifest.json at the root of a FoldPack. Mirrors com.foldmotion.core.pack.FoldPackManifest; FoldPackValidator adds the checks JSON Schema cannot express (files exist, checksums match, images are WebP of the declared size, motion never exposes the background). Renderer 2 adds springs, reveals, particle bursts (motion/*.json) and ambient motion (motion/ambient.json); packs that need them declare rendererVersion.min = 2. Renderer 3 adds fold styles: per-track delay/span, BOOK, TILES and SWEEP reveals, STREAK and RISE particles; such packs declare rendererVersion.min = 3. Renderer 4 adds video scenes (video section, an MP4 clip); such packs declare rendererVersion.min = 4, drawn packs declare 3. Renderer 5 adds the liquid fold styles RIPPLE, FLOW and GLASS (reveals of the same names, drawn by a GPU shader); packs using them declare rendererVersion.min = 5. Renderer 6 adds live liquid scenes (liquid section); such packs declare rendererVersion.min = 6. Renderer 7 adds liquid glass (liquid.look = \"glass\") and the NATURAL style (the picture itself moves: no reveal, overlay or particles); packs using either declare rendererVersion.min = 7. Renderer 8 adds realistic live scenes (liquid.look = ocean, sky, aurora, rain or space); such packs declare rendererVersion.min = 8.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -432,18 +432,33 @@
           "type": "string",
           "enum": [
             "metal",
-            "glass"
+            "glass",
+            "ocean",
+            "sky",
+            "aurora",
+            "rain",
+            "space"
           ],
-          "description": "v7. metal: the molten height field of renderer 6. glass: drops of clear glass over a colour field; their gathering and spreading is the fold motion."
+          "description": "v7. metal: the molten height field of renderer 6. glass: drops of clear glass over a colour field; their gathering and spreading is the fold motion. ocean, sky, aurora, rain, space (v8): realistic places whose own content is the fold motion."
         },
         "form": {
           "type": "string",
           "enum": [
             "drops",
             "pills",
-            "orbit"
+            "orbit",
+            "sun",
+            "moon",
+            "day",
+            "night",
+            "lake",
+            "city",
+            "earth",
+            "mars",
+            "giant",
+            "ice"
           ],
-          "description": "v7, glass: the arrangement of the drops and how they move."
+          "description": "v7: glass arrangement (drops, pills, orbit); v8: scene variant (ocean: sun, moon; sky: day, night; aurora: lake; rain: city; space: earth, mars, giant, ice)."
         },
         "tint": {
           "$ref": "#/$defs/hex",

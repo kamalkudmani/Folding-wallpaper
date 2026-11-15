@@ -249,11 +249,8 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
             SectionTitle(stringResource(R.string.discover_motion_title))
             Text(
                 stringResource(
-                    when {
-                        pack.manifest.liquid?.isGlass == true -> R.string.discover_glass_body
-                        pack.manifest.video != null -> R.string.add_video_motion
-                        else -> R.string.discover_motion_drawn
-                    },
+                    if (pack.manifest.video != null) R.string.add_video_motion
+                    else com.foldmotion.wallpapers.ui.discover.motionText(pack.manifest.liquid),
                 ),
                 style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted,
             )

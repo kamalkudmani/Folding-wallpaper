@@ -20,6 +20,7 @@ FONTS = {
 PHONE = [
     ("01_home", {"en": ("Wallpapers made for the Fold", "Every one shown closed and open"), "ar": ("خلفيات صُنعت للفولد", "كل خلفية مطوية ومفتوحة")}),
     ("01c_discover_glass", {"en": ("Liquid glass, alive", "Drops gather when closed, flow apart when open"), "ar": ("زجاج سائل حيّ", "قطرات تتجمع عند الإغلاق وتنساب عند الفتح")}),
+    ("01d_discover_scene", {"en": ("Real places, alive", "Open the phone and the sun rises"), "ar": ("أماكن حقيقية، حيّة", "افتح الهاتف فتشرق الشمس")}),
     ("01b_discover_detail", {"en": ("The picture itself moves", "No effects on top: the scene glides into place"), "ar": ("الصورة نفسها تتحرك", "بلا مؤثرات فوقها: المشهد ينزلق إلى مكانه")}),
     ("02c_add_photo_motion", {"en": ("Add your own photo", "Choose how it moves, or lift it out in 3D"), "ar": ("أضف صورتك", "اختر حركتها أو ارفعها بشكل ثلاثي الأبعاد")}),
     ("03_add_video", {"en": ("Or your own video", "It loops on both screens, made on your phone"), "ar": ("أو الفيديو الخاص بك", "يتكرر على الشاشتين، ويُصنع على هاتفك")}),

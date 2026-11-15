@@ -17,14 +17,17 @@ BOLD = "/usr/share/fonts/opentype/inter/Inter-Bold.otf" if LANG == "en" else "/u
 REG = "/usr/share/fonts/opentype/inter/Inter-Medium.otf" if LANG == "en" else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 TEXT = {
     "en": ["Liquid glass for your Fold", "Open it, and the drops flow apart", "Tap it. Tilt it. It's glass.",
-           "Close it, and they gather again", "The motion is in the picture", "Fold Motion", "Private by design. No account, no ads."],
+           "Close it, and they gather again", "The motion is in the picture", "Fold Motion", "Private by design. No account, no ads.",
+           "Real places, alive", "The sun rises as you open it"],
     "ar": ["زجاج سائل لهاتف الفولد", "افتحه… فتنساب القطرات متفرقة", "المسه. أمِله. إنه زجاج.",
-           "أغلقه… فتتجمع من جديد", "الحركة داخل الصورة نفسها", "Fold Motion", "خصوصية تامة. بلا حساب ولا إعلانات."],
+           "أغلقه… فتتجمع من جديد", "الحركة داخل الصورة نفسها", "Fold Motion", "خصوصية تامة. بلا حساب ولا إعلانات.",
+           "أماكن حقيقية، حيّة", "تشرق الشمس حين تفتحه"],
 }[LANG]
 # (text index, start s, end s, y, size, bold) following PromoRender's timeline.
 CAPTIONS = [(0, 0.2, 2.5, 150, 60, True), (1, 2.7, 5.6, 150, 58, True), (2, 5.8, 10.1, 150, 60, True),
-            (3, 10.3, 12.6, 150, 58, True), (4, 12.8, 15.5, 150, 58, True), (5, 15.8, 18.6, 820, 124, True),
-            (6, 16.1, 18.6, 990, 46, False)]
+            (3, 10.3, 12.6, 150, 58, True), (4, 12.8, 15.5, 150, 58, True),
+            (8, 15.7, 18.0, 150, 58, True), (7, 18.2, 23.0, 150, 60, True),
+            (5, 23.3, 26.1, 820, 124, True), (6, 23.6, 26.1, 990, 46, False)]
 
 fonts = {}
 

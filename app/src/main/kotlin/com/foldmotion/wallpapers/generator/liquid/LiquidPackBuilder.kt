@@ -98,10 +98,10 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
                     glow = glow,
                     accent = accent,
                     seed = request.seed,
-                    intrinsic = request.spec.isGlass,
+                    intrinsic = request.spec.isIntrinsic,
                 ),
                 // Liquid glass carries its fold motion in the picture: its drops move.
-                if (request.spec.isGlass) FoldStyle.NATURAL else request.style,
+                if (request.spec.isIntrinsic) FoldStyle.NATURAL else request.style,
             )
             File(staging, "motion").mkdirs()
             File(staging, "motion/open.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), choreo.open))
@@ -115,7 +115,7 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
                 createdAt = now.toString(),
                 creationSource = FoldPackManifest.SOURCE_LIQUID,
                 profileIds = listOf(profile.id),
-                rendererVersion = VersionRange(CoreInfo.minRendererFor(video = false, style = choreo.style.name, liquid = true, glass = request.spec.isGlass), CoreInfo.RENDERER_VERSION),
+                rendererVersion = VersionRange(CoreInfo.minRendererFor(video = false, style = choreo.style.name, liquid = true, glass = request.spec.isGlass, scene = request.spec.isScene), CoreInfo.RENDERER_VERSION),
                 motionIntensity = request.intensity,
                 scenes = Scenes(
                     cover = scenes.getValue(ScreenKind.COVER).copy(world = rect(frames.cover)),
@@ -130,7 +130,7 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
                 liquid = request.spec,
                 colors = PackColors(hex(glow), hex(accent), hex(colors[1]), hex(colors[0])),
                 generation = GenerationRecipe(provider = PROVIDER, providerVersion = "1.0.0", seed = request.seed, mode = "CUSTOM"),
-                tags = if (request.spec.isGlass) listOf("liquid", "glass") else listOf("liquid"),
+                tags = when { request.spec.isGlass -> listOf("liquid", "glass"); request.spec.isScene -> listOf("live", request.spec.look); else -> listOf("liquid") },
             )
             File(staging, FoldPackManifest.FILE_NAME).writeText(CoreInfo.json.encodeToString(FoldPackManifest.serializer(), manifest))
             Checksums.write(staging)

@@ -199,14 +199,21 @@ class FoldWallpaperService : WallpaperService() {
                     Intent.ACTION_USER_PRESENT -> {
                         trace("UNLOCKED", PocEvents.detail(PocEvents.VISIBLE to state.visible))
                         dispatch(FoldEvent.Unlocked(now()))
+                        refreshAfterKeyguard()
                     }
-                    else -> syncKeyguard()
+                    else -> {
+                        syncKeyguard(refresh = true)
+                        recheckKeyguard()
+                    }
                 }
             }
         }
 
-        /** Tells the state machine whether the lock screen is showing right now. */
-        private fun syncKeyguard() {
+        /**
+         * Tells the state machine whether the lock screen is showing right now. With [refresh],
+         * also brings the picture in line: still on the lock screen, living once unlocked.
+         */
+        private fun syncKeyguard(refresh: Boolean = false) {
             val locked = try {
                 getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
             } catch (e: Exception) {
@@ -215,7 +222,30 @@ class FoldWallpaperService : WallpaperService() {
             if (locked != state.locked) {
                 trace("KEYGUARD", PocEvents.detail("locked" to locked))
                 dispatch(FoldEvent.KeyguardChanged(now(), locked))
+                if (refresh) refreshAfterKeyguard()
             }
+        }
+
+        /**
+         * The lock screen takes a moment to fade in or out, and the system can report it late
+         * (Samsung reports "locked" for a while after the unlock): look again shortly after.
+         */
+        private val recheck = Runnable { syncKeyguard(refresh = true) }
+
+        private fun recheckKeyguard() {
+            handler.removeCallbacks(recheck)
+            try {
+                getSystemService(android.hardware.display.DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
+            } catch (_: Exception) {
+            }
+            handler.postDelayed(recheck, 600L)
+            handler.postDelayed(recheck, 1_800L)
+        }
+
+        /** The lock state changed: stop or resume living motion, redraw the right pose. */
+        private fun refreshAfterKeyguard() {
+            if (transitionKind == null && state.surface != null) refreshAmbient()
+            recheckKeyguard()
         }
 
         private val frameCallback = Choreographer.FrameCallback { frameTimeNanos ->
@@ -247,6 +277,10 @@ class FoldWallpaperService : WallpaperService() {
                 ContextCompat.RECEIVER_NOT_EXPORTED,
             )
             syncKeyguard()
+            try {
+                getSystemService(android.hardware.display.DisplayManager::class.java)?.registerDisplayListener(displayListener, handler)
+            } catch (_: Exception) {
+            }
             engines += this
             hinge.acquire()
             tilt = TiltTracker(getSystemService(SensorManager::class.java))
@@ -271,6 +305,11 @@ class FoldWallpaperService : WallpaperService() {
             try {
                 unregisterReceiver(lockReceiver)
             } catch (_: IllegalArgumentException) {
+            }
+            handler.removeCallbacks(recheck)
+            try {
+                getSystemService(android.hardware.display.DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
+            } catch (_: Exception) {
             }
             hinge.release()
             releaseScenes()
@@ -320,6 +359,34 @@ class FoldWallpaperService : WallpaperService() {
                     sessionPostureChangedAtMs = FoldSession.postureChangedAtMs,
                 ),
             )
+            // Whatever the state machine decided, never leave the old buffer up (a rotation can
+            // keep the same size, and the system would show the stale picture turned sideways).
+            redrawIfIdle()
+        }
+
+        /** Draws the current pose again when nothing else is drawing. */
+        private fun redrawIfIdle() {
+            val kind = state.surface?.kind ?: return
+            if (state.visible && transitionKind == null && scenes[kind] != null && !ambientRunning) drawStatic(kind)
+        }
+
+        /** The display turned: redraw for its new orientation (and note it in the trace). */
+        private val displayListener = object : android.hardware.display.DisplayManager.DisplayListener {
+            private var rotation = -1
+            override fun onDisplayAdded(displayId: Int) {}
+            override fun onDisplayRemoved(displayId: Int) {}
+            override fun onDisplayChanged(changed: Int) {
+                if (changed != displayId) return
+                val now = try {
+                    displayContext?.display?.rotation ?: -1
+                } catch (e: Exception) {
+                    -1
+                }
+                if (now == rotation) return
+                rotation = now
+                trace("ROTATION", PocEvents.detail("rotation" to now, PocEvents.W to surfaceWidth, PocEvents.H to surfaceHeight))
+                redrawIfIdle()
+            }
         }
 
         override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
@@ -339,7 +406,10 @@ class FoldWallpaperService : WallpaperService() {
             super.onVisibilityChanged(visible)
             trace(PocEvents.VISIBILITY, PocEvents.detail(PocEvents.VISIBLE to visible))
             if (visible) state.surface?.kind?.let { FoldSession.inferSwitch(id, it) }
-            if (visible) syncKeyguard()
+            if (visible) {
+                syncKeyguard()
+                recheckKeyguard()
+            }
             dispatch(
                 FoldEvent.VisibilityChanged(
                     now(), visible,
@@ -666,8 +736,10 @@ class FoldWallpaperService : WallpaperService() {
 
         // ------------------------------------------------------------ living motion
 
+        /** Living motion between folds; none on the lock screen, where the wallpaper waits still. */
         private fun livingAllowed(scene: LoadedScene): Boolean =
-            scene.isAlive && settings.livingMotion != LivingMotion.OFF && state.policy.motionAllowed
+            scene.isAlive && settings.livingMotion != LivingMotion.OFF && state.policy.motionAllowed &&
+                !(state.locked && state.policy.waitForUnlock && !isPreview)
 
         private fun frameState(scene: LoadedScene?): FrameState {
             if (scene == null || !livingAllowed(scene)) return FrameState(timeMs = now())
@@ -677,7 +749,10 @@ class FoldWallpaperService : WallpaperService() {
 
         private fun ambientIntervalNanos(scene: LoadedScene): Long {
             // Full: 60 fps for smooth drift and twinkle; Subtle saves battery at 30.
-            val fps = if (settings.livingMotion == LivingMotion.SUBTLE) AMBIENT_FPS_SUBTLE else maxOf(scene.ambient?.fps ?: 30, AMBIENT_FPS_FULL)
+            val full = maxOf(scene.ambient?.fps ?: 30, AMBIENT_FPS_FULL)
+            // Live scenes move slowly between folds (waves, clouds, lights): 30 fps is plenty.
+            val cap = if (scene.liquid?.isScene == true) AMBIENT_FPS_SUBTLE else AMBIENT_FPS_FULL
+            val fps = if (settings.livingMotion == LivingMotion.SUBTLE) AMBIENT_FPS_SUBTLE else minOf(full, cap)
             return 1_000_000_000L / fps.coerceIn(12, AMBIENT_FPS_FULL)
         }
 

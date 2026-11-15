@@ -61,7 +61,7 @@ replace them later and look even better:
 - Cover screen: Discover wall, a glass wallpaper's detail page, the Add screen.
 - Main screen (open): Discover wall in 4 columns, the detail page with the 3D fold demo.
 - Optional: a 30-second video of folding and unfolding with a glass wallpaper (YouTube link);
-  `docs/promo/fold-motion-promo-0.9-*.mp4` is a ready one rendered by the app itself.
+  `docs/promo/fold-motion-promo-0.9.1-*.mp4` is a ready one rendered by the app itself.
 
 ## 4. Store listing
 
@@ -80,6 +80,9 @@ inner screen. No effects laid on top: the wallpaper itself moves.
 • Liquid glass: clear glass drops over soft colours, live on your phone. They gather when the
   phone is closed, flow apart as you open it and merge again when you close it. Tilt to move the
   light, tap to make them ripple.
+• Real places, alive: oceans where the sun rises as you open the phone, skies whose clouds part,
+  the northern lights unfurling over a lake, rain on a window over the city, and sunrise over a
+  planet seen from orbit.
 • Scenes in depth: mountains, oceans, deserts, cities and space whose own layers glide into place
   when you fold and unfold, and keep living between folds (stars, glints, fireflies).
 • Add your own: turn your photo into a moving wallpaper and choose how it moves, or let Auto lift
@@ -100,6 +103,8 @@ inner screen. No effects laid on top: the wallpaper itself moves.
 • زجاج سائل: قطرات زجاج شفاف فوق ألوان ناعمة، حيّة على هاتفك. تتجمع عندما يكون الهاتف
   مغلقاً، وتنساب متفرقة عند فتحه، وتندمج من جديد عند إغلاقه. أمِل الهاتف لتحريك الضوء، والمسها
   لتتموّج.
+• أماكن حقيقية، حيّة: محيطات تشرق فوقها الشمس حين تفتح الهاتف، وسماء تنفرج غيومها، وشفق قطبي
+  ينبسط فوق بحيرة، ومطر على نافذة فوق المدينة، وشروق فوق كوكب يُرى من المدار.
 • مشاهد بعمق: جبال وبحار وصحارى ومدن وفضاء تنزلق طبقاتها إلى مكانها عند الطيّ والفتح، وتبقى
   حيّة بين الطيّات (نجوم وبريق ويراعات).
 • أضف خلفيتك: حوّل صورتك إلى خلفية متحركة واختر طريقة حركتها، أو دع الوضع التلقائي يرفع الشخص
@@ -146,3 +151,8 @@ policy requirements, which the app would meet but which add review steps).
 - `versionCode` increased (Play rejects a code it has seen).
 - Release notes in English and Arabic.
 - Check the merged manifest still has no INTERNET permission: `aapt2 dump permissions` on the APK.
+
+## Version numbers
+
+Each update goes up by a small step (0.9.1, 0.9.2, ...) and stays below 1.0 until the owner
+decides the app is ready; `versionCode` goes up by one each time (Play requires it).

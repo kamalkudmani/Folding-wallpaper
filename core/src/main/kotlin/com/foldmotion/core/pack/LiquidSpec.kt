@@ -15,6 +15,11 @@ import kotlinx.serialization.Serializable
  *    cast soft shadows. Their motion is the picture itself ([form]): gathered over the cover when
  *    the phone is closed, they flow apart across the main screen as it opens (right to left) and
  *    merge back together as it closes. Tilt turns their light and parallax, taps wobble them.
+ *  - Live scenes (renderer 8): realistic places computed on the GPU, whose own content is the
+ *    fold motion: [LOOK_OCEAN] (the sun or moon rises over rolling waves), [LOOK_SKY] (clouds
+ *    part around the sun), [LOOK_AURORA] (the lights unfurl across the sky over a lake),
+ *    [LOOK_RAIN] (fog clears from a rainy window over city lights) and [LOOK_SPACE] (sunrise
+ *    sweeps over a planet). [form] picks the variant, [palette] its colours.
  *
  * The pack still carries one poster per screen (the liquid at time 0) for phones without runtime
  * shaders (Android 11 and 12), for thumbnails and for when motion is off.
@@ -56,12 +61,19 @@ data class LiquidSpec(
 ) {
     val isGlass: Boolean get() = look == LOOK_GLASS
 
+    /** A realistic live scene (renderer 8). */
+    val isScene: Boolean get() = look in SCENE_LOOKS
+
+    /** The content itself is the fold motion (glass and scenes): no layer motion on top. */
+    val isIntrinsic: Boolean get() = look != LOOK_METAL
+
     fun isWellFormed(): Boolean =
         palette.size == 4 && palette.all(::isHexColor) &&
             specular in 0f..1.5f && gloss in 4f..160f && brightness in 0.4f..1.8f &&
             span in 0.4f..4f && warp in 0f..5f && speed in 0.25f..4f && seed in 0..9999 &&
             look in LOOKS && isHexColor(tint) && frost in 0f..0.6f && refraction in 0f..2f &&
-            (!isGlass || form in com.foldmotion.core.motion.GlassLayout.FORMS)
+            (!isGlass || form in com.foldmotion.core.motion.GlassLayout.FORMS) &&
+            (!isScene || form in SCENE_FORMS.getValue(look))
 
     companion object {
         /** The flow repeats exactly after this long, so time never loses float precision. */
@@ -75,7 +87,55 @@ data class LiquidSpec(
 
         const val LOOK_METAL = "metal"
         const val LOOK_GLASS = "glass"
-        val LOOKS = setOf(LOOK_METAL, LOOK_GLASS)
+        const val LOOK_OCEAN = "ocean"
+        const val LOOK_SKY = "sky"
+        const val LOOK_AURORA = "aurora"
+        const val LOOK_RAIN = "rain"
+        const val LOOK_SPACE = "space"
+        val SCENE_LOOKS = setOf(LOOK_OCEAN, LOOK_SKY, LOOK_AURORA, LOOK_RAIN, LOOK_SPACE)
+        val LOOKS = setOf(LOOK_METAL, LOOK_GLASS) + SCENE_LOOKS
+
+        /** Variants of each live scene, in the order the shader numbers them. */
+        val SCENE_FORMS: Map<String, List<String>> = mapOf(
+            LOOK_OCEAN to listOf("sun", "moon"),
+            LOOK_SKY to listOf("day", "night"),
+            LOOK_AURORA to listOf("lake"),
+            LOOK_RAIN to listOf("city"),
+            LOOK_SPACE to listOf("earth", "mars", "giant", "ice"),
+        )
+
+        /**
+         * The realistic set that ships with the app (0.9.1): four of each scene. Palettes:
+         * ocean and sky (zenith, horizon, sun, water or land), aurora (sky top, sky low, the
+         * lights' two colours), rain (night top, street glow, two light colours), space (space
+         * tint, nebula, atmosphere, surface).
+         */
+        val SCENES: Map<String, LiquidSpec> = linkedMapOf(
+            "ocean_sunset" to scene(LOOK_OCEAN, "sun", listOf("#2B3A67", "#F29E6D", "#FFD9A0", "#0E2433"), 11, amount = 2.4f),
+            "ocean_moon" to scene(LOOK_OCEAN, "moon", listOf("#03060F", "#1B2B4A", "#E8EEFF", "#050B16"), 23, amount = 1.6f),
+            "ocean_tropic" to scene(LOOK_OCEAN, "sun", listOf("#1E6FD9", "#BFE6FF", "#FFF6E0", "#0C6E86"), 37, amount = 0.9f),
+            "ocean_storm" to scene(LOOK_OCEAN, "sun", listOf("#2C3138", "#8A8F96", "#FFE6B8", "#1A2328"), 41, brightness = 0.95f, amount = 4.6f),
+            "sky_golden" to scene(LOOK_SKY, "day", listOf("#3C5C9C", "#F7B267", "#FFE2B0", "#2A1E2E"), 5, amount = 2.6f),
+            "sky_dawn" to scene(LOOK_SKY, "day", listOf("#6A7FC1", "#F6C1C8", "#FFF1E0", "#3B3552"), 17, amount = 2.3f),
+            "sky_blue" to scene(LOOK_SKY, "day", listOf("#2F6FD0", "#A9D3F5", "#FFFBF0", "#33503A"), 29, amount = 2.0f),
+            "sky_night" to scene(LOOK_SKY, "night", listOf("#04070F", "#1A2440", "#DDE6FF", "#05070C"), 53, amount = 2.6f),
+            "aurora_green" to scene(LOOK_AURORA, "lake", listOf("#020611", "#0B2233", "#3DFFB0", "#7A5CFF"), 7),
+            "aurora_violet" to scene(LOOK_AURORA, "lake", listOf("#05030F", "#1B1236", "#B46BFF", "#FF5FA8"), 19),
+            "aurora_teal" to scene(LOOK_AURORA, "lake", listOf("#010A10", "#08303A", "#3FE0FF", "#3DFF8F"), 31),
+            "aurora_crimson" to scene(LOOK_AURORA, "lake", listOf("#07030A", "#22101E", "#FF4F6D", "#5CFFB5"), 43),
+            "rain_neon" to scene(LOOK_RAIN, "city", listOf("#05040C", "#2A1240", "#FF3FA4", "#3FD7FF"), 13),
+            "rain_amber" to scene(LOOK_RAIN, "city", listOf("#06050A", "#3A2412", "#FFB347", "#FF6A3D"), 27),
+            "rain_blue" to scene(LOOK_RAIN, "city", listOf("#030812", "#0E2440", "#6FB8FF", "#FFE08A"), 39),
+            "rain_emerald" to scene(LOOK_RAIN, "city", listOf("#030A08", "#0E2A22", "#4DFFC1", "#FFD36E"), 47),
+            "space_earth" to scene(LOOK_SPACE, "earth", listOf("#02030A", "#1C2A5A", "#6FB6FF", "#2E6FB0"), 3),
+            "space_mars" to scene(LOOK_SPACE, "mars", listOf("#050204", "#3A1A2A", "#FF9A6A", "#B5532E"), 15),
+            "space_giant" to scene(LOOK_SPACE, "giant", listOf("#030305", "#2A2040", "#FFD9A8", "#C9A27A"), 25),
+            "space_ice" to scene(LOOK_SPACE, "ice", listOf("#02050A", "#10304A", "#A8F0FF", "#BFE3F2"), 35),
+        )
+
+        /** [amount] (0..5, stored in [warp]): clouds for ocean and sky, drops for rain, brightness of the lights for aurora. */
+        private fun scene(look: String, form: String, palette: List<String>, seed: Int, brightness: Float = 1f, amount: Float = 2.6f) =
+            LiquidSpec(palette, brightness = brightness, seed = seed, look = look, form = form, touch = false, hinge = false, warp = amount)
 
         /**
          * The liquid glass set that ships with the app (0.9). Light and dark colour fields, clear

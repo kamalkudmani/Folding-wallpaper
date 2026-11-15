@@ -18,9 +18,17 @@ Before you start: Settings > Fold Lab > **Clear**, so the trace only holds this 
 
 - [ ] Screen off, then on: the lock screen shows the wallpaper waiting in the first pose of its
       motion (glass: the drops gathered on the right of the main screen), not moving yet.
-- [ ] Unlock: the animation of the screen in use plays right after the lock screen goes.
+- [ ] On the lock screen nothing moves at all (no waves, drops or drifting): it waits.
+- [ ] Unlock **without folding** (phone open, or closed): the animation of the screen in use plays
+      right after the lock screen goes. Try fingerprint, face and PIN.
 - [ ] Unfold while still on the lock screen: no animation; unlock: the open animation plays.
 - [ ] Settings > Play after unlocking off: the animation plays as soon as the screen turns on.
+
+## 2a. Rotation (0.9.1)
+
+- [ ] Open phone, home screen, turn it sideways: the wallpaper fills the whole screen (no grey
+      bars, no square). Turn it back. If grey appears, take a screenshot and send a report
+      (Settings > Report a problem, keep the Fold Lab trace).
 
 ## 2b. Fold with the screen OFF
 
@@ -48,6 +56,16 @@ Before you start: Settings > Fold Lab > **Clear**, so the trace only holds this 
 - [ ] Watch a glass wallpaper for 30 s: the drops drift slowly and never jump.
 - [ ] Turn on power saving: the motion stops; turn it off: it resumes.
 - [ ] Settings > Reduce motion on: the motion stops.
+
+## 4b. Realistic scenes (0.9.1)
+
+- [ ] Ocean sunset: closed, the sun sits on the horizon; unfold: it rises and its light path on
+      the water follows; the waves keep rolling (watch 20 s).
+- [ ] Golden hour (Sky): unfold: the clouds part around the sun and drift left.
+- [ ] Northern lights: unfold: the lights spread across the sky from the right.
+- [ ] Neon rain: unfold: the fogged glass clears from the right; drops run down the glass.
+- [ ] Blue planet: unfold: the sun climbs over the planet's edge and daylight spreads.
+- [ ] Note any scene that stutters, looks blurry or heats the phone.
 
 ## 5. Add your own
 

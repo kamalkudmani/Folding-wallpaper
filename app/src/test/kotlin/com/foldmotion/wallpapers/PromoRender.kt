@@ -46,7 +46,8 @@ class PromoRender {
     private class Shot(val cover: LoadedScene, val main: LoadedScene)
 
     private fun shot(look: String): Shot {
-        val pack = container.liquidBuilder.build(LiquidRequest(LiquidSpec.PRESETS.getValue(look), FoldStyle.NATURAL, seed = 9L), fold7)
+        val spec = LiquidSpec.PRESETS[look] ?: LiquidSpec.SCENES.getValue(look)
+        val pack = container.liquidBuilder.build(LiquidRequest(spec, FoldStyle.NATURAL, seed = 9L), fold7)
         return Shot(SceneLoader.load(pack.dir, ScreenKind.COVER)!!, SceneLoader.load(pack.dir, ScreenKind.MAIN)!!)
     }
 
@@ -61,6 +62,9 @@ class PromoRender {
         val lagoon = shot("lagoon")
         val orchid = shot("orchid")
         val midnight = shot("midnight")
+        val ocean = shot("ocean_sunset")
+        val aurora = shot("aurora_green")
+        val earth = shot("space_earth")
         var index = 0
         var clock = 20_000L
 
@@ -135,14 +139,18 @@ class PromoRender {
         repeat(seconds(1.2f)) { emit(orchid.cover.glow) { c, st -> phone(c, orchid.cover, coverW, coverH, H * 0.52f, null, st, false) } }
         // 5. Midnight opens.
         unfold(midnight, 1.4f)
-        // 6. End card over the open daybreak, dimmed.
+        // 6. Real places: the sun rises over the sea, the aurora unfurls, dawn over a planet.
+        unfold(ocean, 1.0f)
+        unfold(aurora, 1.0f)
+        unfold(earth, 1.0f)
+        // 7. End card over the open daybreak, dimmed.
         repeat(seconds(3f)) {
             emit(daybreak.main.glow) { c, st ->
                 phone(c, daybreak.main, mainW, mainH, H * 0.52f, null, st, true)
                 c.drawColor(Color.argb(150, 4, 5, 8))
             }
         }
-        for (s in listOf(daybreak, lagoon, orchid, midnight)) {
+        for (s in listOf(daybreak, lagoon, orchid, midnight, ocean, aurora, earth)) {
             s.cover.recycle()
             s.main.recycle()
         }

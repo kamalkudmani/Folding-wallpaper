@@ -162,8 +162,8 @@ private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String,
     ) {
         Box(Modifier.fillMaxWidth().sharedArt("art-${item.id}")) {
             FoldCardArt(cover, main, shape)
-            if (item.isGlass) {
-                // Live glass: a small "Live" capsule with a glowing dot.
+            if (item.isLive) {
+                // Live glass or scene: a small "Live" capsule with a glowing dot.
                 Row(
                     Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(50)).background(Color(0x99000000)).padding(horizontal = 9.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -175,7 +175,11 @@ private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String,
         }
         Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp))
         Text(
-            if (item.isGlass) stringResource(R.string.discover_glass) else familyLabel(item.family),
+            when {
+                item.isGlass -> stringResource(R.string.discover_glass)
+                item.entry.liquid?.look == com.foldmotion.core.pack.LiquidSpec.LOOK_SKY -> stringResource(R.string.discover_sky)
+                else -> familyLabel(item.family)
+            },
             style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(start = 4.dp, top = 2.dp),
         )
     }
@@ -242,13 +246,13 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
     LaunchedEffect(job, glassJob, waiting) {
         if (!waiting) return@LaunchedEffect
         val j = job
-        if (!item.isGlass && j != null && j.status == JobStatus.READY && j.packId != null) {
+        if (!item.isLive && j != null && j.status == JobStatus.READY && j.packId != null) {
             waiting = false
             vm.dismissJob()
             onPackReady(j.packId)
         }
         val g = glassJob
-        if (item.isGlass && g is VideoJob.Done) {
+        if (item.isLive && g is VideoJob.Done) {
             waiting = false
             vm.dismissVideoJob()
             onPackReady(g.packId)
@@ -287,7 +291,7 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
         )
         SectionTitle(stringResource(R.string.discover_motion_title))
         Text(
-            stringResource(if (item.isGlass) R.string.discover_glass_body else R.string.discover_motion_drawn),
+            stringResource(motionText(item.entry.liquid)),
             style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted,
         )
         SectionTitle(stringResource(R.string.discover_both))
@@ -351,4 +355,16 @@ fun DetailLayout(
             }
         }
     }
+}
+
+/** What moves in a wallpaper whose motion is built in, by kind. */
+fun motionText(liquid: com.foldmotion.core.pack.LiquidSpec?): Int = when (liquid?.look) {
+    null -> R.string.discover_motion_drawn
+    com.foldmotion.core.pack.LiquidSpec.LOOK_GLASS -> R.string.discover_glass_body
+    com.foldmotion.core.pack.LiquidSpec.LOOK_OCEAN -> R.string.motion_ocean
+    com.foldmotion.core.pack.LiquidSpec.LOOK_SKY -> R.string.motion_sky
+    com.foldmotion.core.pack.LiquidSpec.LOOK_AURORA -> R.string.motion_aurora
+    com.foldmotion.core.pack.LiquidSpec.LOOK_RAIN -> R.string.motion_rain
+    com.foldmotion.core.pack.LiquidSpec.LOOK_SPACE -> R.string.motion_space
+    else -> R.string.discover_liquid_live
 }

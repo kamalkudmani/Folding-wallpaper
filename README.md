@@ -9,6 +9,21 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**0.9.1: Real places, alive.** Twenty realistic live wallpapers, computed on the phone and
+moving with the fold like the glass: four **oceans** (the sun or moon rises over rolling waves
+as you open the phone), four **skies** (the clouds part around the sun and drift away), four
+**auroras** over a mountain lake (the lights unfurl across the sky), four **rainy windows** over
+city lights (the fogged glass clears) and four **planets** seen from orbit (sunrise sweeps
+across them). Discover now holds 48 wallpapers, with a new Sky filter, and the promo shows them.
+Fixes: unlocking without folding plays the animation again (Samsung reports "locked" for a
+moment after the unlock; that stale reading no longer swallows it, and the lock screen going
+away counts as an unlock even if the broadcast is late); the lock screen is now completely still
+until you unlock; the wallpaper redraws on every rotation and the trace records each one.
+
+| Promo (vertical) | Play screenshots |
+|---|---|
+| [fold-motion-promo-0.9.1-en.mp4](docs/promo/fold-motion-promo-0.9.1-en.mp4) · [AR](docs/promo/fold-motion-promo-0.9.1-ar.mp4) | [docs/store/screenshots](docs/store/screenshots) |
+
 **0.9: The motion is in the picture.** Every wallpaper now moves by itself instead of having an
 effect laid over it. A new set of eight **liquid glass** wallpapers (in the spirit of the
 phone's glass design): clear glass drops over soft colour fields that bend the colours behind
@@ -22,10 +37,6 @@ pose of its motion, so unlocking continues it without a jump. **Create is gone**
 describing or random scenes; the new **Add** tab takes your own photo (choose its motion, or
 Auto lifts a person or pet out in 3D) or your own video (it plays as it is). The molten liquids
 and the sample clip are retired (packs made with them still play).
-
-| Promo (vertical) | Play screenshots |
-|---|---|
-| [fold-motion-promo-0.9-en.mp4](docs/promo/fold-motion-promo-0.9-en.mp4) · [AR](docs/promo/fold-motion-promo-0.9-ar.mp4) | [docs/store/screenshots](docs/store/screenshots) |
 
 **0.8.2: After unlock.** Like Samsung's own wallpapers, the fold animation no longer plays on the
 lock screen: the wallpaper stays still there and the animation of the screen in use plays once
@@ -110,6 +121,15 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
   on whole turns per 10 minutes, shifted by tilt with depth parallax, drawn towards the crease
   when half open. The fold progress drives them, so they are the fold animation; rendered at 1/1.6
   resolution for crisp rims.
+- **Live scenes** (0.9.1, renderer 8): ocean, sky, aurora, rain and space, each an AGSL shader
+  in world space (`LiveScenes`), driven by one `open` value from the same spring as the glass, so
+  the place itself is the fold animation. Ocean: a pinhole camera over a plane of eight swells on
+  whole-turn frequencies plus fine ripples, Fresnel reflection of a sky with a perspective cloud
+  deck, the sun's glitter path. Sky: a domain-warped cloud deck lit towards the sun, parting
+  around it. Aurora: ribbons with rays over ridged mountains and a forest, mirrored in a lake.
+  Rain: three layers of bokeh, still and running drops that act as lenses, fog that clears.
+  Space: a textured sphere with atmosphere, terminator and night lights, and a sun over its
+  limb. Living motion runs at 30 fps for scenes.
 - **Built-in motion** (0.9, NATURAL style, renderer 7): no reveal, overlay or particles. Opening,
   the backdrop settles from a slight zoom on the cover's part and the layers in front glide in
   from the right and rise, nearer ones further and later (never past their hidden margin);
@@ -214,3 +234,8 @@ docs/   Review, schema, API draft, privacy policy, Play release kit, screenshots
 Install the APK. On One UI 6+, **Auto Blocker** may refuse apps from outside the store:
 Settings → Security and privacy → Auto Blocker → turn off while installing. Then create a pack,
 tap Apply, and confirm with *Set wallpaper*. Use Settings → Fold Lab to record the device test.
+
+## Versioning
+
+Releases go up in small steps (0.9.1, 0.9.2, 0.9.3...) and stay below 1.0 until the owner says
+the app is ready; 1.0 is reserved for that moment. Every release bumps `versionCode` by one.

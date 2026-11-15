@@ -296,6 +296,9 @@ class FoldPackValidator(
             if (manifest.rendererVersion.min < CoreInfo.LIVE_LIQUID_RENDERER_VERSION) {
                 fail(ValidationCode.INVALID_MANIFEST, "liquid needs rendererVersion.min ${CoreInfo.LIVE_LIQUID_RENDERER_VERSION}")
             }
+            if (l.isScene && manifest.rendererVersion.min < CoreInfo.SCENES_RENDERER_VERSION) {
+                fail(ValidationCode.INVALID_MANIFEST, "live scenes need rendererVersion.min ${CoreInfo.SCENES_RENDERER_VERSION}")
+            }
             if (l.isGlass && manifest.rendererVersion.min < CoreInfo.NATURAL_RENDERER_VERSION) {
                 fail(ValidationCode.INVALID_MANIFEST, "liquid glass needs rendererVersion.min ${CoreInfo.NATURAL_RENDERER_VERSION}")
             }

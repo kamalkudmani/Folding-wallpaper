@@ -258,4 +258,12 @@
     <string name="discover_motion_title">Built-in motion</string>
     <string name="discover_motion_drawn">The picture itself moves: its layers glide into place in depth when you open and close the phone, and the scene keeps living between folds. Nothing is laid on top.</string>
     <string name="nav_add">Add</string>
+    <!-- 0.9.1: live scenes -->
+    <string name="discover_sky">Sky</string>
+    <string name="motion_ocean">A live ocean: the waves roll and the light glitters on the water. Open the phone and the sun (or the moon) rises over the horizon; close it and it sinks back.</string>
+    <string name="motion_sky">A live sky: the clouds drift on the wind. Open the phone and they part around the sun and slide away to the left, letting the light through.</string>
+    <string name="motion_aurora">The northern lights over a lake, live: the curtains shimmer and ripple. Open the phone and the lights unfurl across the sky from the right.</string>
+    <string name="motion_rain">Rain on a window at night, with the city behind it: drops run down the glass. Open the phone and the fogged window clears from the right.</string>
+    <string name="motion_space">A planet from orbit, live: its clouds turn and the stars shine. Open the phone and the sun climbs over its edge, sweeping daylight across it.</string>
+    <string name="discover_liquid_live">Computed live on your phone: it never repeats and moves with your phone.</string>
 </resources>

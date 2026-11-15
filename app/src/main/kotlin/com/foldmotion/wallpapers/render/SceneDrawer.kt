@@ -281,7 +281,7 @@ class SceneDrawer {
         val spec = scene.liquid
         val world = scene.world
         val back = scene.layers.firstOrNull()?.first
-        val live = state.ambient || (spec?.isGlass == true && progress != null)
+        val live = state.ambient || (spec?.isIntrinsic == true && progress != null)
         if (spec == null || world == null || back == null || !live || !liquidField.supported) {
             liquidField.clear()
             return
