@@ -19,14 +19,14 @@ FONTS = {
 }
 PHONE = [
     ("01_home", {"en": ("Wallpapers made for the Fold", "Every one shown closed and open"), "ar": ("خلفيات صُنعت للفولد", "كل خلفية مطوية ومفتوحة")}),
-    ("01b_discover_detail", {"en": ("See it fold before you choose", "Live 3D preview, ten fold animations"), "ar": ("شاهدها تنطوي قبل أن تختار", "معاينة ثلاثية الأبعاد حيّة، عشر حركات طيّ")}),
-    ("03c_create_liquid", {"en": ("Live liquid you can touch", "Tilt it, tap it, half-open it"), "ar": ("سائل حيّ يمكنك لمسه", "أمِله، المسه، افتحه نصف فتحة")}),
-    ("02b_create_style", {"en": ("Pick how it unfolds", "Ripple, Flow, Glass and more"), "ar": ("اختر كيف تتفتّح", "تموّج، انسياب، زجاج والمزيد")}),
-    ("03b_create_video", {"en": ("Your photos and videos", "3D photos and video loops, made on your phone"), "ar": ("صورك وفيديوهاتك", "صور ثلاثية الأبعاد وفيديو، تُصنع على هاتفك")}),
+    ("01c_discover_glass", {"en": ("Liquid glass, alive", "Drops gather when closed, flow apart when open"), "ar": ("زجاج سائل حيّ", "قطرات تتجمع عند الإغلاق وتنساب عند الفتح")}),
+    ("01b_discover_detail", {"en": ("The picture itself moves", "No effects on top: the scene glides into place"), "ar": ("الصورة نفسها تتحرك", "بلا مؤثرات فوقها: المشهد ينزلق إلى مكانه")}),
+    ("02c_add_photo_motion", {"en": ("Add your own photo", "Choose how it moves, or lift it out in 3D"), "ar": ("أضف صورتك", "اختر حركتها أو ارفعها بشكل ثلاثي الأبعاد")}),
+    ("03_add_video", {"en": ("Or your own video", "It loops on both screens, made on your phone"), "ar": ("أو الفيديو الخاص بك", "يتكرر على الشاشتين، ويُصنع على هاتفك")}),
 ]
 LARGE = [
-    ("01_home", {"en": ("Made for the open screen", "Four columns of live wallpapers"), "ar": ("مصمم للشاشة المفتوحة", "أربعة أعمدة من الخلفيات الحيّة")}),
-    ("01b_discover_detail", {"en": ("Fold and unfold, live", "Preview every style on the wallpaper"), "ar": ("اطوِ وافتح مباشرة", "عاين كل حركة على الخلفية")}),
+    ("01_home", {"en": ("Made for the open screen", "A wall of moving wallpapers"), "ar": ("مصمم للشاشة المفتوحة", "جدار من الخلفيات المتحركة")}),
+    ("01c_discover_glass", {"en": ("Fold and unfold, live", "Watch the glass move before you choose"), "ar": ("اطوِ وافتح مباشرة", "شاهد الزجاج يتحرك قبل أن تختار")}),
 ]
 BG = (8, 9, 13)
 

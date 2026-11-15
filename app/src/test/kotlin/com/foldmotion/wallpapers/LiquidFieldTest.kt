@@ -70,7 +70,7 @@ class LiquidFieldTest {
 
     @Test
     fun `every preset has form and light, and flows`() {
-        for ((name, spec) in LiquidSpec.PRESETS) {
+        for ((name, spec) in LiquidSpec.METAL) {
             assertTrue(name, spec.isWellFormed())
             val a = render(spec, main, LiquidFrame(0))
             save(a, "preset_$name")
@@ -82,7 +82,7 @@ class LiquidFieldTest {
 
     @Test
     fun `the flow repeats exactly after ten minutes and never jumps`() {
-        val spec = LiquidSpec.PRESETS.getValue("gold")
+        val spec = LiquidSpec.METAL.getValue("gold")
         val a = render(spec, main, LiquidFrame(1_000))
         val b = render(spec, main, LiquidFrame(1_000 + LiquidSpec.PERIOD_SECONDS * 1000L))
         assertTrue("period ${diff(a, b)}", diff(a, b) < 1.0)
@@ -96,7 +96,7 @@ class LiquidFieldTest {
 
     @Test
     fun `the cover shows the same liquid as the main screen around it`() {
-        val spec = LiquidSpec.PRESETS.getValue("aurora")
+        val spec = LiquidSpec.METAL.getValue("aurora")
         val full = render(spec, main, LiquidFrame(500), 270, 300)
         // The middle third of the main window, rendered on its own.
         val slice = WorldRect(0.3f, 0f, 0.6f, 1f)
@@ -108,7 +108,7 @@ class LiquidFieldTest {
 
     @Test
     fun `tilt, a tap and the hinge move the liquid where they should`() {
-        val spec = LiquidSpec.PRESETS.getValue("pearl")
+        val spec = LiquidSpec.METAL.getValue("pearl")
         val still = render(spec, main, LiquidFrame(0))
         val tilted = render(spec, main, LiquidFrame(0, flowX = 0.4f))
         assertTrue("tilt ${diff(still, tilted)}", diff(still, tilted) > 6.0)

@@ -10,13 +10,14 @@ Before you start: Settings > Fold Lab > **Clear**, so the trace only holds this 
 
 ## 1. Apply
 
-- [ ] Discover > **Molten gold** > Get this wallpaper > Apply. The system preview opens and the
-      wallpaper is set on the home screen (and lock screen if you choose both).
+- [ ] Discover > **Daybreak** (Glass) > Get this wallpaper > Apply. The system preview opens and
+      the wallpaper is set on the home screen (and lock screen if you choose both).
 - [ ] The app shows it as Active in the Library.
 
-## 2. Lock screen (0.8.2: plays after unlock, like Samsung)
+## 2. Lock screen (plays after unlock, like Samsung)
 
-- [ ] Screen off, then on: the lock screen shows the wallpaper still (no animation).
+- [ ] Screen off, then on: the lock screen shows the wallpaper waiting in the first pose of its
+      motion (glass: the drops gathered on the right of the main screen), not moving yet.
 - [ ] Unlock: the animation of the screen in use plays right after the lock screen goes.
 - [ ] Unfold while still on the lock screen: no animation; unlock: the open animation plays.
 - [ ] Settings > Play after unlocking off: the animation plays as soon as the screen turns on.
@@ -33,33 +34,36 @@ Before you start: Settings > Fold Lab > **Clear**, so the trace only holds this 
 - [ ] On the cover home screen, unfold: the main screen plays the unfold animation.
 - [ ] Repeat 5 times quickly. Note any time it does not play or stutters.
 
-## 4. Live liquid, 3D photo and video
+## 4. Liquid glass and built-in motion (0.9)
 
-- [ ] The liquid keeps flowing on both screens and never jumps (watch 30 s).
-- [ ] Tilt the phone slowly: the liquid drifts downhill. Tap empty space on the home screen: a
-      ripple spreads from your finger (if your launcher passes taps to the wallpaper).
-- [ ] Hold the phone half open (like a laptop): the liquid pools along the fold.
-- [ ] Create > Photo & video > Pick a photo of a person or pet: the subject floats in front and
-      moves against the background when you tilt; unfolding lifts it out of the picture.
+- [ ] Glass: closed, the drops sit together on the cover; unfold: they flow apart to the left
+      and settle with a slight bounce; fold: they flow back together. Smooth or choppy?
+- [ ] The rims look crisp (no blur, no stair steps) on the main screen.
+- [ ] Tilt the phone slowly: the drops shift and the light on their rims turns. Tap empty space
+      on the home screen: the glass ripples (if your launcher passes taps to the wallpaper).
+- [ ] Hold the phone half open (like a laptop): the drops lean towards the fold.
+- [ ] A drawn scene from Discover (e.g. Aurora over the peaks): unfold: the mountains and trees
+      glide in from the right and rise into place, with nothing dark or bright laid over them;
+      fold: the same from the left. No edge or gap shows at the sides.
+- [ ] Watch a glass wallpaper for 30 s: the drops drift slowly and never jump.
 - [ ] Turn on power saving: the motion stops; turn it off: it resumes.
 - [ ] Settings > Reduce motion on: the motion stops.
 
-## 5. Every fold style
+## 5. Add your own
 
-Open the wallpaper in the Library, change the fold animation and test each one with the screen on:
-Unfold, Book, Rise, Warp, Tiles, Sweep, Iris, **Ripple, Flow, Glass**. For each, note: smooth,
-a bit choppy, or broken.
+- [ ] Add > Photo > pick a photo of a person or pet, keep Auto, Make my wallpaper: the subject
+      floats in front and moves against the background when you tilt; unfolding lifts it out.
+- [ ] Add > Photo > pick any photo, choose another motion (e.g. Book), make it, apply.
+- [ ] In the Library, your photo wallpaper offers the motion picker; a Discover wallpaper does
+      not (its motion is built in).
+- [ ] Add > Video > pick a short clip, trim it, make it, apply: it loops on both screens with no
+      effect laid over it.
 
-## 6. Make your own
-
-- [ ] Create > describe a scene, generate, apply.
-- [ ] Create > My video > pick a short clip from the gallery, make it, apply.
-
-## 7. Battery (over one day)
+## 6. Battery (over one day)
 
 - [ ] Settings > Battery > usage by app: Fold Motion should stay low (under ~3% a day with normal
       use). Note the figure.
 
-## 8. Send the results
+## 7. Send the results
 
-Settings > Fold Lab > **Export trace**, plus your notes (smooth / choppy / broken per style).
+Settings > Fold Lab > **Export trace**, plus your notes (smooth / choppy / broken per wallpaper).

@@ -16,15 +16,15 @@ FPS = int(open(os.path.join(FRAMES, "fps.txt")).read().strip())
 BOLD = "/usr/share/fonts/opentype/inter/Inter-Bold.otf" if LANG == "en" else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 REG = "/usr/share/fonts/opentype/inter/Inter-Medium.otf" if LANG == "en" else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 TEXT = {
-    "en": ["Live wallpapers for foldables", "Unfold it, and it pours across", "Tap it. Tilt it. It's liquid.",
-           "Ten fold animations", "Half open: it pools in the fold", "Fold Motion", "Private by design. No account, no ads."],
-    "ar": ["خلفيات حيّة للهواتف القابلة للطي", "افتحه… فينسكب السائل", "المسه. أمِله. إنه سائل.",
-           "عشر حركات طيّ", "نصف مفتوح: يتجمّع عند خط الطي", "Fold Motion", "خصوصية تامة. بلا حساب ولا إعلانات."],
+    "en": ["Liquid glass for your Fold", "Open it, and the drops flow apart", "Tap it. Tilt it. It's glass.",
+           "Close it, and they gather again", "The motion is in the picture", "Fold Motion", "Private by design. No account, no ads."],
+    "ar": ["زجاج سائل لهاتف الفولد", "افتحه… فتنساب القطرات متفرقة", "المسه. أمِله. إنه زجاج.",
+           "أغلقه… فتتجمع من جديد", "الحركة داخل الصورة نفسها", "Fold Motion", "خصوصية تامة. بلا حساب ولا إعلانات."],
 }[LANG]
 # (text index, start s, end s, y, size, bold) following PromoRender's timeline.
-CAPTIONS = [(0, 0.2, 3.0, 150, 60, True), (1, 3.2, 6.0, 150, 60, True), (2, 6.2, 10.0, 150, 60, True),
-            (3, 10.1, 12.7, 150, 60, True), (4, 12.8, 16.0, 150, 58, True), (5, 16.2, 19.1, 820, 124, True),
-            (6, 16.5, 19.1, 990, 46, False)]
+CAPTIONS = [(0, 0.2, 2.5, 150, 60, True), (1, 2.7, 5.6, 150, 58, True), (2, 5.8, 10.1, 150, 60, True),
+            (3, 10.3, 12.6, 150, 58, True), (4, 12.8, 15.5, 150, 58, True), (5, 15.8, 18.6, 820, 124, True),
+            (6, 16.1, 18.6, 990, 46, False)]
 
 fonts = {}
 

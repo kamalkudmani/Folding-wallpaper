@@ -25,8 +25,8 @@ android {
         // WallpaperService.Engine.getDisplayContext. Fold7 ships with Android 16.
         minSdk = 30
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.8.2"
+        versionCode = 12
+        versionName = "0.9.0"
         // LiteRT ships native code: phones are arm64; x86_64 keeps emulators working.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
@@ -107,7 +107,6 @@ android {
                 System.getProperty("foldmotion.videoFrames")?.let { dir -> it.systemProperty("foldmotion.videoFrames", dir) }
                 System.getProperty("foldmotion.discoverOut")?.let { dir -> it.systemProperty("foldmotion.discoverOut", dir) }
                 System.getProperty("foldmotion.storeOut")?.let { dir -> it.systemProperty("foldmotion.storeOut", dir) }
-                System.getProperty("foldmotion.liquid")?.let { v -> it.systemProperty("foldmotion.liquid", v) }
                 System.getProperty("foldmotion.promoOut")?.let { dir -> it.systemProperty("foldmotion.promoOut", dir) }
             }
         }

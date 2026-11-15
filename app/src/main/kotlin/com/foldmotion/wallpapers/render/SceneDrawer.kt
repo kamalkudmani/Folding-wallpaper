@@ -58,6 +58,8 @@ class LoadedScene(
     val videoFile: java.io.File? = null,
     /** Live liquid scene (pack v6): the back layer is computed on the GPU every frame. */
     val liquid: LiquidSpec? = null,
+    /** The main screen's world (liquid glass places its drops there on both screens). */
+    val mainWorld: WorldRect? = null,
 ) {
     /** Taps, tilt drift and hinge for live liquid, owned by whoever shows this scene. */
     val liquidMotion: LiquidMotion by lazy { LiquidMotion() }
@@ -172,7 +174,7 @@ class SceneDrawer {
         pivotY = motion?.pivotY ?: scene.focusY
         val p = progress ?: 1f
         val ambient = if (state.ambient) scene.ambient else null
-        prepareLiquid(scene, state)
+        prepareLiquid(scene, state, if (motion != null) progress else null)
         val reveal = motion?.reveal
         val rp = reveal?.progress(p) ?: 1f
         val revealing = reveal != null && rp < 0.999f
@@ -271,13 +273,16 @@ class SceneDrawer {
 
     /**
      * Records this frame's live liquid for a v6 scene while it is alive (living motion on); the
-     * poster stands in when it is still, on Android 11 and 12, and on software canvases.
+     * poster stands in when it is still, on Android 11 and 12, and on software canvases. Liquid
+     * glass also draws live during a fold motion with living motion off, since its drops are the
+     * fold animation ([progress] is the motion's linear progress, null at rest).
      */
-    private fun prepareLiquid(scene: LoadedScene, state: FrameState) {
+    private fun prepareLiquid(scene: LoadedScene, state: FrameState, progress: Float?) {
         val spec = scene.liquid
         val world = scene.world
         val back = scene.layers.firstOrNull()?.first
-        if (spec == null || world == null || back == null || !state.ambient || !liquidField.supported) {
+        val live = state.ambient || (spec?.isGlass == true && progress != null)
+        if (spec == null || world == null || back == null || !live || !liquidField.supported) {
             liquidField.clear()
             return
         }
@@ -290,7 +295,11 @@ class SceneDrawer {
         // The fold line runs down the middle of the main screen (only the main screen uses it).
         val crease = world.left + world.width / 2f
         val motion = scene.liquidMotion.frame(state.timeMs, state.tiltX, state.tiltY, scene.kind, crease)
-        liquidField.prepare(spec, layerWorld, frame.width() * (back.right - back.left), frame.height() * (back.bottom - back.top), motion)
+            .copy(tiltX = state.tiltX, tiltY = state.tiltY, kind = scene.kind, progress = progress, mainWorld = scene.mainWorld)
+        liquidField.prepare(
+            spec, layerWorld, frame.width() * (back.right - back.left), frame.height() * (back.bottom - back.top), motion,
+            LiquidField.downscaleFor(spec),
+        )
     }
 
     /** Flat gradient shown while a scene loads or when a pack is unavailable. Never black. */

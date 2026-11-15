@@ -41,7 +41,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -69,11 +68,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldmotion.core.device.DeviceProfileRegistry
-import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.scene.JobStatus
 import com.foldmotion.wallpapers.R
 import com.foldmotion.wallpapers.render.LoadedScene
-import com.foldmotion.wallpapers.render.VideoFrames
 import com.foldmotion.wallpapers.ui.MainViewModel
 import com.foldmotion.wallpapers.ui.VideoJob
 import com.foldmotion.wallpapers.ui.components.DeviceImage
@@ -85,17 +82,14 @@ import com.foldmotion.wallpapers.ui.components.GradientButton
 import com.foldmotion.wallpapers.ui.components.CardShape
 import com.foldmotion.wallpapers.ui.components.FoldCardArt
 import com.foldmotion.wallpapers.ui.components.SectionTitle
-import com.foldmotion.wallpapers.ui.components.StylePicker
 import com.foldmotion.wallpapers.ui.components.UnfoldedDevice
 import com.foldmotion.wallpapers.ui.components.familyLabel
-import com.foldmotion.wallpapers.ui.components.foldStyleLabel
 import com.foldmotion.wallpapers.ui.components.pressScale
 import com.foldmotion.wallpapers.ui.components.rememberDeviceImage
 import com.foldmotion.wallpapers.ui.components.sharedArt
 import com.foldmotion.wallpapers.ui.screens.NavClearance
 import com.foldmotion.wallpapers.ui.theme.FmColors
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /** Rhythm of the wall: two card heights alternate so neighbouring columns stagger gently. */
@@ -106,7 +100,7 @@ private val rhythm = listOf(CardShape.CLOSED, CardShape.OPEN, CardShape.OPEN, Ca
  * phone. Tapping a card grows it into its detail.
  */
 @Composable
-fun DiscoverScreen(vm: MainViewModel, onOpen: (String) -> Unit, onCreate: () -> Unit) {
+fun DiscoverScreen(vm: MainViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit) {
     val context = LocalContext.current
     val language = vm.language()
     val items = remember { DiscoverCatalog.load(context) }
@@ -132,7 +126,7 @@ fun DiscoverScreen(vm: MainViewModel, onOpen: (String) -> Unit, onCreate: () -> 
             }
         }
         if (category == DiscoverCategory.ALL) {
-            item(key = "create") { CreateCard(onCreate) }
+            item(key = "add") { AddCard(onAdd) }
         }
         itemsIndexed(shown, key = { _, it -> it.id }) { index, item ->
             DiscoverCard(item, rhythm[index % rhythm.size], language) { onOpen(item.id) }
@@ -159,7 +153,7 @@ private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String,
     val interaction = remember { MutableInteractionSource() }
     val cover = rememberDeviceImage(DeviceImage.Asset(item.coverAsset), 360)
     val main = rememberDeviceImage(DeviceImage.Asset(item.mainAsset), 520)
-    val title = item.title(language, stringResource(R.string.discover_sample_title))
+    val title = item.title(language)
     Column(
         Modifier.pressScale(interaction, 0.97f)
             .clickable(interaction, indication = null, onClick = onClick)
@@ -168,8 +162,8 @@ private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String,
     ) {
         Box(Modifier.fillMaxWidth().sharedArt("art-${item.id}")) {
             FoldCardArt(cover, main, shape)
-            if (item.isLive) {
-                // Live liquid: a small "Live" capsule with a glowing dot.
+            if (item.isGlass) {
+                // Live glass: a small "Live" capsule with a glowing dot.
                 Row(
                     Modifier.align(Alignment.TopEnd).padding(10.dp).clip(RoundedCornerShape(50)).background(Color(0x99000000)).padding(horizontal = 9.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -177,44 +171,35 @@ private fun DiscoverCard(item: DiscoverItem, shape: CardShape, language: String,
                     Box(Modifier.size(7.dp).clip(CircleShape).background(Color(item.glow)))
                     Text(stringResource(R.string.badge_live), style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(start = 5.dp))
                 }
-            } else if (item.isVideo) {
-                Box(
-                    Modifier.align(Alignment.TopEnd).padding(10.dp).size(28.dp).clip(CircleShape).background(Color(0x99000000)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.badge_video), tint = Color.White, modifier = Modifier.size(18.dp)) }
             }
         }
         Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp))
         Text(
-            when {
-                item.isLiquid -> stringResource(R.string.discover_liquid)
-                item.isVideo -> stringResource(R.string.badge_video)
-                else -> familyLabel(item.family)
-            },
+            if (item.isGlass) stringResource(R.string.discover_glass) else familyLabel(item.family),
             style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(start = 4.dp, top = 2.dp),
         )
     }
 }
 
 @Composable
-private fun CreateCard(onCreate: () -> Unit) {
+private fun AddCard(onAdd: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Column(
         // At least as tall as a short card, taller when the text needs it (never clipped).
         Modifier.fillMaxWidth().heightIn(min = 200.dp).pressScale(interaction, 0.97f).clip(RoundedCornerShape(22.dp))
             .background(FmColors.Surface2)
             .border(1.dp, FmColors.Hairline, RoundedCornerShape(22.dp))
-            .clickable(interaction, indication = null, onClick = onCreate)
+            .clickable(interaction, indication = null, onClick = onAdd)
             .padding(18.dp)
-            .testTag("discover_create"),
+            .testTag("discover_add"),
         verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.Bottom),
     ) {
         Box(Modifier.size(46.dp).clip(CircleShape).background(FmColors.primaryGradient), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Add, contentDescription = null, tint = Color(0xFF04131A))
         }
         Column {
-            Text(stringResource(R.string.discover_create_title), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.discover_create_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, maxLines = 3, modifier = Modifier.padding(top = 4.dp))
+            Text(stringResource(R.string.discover_add_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.discover_add_body), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, maxLines = 3, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
@@ -222,9 +207,9 @@ private fun CreateCard(onCreate: () -> Unit) {
 // ---------------------------------------------------------------------- detail
 
 /**
- * A Discover wallpaper up close: the phone folding and unfolding with it, in the fold style
- * you choose (previewed live before anything is made), both phones side by side, and one button
- * that makes it yours.
+ * A Discover wallpaper up close: the phone folding and unfolding with it, moving exactly as the
+ * wallpaper will (its motion is built into the picture), both phones side by side, and one
+ * button that makes it yours.
  */
 @Composable
 fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, onPackReady: (String) -> Unit) {
@@ -236,63 +221,41 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
     }
     val reduced by vm.reducedMotion.collectAsStateWithLifecycle()
     val job by vm.job.collectAsStateWithLifecycle()
-    val videoJob by vm.videoJob.collectAsStateWithLifecycle()
-    var style by rememberSaveable(itemId) { mutableStateOf(FoldStyle.AUTO) }
+    val glassJob by vm.videoJob.collectAsStateWithLifecycle()
     var waiting by rememberSaveable(itemId) { mutableStateOf(false) }
     val cover = rememberDeviceImage(DeviceImage.Asset(item.coverAsset), 720)
     val main = rememberDeviceImage(DeviceImage.Asset(item.mainAsset), 1080)
 
-    // A video wallpaper plays its real clip on both screens of the demo, as on the phone.
-    var video by remember(item.id) { mutableStateOf<VideoFrames?>(null) }
-    var videoChecked by remember(item.id) { mutableStateOf(!item.isVideo) }
-    LaunchedEffect(item.id) {
-        if (item.isVideo) {
-            // Always finish making the source, then keep it or release it: leaving the page
-            // while it is being made must not leak a player.
-            val made = withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { DiscoverCatalog.videoSource(context, item) }
-            if (!isActive) {
-                made?.release()
-                return@LaunchedEffect
-            }
-            video = made
-            videoChecked = true
-        }
-    }
-    DisposableEffect(item.id) { onDispose { video?.release() } }
-    LaunchedEffect(video, reduced) { video?.setPlaying(!reduced) }
-
-    // Live scenes for the 3D demo, rebuilt when the style changes.
+    // Live scenes for the 3D demo, from the wallpaper's own layers (or its glass).
     var scenes by remember { mutableStateOf<Pair<LoadedScene, LoadedScene>?>(null) }
-    LaunchedEffect(item.id, style, videoChecked) {
-        if (!videoChecked) return@LaunchedEffect
-        val built = withContext(Dispatchers.Default) { DiscoverCatalog.scenes(context, item, style) }
-        built?.first?.videoFrames = video
-        built?.second?.videoFrames = video
-        val old = scenes
-        scenes = built
-        kotlinx.coroutines.delay(600)
-        old?.first?.recycle()
-        old?.second?.recycle()
+    LaunchedEffect(item.id) {
+        scenes = withContext(Dispatchers.Default) { DiscoverCatalog.scenes(context, item) }
+    }
+    DisposableEffect(item.id) {
+        onDispose {
+            scenes?.first?.recycle()
+            scenes?.second?.recycle()
+        }
     }
 
     // When the wallpaper is ready, open it as a pack of your own.
-    LaunchedEffect(job, videoJob, waiting) {
+    LaunchedEffect(job, glassJob, waiting) {
         if (!waiting) return@LaunchedEffect
         val j = job
-        if (!item.isMoving && j != null && j.status == JobStatus.READY && j.packId != null) {
+        if (!item.isGlass && j != null && j.status == JobStatus.READY && j.packId != null) {
             waiting = false
             vm.dismissJob()
             onPackReady(j.packId)
         }
-        val v = videoJob
-        if (item.isMoving && v is VideoJob.Done) {
+        val g = glassJob
+        if (item.isGlass && g is VideoJob.Done) {
             waiting = false
             vm.dismissVideoJob()
-            onPackReady(v.packId)
+            onPackReady(g.packId)
         }
-        if ((j != null && j.status == JobStatus.FAILED) || v is VideoJob.Failed) waiting = false
+        if ((j != null && j.status == JobStatus.FAILED) || g is VideoJob.Failed) waiting = false
     }
-    val busy = waiting && ((job?.isRunning == true) || videoJob is VideoJob.Running)
+    val busy = waiting && ((job?.isRunning == true) || glassJob is VideoJob.Running)
 
     val hero: @Composable (Modifier, androidx.compose.ui.unit.Dp) -> Unit = { modifier, height ->
         Box(modifier.sharedArt("art-${item.id}"), contentAlignment = Alignment.Center) {
@@ -302,31 +265,30 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
         }
     }
     val info: @Composable () -> Unit = {
-        Text(item.title(language, stringResource(R.string.discover_sample_title)), style = MaterialTheme.typography.headlineMedium)
-        Text(
-            item.description(language) ?: stringResource(if (item.isLiquid) R.string.discover_liquid_body else R.string.discover_sample_body),
-            style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 6.dp),
-        )
+        Text(item.title(language), style = MaterialTheme.typography.headlineMedium)
+        item.description(language)?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 6.dp))
+        }
         Spacer(Modifier.height(18.dp))
         GradientButton(
             stringResource(if (busy) R.string.discover_preparing else R.string.discover_get),
             onClick = {
                 waiting = true
                 val liquid = item.entry.liquid
-                // The page previews AUTO as the item's own style: make exactly that.
-                val chosen = if (style == FoldStyle.AUTO) item.autoStyle else style
-                when {
-                    liquid != null -> vm.createLiquidWallpaper(
-                        liquid, chosen,
-                        com.foldmotion.core.pack.LocalizedText(item.entry.titleAr ?: "سائل حيّ", item.entry.titleEn ?: "Live liquid"),
-                    )
-                    item.isVideo -> vm.createSampleVideoWallpaper(chosen, item)
-                    else -> vm.getDiscoverIdea(item, style)
+                if (liquid != null) {
+                    vm.createLiquidWallpaper(liquid, com.foldmotion.core.pack.LocalizedText(item.entry.titleAr ?: item.id, item.entry.titleEn ?: item.id), item.style)
+                } else {
+                    vm.getDiscoverIdea(item)
                 }
             },
             modifier = Modifier.fillMaxWidth().testTag("discover_get"),
             enabled = !busy,
             height = 56.dp,
+        )
+        SectionTitle(stringResource(R.string.discover_motion_title))
+        Text(
+            stringResource(if (item.isGlass) R.string.discover_glass_body else R.string.discover_motion_drawn),
+            style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted,
         )
         SectionTitle(stringResource(R.string.discover_both))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
@@ -339,9 +301,6 @@ fun DiscoverDetailScreen(vm: MainViewModel, itemId: String, onBack: () -> Unit, 
                 Text(stringResource(R.string.discover_open), style = MaterialTheme.typography.labelMedium, color = FmColors.TextMuted, modifier = Modifier.padding(top = 8.dp))
             }
         }
-        SectionTitle(stringResource(R.string.style_title))
-        Text(stringResource(R.string.discover_style_hint, foldStyleLabel(if (style == FoldStyle.AUTO) item.autoStyle else style)), style = MaterialTheme.typography.bodySmall, color = FmColors.TextMuted, modifier = Modifier.padding(bottom = 12.dp))
-        StylePicker(FoldStyle.entries, style, { style = it }, animate = !reduced, enabled = !busy)
     }
 
     DetailLayout(backdrop = main, onBack = onBack, hero = hero, info = info)

@@ -206,6 +206,9 @@ class FoldPackValidator(
                 if (sp.dampingRatio !in 0.5f..1f || sp.stiffness !in 5f..2000f) fail(ValidationCode.INVALID_MOTION, "${ref.file}: spring")
             }
             spec.style?.let { if (FoldStyle.parse(it) == null || it == FoldStyle.AUTO.name) fail(ValidationCode.INVALID_MOTION, "${ref.file}: style") }
+            if (FoldStyle.parse(spec.style) == FoldStyle.NATURAL && manifest.rendererVersion.min < CoreInfo.NATURAL_RENDERER_VERSION) {
+                fail(ValidationCode.INVALID_MANIFEST, "${ref.file}: NATURAL needs rendererVersion.min ${CoreInfo.NATURAL_RENDERER_VERSION}")
+            }
             for (t in spec.tracks) {
                 if (t.delay !in 0f..0.9f || t.span !in 0.1f..1f || t.delay + t.span > 1.0001f) fail(ValidationCode.INVALID_MOTION, "${ref.file}: ${t.target} timing")
             }
@@ -292,6 +295,9 @@ class FoldPackValidator(
             // An older renderer would show only the posters, so a liquid pack says it needs 6.
             if (manifest.rendererVersion.min < CoreInfo.LIVE_LIQUID_RENDERER_VERSION) {
                 fail(ValidationCode.INVALID_MANIFEST, "liquid needs rendererVersion.min ${CoreInfo.LIVE_LIQUID_RENDERER_VERSION}")
+            }
+            if (l.isGlass && manifest.rendererVersion.min < CoreInfo.NATURAL_RENDERER_VERSION) {
+                fail(ValidationCode.INVALID_MANIFEST, "liquid glass needs rendererVersion.min ${CoreInfo.NATURAL_RENDERER_VERSION}")
             }
             if (manifest.video != null) fail(ValidationCode.INVALID_MANIFEST, "a scene is either video or liquid")
             // The liquid is placed by world rects: both screens need theirs.

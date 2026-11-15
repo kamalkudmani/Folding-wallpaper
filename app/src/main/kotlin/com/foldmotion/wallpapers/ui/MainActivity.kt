@@ -70,8 +70,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.foldmotion.wallpapers.R
-import com.foldmotion.wallpapers.ui.screens.CreateScreen
-import com.foldmotion.wallpapers.ui.screens.GeneratingScreen
+import com.foldmotion.wallpapers.ui.screens.AddScreen
 import com.foldmotion.wallpapers.ui.screens.LabScreen
 import com.foldmotion.wallpapers.ui.screens.LibraryScreen
 import com.foldmotion.wallpapers.ui.screens.OnboardingScreen
@@ -107,8 +106,7 @@ object Routes {
     const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val DISCOVER = "discover/{itemId}"
-    const val CREATE = "create"
-    const val GENERATING = "generating"
+    const val ADD = "add"
     const val PREVIEW = "preview/{packId}"
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
@@ -122,7 +120,7 @@ private data class Tab(val route: String, val label: Int, val icon: ImageVector)
 
 private val tabs = listOf(
     Tab(Routes.HOME, R.string.nav_home, Icons.Filled.Home),
-    Tab(Routes.CREATE, R.string.nav_create, Icons.Filled.Add),
+    Tab(Routes.ADD, R.string.nav_add, Icons.Filled.Add),
     Tab(Routes.LIBRARY, R.string.nav_library, Icons.AutoMirrored.Filled.List),
     Tab(Routes.SETTINGS, R.string.nav_settings, Icons.Filled.Settings),
 )
@@ -175,10 +173,7 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
                         DiscoverScreen(
                             vm,
                             onOpen = { id -> nav.navigate(Routes.discover(id)) },
-                            onCreate = {
-                                vm.updateForm { it.copy(mode = com.foldmotion.core.scene.GenerationMode.CUSTOM, videoMode = false) }
-                                nav.navigate(Routes.CREATE)
-                            },
+                            onAdd = { nav.navigate(Routes.ADD) },
                         )
                     }
                     screen(Routes.DISCOVER, arguments = listOf(navArgument("itemId") { type = NavType.StringType })) { e ->
@@ -188,26 +183,8 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
                             onPackReady = { id -> nav.navigate(Routes.preview(id)) { popUpTo(Routes.DISCOVER) { inclusive = true } } },
                         )
                     }
-                    screen(Routes.CREATE) {
-                        CreateScreen(
-                            vm,
-                            onGenerate = { nav.navigate(Routes.GENERATING) },
-                            onOpenPack = { id -> nav.navigate(Routes.preview(id)) },
-                        )
-                    }
-                    screen(Routes.GENERATING) {
-                        GeneratingScreen(
-                            vm,
-                            onReady = { id ->
-                                vm.dismissJob()
-                                nav.navigate(Routes.preview(id)) { popUpTo(Routes.GENERATING) { inclusive = true } }
-                            },
-                            onEdit = {
-                                vm.dismissJob()
-                                nav.navigate(Routes.CREATE) { popUpTo(Routes.GENERATING) { inclusive = true } }
-                            },
-                            onClose = { nav.popBackStack() },
-                        )
+                    screen(Routes.ADD) {
+                        AddScreen(vm, onOpenPack = { id -> nav.navigate(Routes.preview(id)) })
                     }
                     screen(Routes.PREVIEW, arguments = listOf(navArgument("packId") { type = NavType.StringType })) { e ->
                         PreviewScreen(vm, e.arguments?.getString("packId") ?: "", onBack = { nav.popBackStack() })
@@ -233,8 +210,8 @@ fun FoldMotionApp(vm: MainViewModel, nav: NavHostController = rememberNavControl
                 selected = tabIndex,
                 onSelect = { i ->
                     // Each tab opens its own screen fresh on top of Home. Saving and restoring
-                    // tab stacks would bring back a stale preview or generation screen; the
-                    // Create form survives anyway because it lives in the ViewModel.
+                    // tab stacks would bring back a stale preview screen; the Add form
+                    // survives anyway because it lives in the ViewModel.
                     val target = tabs[i].route
                     if (route != target) {
                         nav.navigate(target) {

@@ -77,7 +77,8 @@ class NavigationTest {
 
     private fun route() = nav.currentDestination?.route
 
-    private val tabIndex = mapOf("Home" to 0, "Create" to 1, "Library" to 2, "Settings" to 3)
+    private val tabIndex = mapOf("Home" to 0, "Add" to 1, "Library" to 2, "Settings" to 3)
+    private val tabRoute = mapOf("Home" to Routes.HOME, "Add" to Routes.ADD, "Library" to Routes.LIBRARY, "Settings" to Routes.SETTINGS)
 
     /** Taps a button of the floating navigation bar. */
     private fun tab(name: String) {
@@ -85,35 +86,31 @@ class NavigationTest {
         settle(2)
     }
 
-    /** Create from the Create tab, wait for the pack and open it. */
-    private fun createAndOpen() {
-        tab("Create")
-        assertEquals(Routes.CREATE, route())
-        rule.runOnUiThread { vm.startRandom("aurora_peaks") }
+    /** Gets a Discover wallpaper and waits for it to open as your own. */
+    private fun getAndOpen() {
+        rule.onNodeWithTag("discover_grid").performScrollToNode(hasTestTag("discover_aurora_peaks"))
+        rule.onNodeWithTag("discover_aurora_peaks").performClick()
         settle()
-        // Tap the button itself: scrolled just into view it sits under the floating bar.
-        rule.onNodeWithText("Generate").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
-        settle()
-        assertEquals(Routes.GENERATING, route())
+        assertEquals(Routes.DISCOVER, route())
+        rule.onNodeWithTag("discover_get").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
         val deadline = System.currentTimeMillis() + 60_000
-        while (rule.onAllNodesWithText("Open pack").fetchSemanticsNodes().isEmpty() && System.currentTimeMillis() < deadline) {
+        while (route() != Routes.PREVIEW && System.currentTimeMillis() < deadline) {
             ShadowLooper.idleMainLooper()
+            rule.waitForIdle()
             Thread.sleep(200)
         }
-        rule.onNodeWithText("Open pack").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
-        settle()
         assertEquals(Routes.PREVIEW, route())
     }
 
     @Test
     fun `home is one tap away from the new wallpaper`() {
         start()
-        createAndOpen()
+        getAndOpen()
         tab("Home")
         assertEquals(Routes.HOME, route())
-        // And Create opens Create again, not the old preview.
-        tab("Create")
-        assertEquals(Routes.CREATE, route())
+        // And Add opens Add, not the old preview.
+        tab("Add")
+        assertEquals(Routes.ADD, route())
         tab("Library")
         assertEquals(Routes.LIBRARY, route())
         tab("Home")
@@ -121,14 +118,14 @@ class NavigationTest {
     }
 
     @Test
-    fun `back from the new wallpaper returns to create, then home`() {
+    fun `the discover add card opens add your own`() {
         start()
-        createAndOpen()
-        rule.onNodeWithContentDescription("Back").performClick()
+        rule.onNodeWithTag("discover_add").performClick()
         settle()
-        assertEquals(Routes.CREATE, route())
-        tab("Home")
-        assertEquals(Routes.HOME, route())
+        assertEquals(Routes.ADD, route())
+        rule.onNodeWithTag("add_photo").assertExists()
+        rule.onNodeWithTag("add_video").assertExists()
+        rule.onNodeWithContentDescription("Back").assertDoesNotExist()
     }
 
     @Test
@@ -148,6 +145,8 @@ class NavigationTest {
         assertEquals(Routes.PREVIEW, route())
         val app = ApplicationProvider.getApplicationContext<Application>()
         val made = AppContainer.get(app).packStore.list().first { it.manifest.title.en == "Aurora over the peaks" }
+        // Made with its built-in motion: the picture itself moves.
+        assertEquals("NATURAL", made.manifest.motionStyle)
         // Back from the new wallpaper returns to Discover, not to the detail it replaced.
         rule.onNodeWithContentDescription("Back").performClick()
         settle()
@@ -158,11 +157,11 @@ class NavigationTest {
     @Test
     fun `every tab is reachable from every tab`() {
         start()
-        for (from in listOf("Library", "Settings", "Create", "Home")) {
-            for (to in listOf("Home", "Create", "Library", "Settings")) {
+        for (from in listOf("Library", "Settings", "Add", "Home")) {
+            for (to in listOf("Home", "Add", "Library", "Settings")) {
                 tab(from)
                 tab(to)
-                assertEquals("$from -> $to", to.lowercase(), route())
+                assertEquals("$from -> $to", tabRoute.getValue(to), route())
             }
         }
     }

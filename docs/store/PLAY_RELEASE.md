@@ -39,7 +39,7 @@ on the Fold7, and Google's mandatory closed test.
    `FOLDMOTION_KEY_ALIAS` (`upload`), `FOLDMOTION_KEY_PASSWORD`. CI then signs the bundle with
    the upload key. Without them it signs with the public dev key, which **must never be uploaded**
    (the build prints a warning).
-4. **Test on the Fold7**: install the APK, apply a liquid wallpaper, fold and unfold with the
+4. **Test on the Fold7**: install the APK, apply a glass wallpaper, fold and unfold with the
    screen on and off, record a trace in *Settings > Fold Lab* and check smoothness. Fix anything
    found before testers see it.
 5. **Create the app in Play Console**: name *Fold Motion Wallpapers*, default language English,
@@ -58,9 +58,10 @@ Ready-made sets are in `docs/store/screenshots/` (`phone_en_*`, `phone_ar_*`, `l
 real screens, rendered by its UI tests, framed with a caption. Upload `phone_*` as phone
 screenshots and `large_*` as 7- and 10-inch tablet screenshots. Real captures from the Fold7 can
 replace them later and look even better:
-- Cover screen: Discover wall, a wallpaper's detail page, the Create screen.
+- Cover screen: Discover wall, a glass wallpaper's detail page, the Add screen.
 - Main screen (open): Discover wall in 4 columns, the detail page with the 3D fold demo.
-- Optional: a 30-second video of folding and unfolding with a liquid wallpaper (YouTube link).
+- Optional: a 30-second video of folding and unfolding with a glass wallpaper (YouTube link);
+  `docs/promo/fold-motion-promo-0.9-*.mp4` is a ready one rendered by the app itself.
 
 ## 4. Store listing
 
@@ -72,42 +73,41 @@ replace them later and look even better:
 
 **Full description, English**
 ```
-Fold Motion makes live wallpapers for foldable phones that react to the hinge. Open the phone and
-the scene unfolds from exactly what the cover screen was showing; close it and the cover screen
-comes alive.
+Fold Motion makes live wallpapers for foldable phones where the motion is in the picture itself.
+Close the phone and the scene gathers on the cover screen; open it and it flows out across the
+inner screen. No effects laid on top: the wallpaper itself moves.
 
-• Live liquid: molten gold, aurora silk, liquid chrome, deep ocean and more, computed live on
-  your phone. It never repeats, drifts when you tilt the phone, ripples where you tap and pools
-  along the fold when the phone is half open.
-• 3D photos: pick a photo of a person, a pet or a car; the subject is lifted in front of the
-  background (on your phone, nothing is uploaded) and moves in 3D as you tilt.
-• Ten fold animations: Unfold, Book, Rise, Warp, Tiles, Sweep, Iris, and the new liquid effects
-  Ripple, Flow and Glass that bend the picture itself like water and melting glass.
-• Make your own: describe a scene, pick a random idea, or turn your own photo or video into a
-  wallpaper that fits both screens.
+• Liquid glass: clear glass drops over soft colours, live on your phone. They gather when the
+  phone is closed, flow apart as you open it and merge again when you close it. Tilt to move the
+  light, tap to make them ripple.
+• Scenes in depth: mountains, oceans, deserts, cities and space whose own layers glide into place
+  when you fold and unfold, and keep living between folds (stars, glints, fireflies).
+• Add your own: turn your photo into a moving wallpaper and choose how it moves, or let Auto lift
+  a person or pet out of it in 3D. Or use your own video: it loops on both screens.
 • Preview every wallpaper closed and open, with a 3D fold demo, before you apply it.
+• Like the phone's own wallpapers, the motion waits for you to unlock.
 • Private by design: everything is made on your phone. No internet permission, no account, no ads,
   no tracking.
-• English and Arabic, light on battery: animations play only when you fold, and pause in power
-  saving mode.
+• English and Arabic, light on battery: motion pauses when hidden and in power saving mode.
 ```
 
 **Full description, Arabic**
 ```
-يصنع Fold Motion خلفيات حيّة للهواتف القابلة للطي تتفاعل مع المفصل. افتح الهاتف فيتفتّح المشهد
-من الجزء نفسه الذي كانت تعرضه الشاشة الخارجية، وأغلقه فتنبض الشاشة الخارجية بالحياة.
+يصنع Fold Motion خلفيات حيّة للهواتف القابلة للطي تكون فيها الحركة داخل الصورة نفسها. أغلق
+الهاتف فيتجمع المشهد على الشاشة الخارجية، وافتحه فينساب على الشاشة الداخلية. لا مؤثرات فوق
+الصورة: الخلفية نفسها تتحرك.
 
-• سائل حيّ: ذهب منصهر، حرير الشفق، كروم سائل، أعماق المحيط وغيرها، يُحسب لحظياً على هاتفك.
-  لا يتكرر أبداً، ينساب مع ميل الهاتف، يتموّج حيث تلمس، ويتجمّع عند خط الطي عند نصف الفتح.
-• صور ثلاثية الأبعاد: اختر صورة لشخص أو حيوان أليف أو سيارة، فيُرفع العنصر أمام الخلفية
-  (على هاتفك، بلا رفع أي شيء) ويتحرك بأبعاد ثلاثية مع الميل.
-• عشر حركات طيّ: تفتّح، كتاب، صعود، انطلاق، بلاط، مسح، قزحية، والتأثيرات السائلة الجديدة
-  تموّج وانسياب وزجاج التي تثني الصورة نفسها كالماء والزجاج الذائب.
-• اصنع خلفيتك: صف مشهداً، أو اختر فكرة عشوائية، أو حوّل صورتك أو فيديو خاص بك إلى خلفية
-  تناسب الشاشتين.
+• زجاج سائل: قطرات زجاج شفاف فوق ألوان ناعمة، حيّة على هاتفك. تتجمع عندما يكون الهاتف
+  مغلقاً، وتنساب متفرقة عند فتحه، وتندمج من جديد عند إغلاقه. أمِل الهاتف لتحريك الضوء، والمسها
+  لتتموّج.
+• مشاهد بعمق: جبال وبحار وصحارى ومدن وفضاء تنزلق طبقاتها إلى مكانها عند الطيّ والفتح، وتبقى
+  حيّة بين الطيّات (نجوم وبريق ويراعات).
+• أضف خلفيتك: حوّل صورتك إلى خلفية متحركة واختر طريقة حركتها، أو دع الوضع التلقائي يرفع الشخص
+  أو الحيوان منها بشكل ثلاثي الأبعاد. أو استخدم الفيديو الخاص بك فيتكرر على الشاشتين.
 • عاين كل خلفية مطوية ومفتوحة مع عرض طيّ ثلاثي الأبعاد قبل تطبيقها.
+• مثل خلفيات الهاتف نفسه، تنتظر الحركة حتى تفتح القفل.
 • خصوصية تامة: كل شيء يُصنع على هاتفك. لا صلاحية إنترنت، لا حساب، لا إعلانات، لا تتبّع.
-• بالعربية والإنجليزية، وخفيف على البطارية: الحركة تعمل فقط عند الطيّ وتتوقف في وضع توفير الطاقة.
+• بالعربية والإنجليزية، وخفيف على البطارية: تتوقف الحركة عند الإخفاء وفي وضع توفير الطاقة.
 ```
 
 **Category**: Personalization. **Tags**: Live wallpapers, Wallpapers.

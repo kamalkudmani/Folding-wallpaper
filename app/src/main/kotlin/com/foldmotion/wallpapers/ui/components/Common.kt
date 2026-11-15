@@ -179,16 +179,6 @@ fun statusLabel(s: VerificationStatus): String = stringResource(
     },
 )
 
-fun stageLabel(stage: PipelineStage): Int = when (stage) {
-    PipelineStage.PROMPT_CHECK -> R.string.stage_prompt_check
-    PipelineStage.STORYBOARD -> R.string.stage_storyboard
-    PipelineStage.ANCHOR -> R.string.stage_anchor
-    PipelineStage.DERIVE_COVER -> R.string.stage_derive_cover
-    PipelineStage.LAYERS -> R.string.stage_layers
-    PipelineStage.MOTION_PACK -> R.string.stage_motion
-    PipelineStage.QA -> R.string.stage_qa
-}
-
 fun errorLabel(code: GenerationErrorCode?): Int = when (code) {
     GenerationErrorCode.PROMPT_EMPTY -> R.string.gen_error_prompt_empty
     GenerationErrorCode.PROMPT_TOO_LONG -> R.string.gen_error_prompt_too_long
@@ -196,41 +186,6 @@ fun errorLabel(code: GenerationErrorCode?): Int = when (code) {
     GenerationErrorCode.OUT_OF_MEMORY -> R.string.gen_error_out_of_memory
     GenerationErrorCode.VALIDATION_FAILED -> R.string.gen_error_validation_failed
     GenerationErrorCode.RENDER_FAILED, null -> R.string.gen_error_render_failed
-}
-
-/** Maps a PromptAnalyzer concept key ("family.ocean", "el.stars") to a label, or null. */
-@Composable
-fun conceptLabel(key: String): String? {
-    val res = when (key) {
-        "family.mountains" -> R.string.family_mountains
-        "family.desert" -> R.string.family_desert
-        "family.ocean" -> R.string.family_ocean
-        "family.space" -> R.string.family_space
-        "family.city" -> R.string.family_city
-        "family.abstract" -> R.string.family_abstract
-        "family.minimal" -> R.string.family_minimal
-        "time.night" -> R.string.concept_time_night
-        "time.dusk" -> R.string.concept_time_dusk
-        "time.dawn" -> R.string.concept_time_dawn
-        "time.day" -> R.string.concept_time_day
-        "hue.blue" -> R.string.concept_hue_blue
-        "hue.teal" -> R.string.concept_hue_teal
-        "hue.green" -> R.string.concept_hue_green
-        "hue.purple" -> R.string.concept_hue_purple
-        "hue.pink" -> R.string.concept_hue_pink
-        "hue.orange" -> R.string.concept_hue_orange
-        "hue.gold" -> R.string.concept_hue_gold
-        "hue.red" -> R.string.concept_hue_red
-        "el.full_moon" -> R.string.concept_el_full_moon
-        "el.crescent" -> R.string.concept_el_crescent
-        "el.sun" -> R.string.concept_el_sun
-        "el.stars" -> R.string.concept_el_stars
-        "el.aurora" -> R.string.concept_el_aurora
-        "el.pines" -> R.string.concept_el_pines
-        "el.palms" -> R.string.concept_el_palms
-        else -> null
-    } ?: return null
-    return stringResource(res)
 }
 
 /** Centered column limited to a readable width on the wide main screen. */

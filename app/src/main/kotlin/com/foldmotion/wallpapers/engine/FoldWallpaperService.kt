@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import com.foldmotion.core.device.DeviceProfile
 import com.foldmotion.core.device.ScreenClassifier
 import com.foldmotion.core.device.ScreenKind
+import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.fold.FoldCommand
 import com.foldmotion.core.fold.FoldEvent
 import com.foldmotion.core.fold.TransitionClock
@@ -644,10 +645,20 @@ class FoldWallpaperService : WallpaperService() {
             }
         }
 
+        /**
+         * The pose between folds: the rest, except on the lock screen of a wallpaper whose
+         * picture itself moves (NATURAL), which waits in the first pose of the motion that plays
+         * when the phone is unlocked, so unlocking continues it without a jump.
+         */
+        private fun restProgress(scene: LoadedScene): Float? {
+            val natural = scene.entryMotion?.style == FoldStyle.NATURAL.name
+            return if (natural && state.locked && state.policy.waitForUnlock && state.policy.motionAllowed) 0f else null
+        }
+
         private fun drawStatic(kind: ScreenKind) {
             val scene = scenes[kind]
             withCanvas { c ->
-                if (scene != null) drawer.draw(c, c.width, c.height, scene, null, frameState(scene))
+                if (scene != null) drawer.draw(c, c.width, c.height, scene, restProgress(scene), frameState(scene))
                 else drawer.drawPlaceholder(c, c.width, c.height, placeholderTop, placeholderBottom)
             }
             if (scene != null && state.visible && transitionKind == null && livingAllowed(scene)) startAmbient()
@@ -774,7 +785,7 @@ class FoldWallpaperService : WallpaperService() {
             if (frameTimeNanos - lastAmbientNanos >= ambientIntervalNanos(scene) - 2_000_000L) {
                 lastAmbientNanos = frameTimeNanos
                 tilt.step()
-                withCanvas { c -> drawer.draw(c, c.width, c.height, scene, null, frameState(scene)) }
+                withCanvas { c -> drawer.draw(c, c.width, c.height, scene, restProgress(scene), frameState(scene)) }
             }
             scheduleFrame()
         }

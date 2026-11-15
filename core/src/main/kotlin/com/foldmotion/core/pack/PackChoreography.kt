@@ -77,6 +77,7 @@ object PackChoreography {
             glow = parseHex(manifest.colors.primary, 0xFFFFFFFF.toInt()),
             accent = parseHex(manifest.colors.secondary, 0xFF19B5B0.toInt()),
             seed = seedOf(manifest),
+            intrinsic = manifest.liquid?.isGlass == true,
         )
         return Resolved(ChoreographyComposer.compose(input, style), frames)
     }

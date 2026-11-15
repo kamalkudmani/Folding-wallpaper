@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -75,6 +77,7 @@ fun foldStyleLabelRes(style: FoldStyle): Int = when (style) {
     FoldStyle.RIPPLE -> R.string.style_ripple
     FoldStyle.FLOW -> R.string.style_flow
     FoldStyle.GLASS -> R.string.style_glass
+    FoldStyle.NATURAL -> R.string.style_natural
 }
 
 private fun foldStyleDescriptionRes(style: FoldStyle): Int = when (style) {
@@ -89,6 +92,7 @@ private fun foldStyleDescriptionRes(style: FoldStyle): Int = when (style) {
     FoldStyle.RIPPLE -> R.string.style_ripple_desc
     FoldStyle.FLOW -> R.string.style_flow_desc
     FoldStyle.GLASS -> R.string.style_glass_desc
+    FoldStyle.NATURAL -> R.string.style_natural_desc
 }
 
 @Composable
@@ -193,6 +197,7 @@ fun StyleGlyph(style: FoldStyle, animate: Boolean, modifier: Modifier = Modifier
             FoldStyle.RIPPLE -> rippleGlyph(t)
             FoldStyle.FLOW -> flowGlyph(t)
             FoldStyle.GLASS -> glassGlyph(t)
+            FoldStyle.NATURAL -> naturalGlyph(t)
         }
         if (emphasis > 0f) drawRect(FmColors.Aurora.copy(alpha = 0.06f * emphasis), blendMode = BlendMode.Plus)
     }
@@ -306,6 +311,23 @@ private fun DrawScope.riseGlyph(t: Float) {
         val y = size.height * (1.02f - 0.6f * p)
         drawCircle(Color(0xFFFFE0A8), radius = size.minDimension * 0.018f, center = Offset(x, y), alpha = sin(p * PI.toFloat()) * (1f - t * 0.6f), blendMode = BlendMode.Plus)
     }
+}
+
+/** NATURAL: nothing on top; the sky settles and the hills glide in from the right in depth. */
+private fun DrawScope.naturalGlyph(t: Float) {
+    val sky = ease(t / 0.8f)
+    val far = ease((t - 0.05f) / 0.75f)
+    val near = ease((t - 0.15f) / 0.75f)
+    val w = size.width
+    val zoom = 1f + 0.12f * (1f - sky)
+    val pivot = Offset(w * 0.75f, size.height * 0.5f)
+    scale(zoom, pivot) {
+        drawRect(Brush.verticalGradient(listOf(SkyTop, SkyMid, SkyLow)))
+        drawCircle(Moon.copy(alpha = 0.25f), radius = size.minDimension * 0.17f, center = moonCenter())
+        drawCircle(Moon, radius = size.minDimension * 0.085f, center = moonCenter())
+    }
+    translate(left = w * 0.22f * (1f - far)) { hill(0.62f, 0.06f, HillFar) }
+    translate(left = w * 0.45f * (1f - near)) { hill(0.8f, 0.05f, HillNear) }
 }
 
 private fun DrawScope.warpGlyph(t: Float) {

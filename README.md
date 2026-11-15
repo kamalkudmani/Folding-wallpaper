@@ -9,6 +9,24 @@ motion when the phone opens or closes.
 |---|---|
 | ![packs](docs/screenshots/packs-overview.jpg) | ![fold demo](docs/screenshots/fold-demo-angles.jpg) |
 
+**0.9: The motion is in the picture.** Every wallpaper now moves by itself instead of having an
+effect laid over it. A new set of eight **liquid glass** wallpapers (in the spirit of the
+phone's glass design): clear glass drops over soft colour fields that bend the colours behind
+them, catch light on their rims and cast soft shadows. Closed, the drops gather on the cover
+screen; as the phone opens they flow apart across the main screen from right to left, and they
+merge back together when it closes. Tilt turns their light, taps make them ripple. The drawn
+scenes play their **built-in motion** (NATURAL): their own layers glide and rise into place in
+depth, with no darkness, light or particles on top, and the Discover preview now uses the real
+layers so it moves exactly like the wallpaper. On the lock screen a wallpaper waits in the first
+pose of its motion, so unlocking continues it without a jump. **Create is gone**: no more
+describing or random scenes; the new **Add** tab takes your own photo (choose its motion, or
+Auto lifts a person or pet out in 3D) or your own video (it plays as it is). The molten liquids
+and the sample clip are retired (packs made with them still play).
+
+| Promo (vertical) | Play screenshots |
+|---|---|
+| [fold-motion-promo-0.9-en.mp4](docs/promo/fold-motion-promo-0.9-en.mp4) · [AR](docs/promo/fold-motion-promo-0.9-ar.mp4) | [docs/store/screenshots](docs/store/screenshots) |
+
 **0.8.2: After unlock.** Like Samsung's own wallpapers, the fold animation no longer plays on the
 lock screen: the wallpaper stays still there and the animation of the screen in use plays once
 you unlock; folding or unfolding an unlocked phone plays straight away. Settings > Play after
@@ -30,10 +48,6 @@ pick a photo of a person, pet or car; a model running on the phone (no upload) l
 in front of its background so it moves in 3D with tilt and rises out of the picture when you
 unfold. Plus a tester kit (in-app *Report a problem*, test plan, recruitment posts), framed Play
 screenshots, a vertical promo video and a premium proposal.
-
-| Promo (vertical) | Play screenshots |
-|---|---|
-| [fold-motion-promo-0.8-en.mp4](docs/promo/fold-motion-promo-0.8-en.mp4) · [AR](docs/promo/fold-motion-promo-0.8-ar.mp4) | [docs/store/screenshots](docs/store/screenshots) |
 
 **0.7: Liquid.** Eight new liquid wallpapers (molten gold, aurora silk, liquid chrome, deep
 ocean...) that flow across both screens in loops with no seam, three liquid fold effects that bend
@@ -86,6 +100,21 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
   frosted, chromatic glass). The frame is recorded into a RenderNode and bent by an AGSL
   RuntimeShader as its RenderEffect, on the GPU; Android 11-12 and software canvases get a drawn
   cousin (iris, sweep, fade). Tests render them through the real HWUI pipeline.
+- **Liquid glass** (0.9, renderer 7): up to six capsules melted together with a polynomial
+  smooth minimum in an AGSL shader (the blend also carries each drop's slope and the way to its
+  axis, so one pass gives distance, normal and lens offset), over an inverse-distance colour field.
+  Inside, the field is magnified towards each drop's axis and bent hard at the rim with a little
+  dispersion; the rim catches a key and a back light, and each drop casts a soft shadow with a
+  faint caustic. `GlassLayout` (core, pure) places the drops each frame: gathered inside the cover
+  window, spread over the main screen, one after another on a spring by travel distance, drifting
+  on whole turns per 10 minutes, shifted by tilt with depth parallax, drawn towards the crease
+  when half open. The fold progress drives them, so they are the fold animation; rendered at 1/1.6
+  resolution for crisp rims.
+- **Built-in motion** (0.9, NATURAL style, renderer 7): no reveal, overlay or particles. Opening,
+  the backdrop settles from a slight zoom on the cover's part and the layers in front glide in
+  from the right and rise, nearer ones further and later (never past their hidden margin);
+  closing, from the left. Glass keeps its layers still and lets the drops move. The lock screen
+  shows progress 0 of the screen's entry motion while waiting for the unlock.
 - **Live liquid** (0.8, renderer 6): domain-warped gradient noise lit as a glossy height field,
   in an AGSL shader drawn into a low-resolution compositing RenderNode each frame and composited
   under the layer's pose, so every fold style plays over it. World-space, so cover and main show
@@ -113,8 +142,9 @@ Motion clips (unfold, living scene, fold): [showreel](docs/motion/fold-motion-0.
 - **Living motion** between folds: twinkling stars and shooting stars, glints on water, fireflies,
   drifting sand, flowing light, a breathing halo, layer sway and tilt parallax. 30 fps cap, stops
   when hidden, in power saving and with reduced motion; Full / Subtle / Off in Settings.
-- **On-device pack generator**: a procedural illustrator (not an AI model, and the app says so) that
-  understands a fixed Arabic/English vocabulary or picks from 20 curated ideas. Every pack goes
+- **On-device pack generator**: a procedural illustrator (not an AI model) that draws the 20
+  curated scenes of Discover in depth layers (since 0.9 it is no longer offered for describing
+  scenes). Every pack goes
   through the blueprint's seven pipeline stages and the same validator an upload would.
 - **FoldPack format** v1 with a JSON Schema, SHA-256 checksums, declarative motion and a
   hostile-input-safe importer (zip-slip, zip-bomb, wrong-media, path rules).

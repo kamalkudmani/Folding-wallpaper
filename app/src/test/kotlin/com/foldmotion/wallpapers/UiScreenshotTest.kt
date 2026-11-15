@@ -68,16 +68,29 @@ class UiScreenshotTest {
     private fun seedPacks(app: Application): List<String> {
         val c = AppContainer.get(app)
         c.settings.onboardingDone = true
-        if (c.packStore.list().size >= 2) return c.packStore.list().map { it.id }
+        // Your own photo first (it takes a chosen motion), then the catalogue scenes.
+        fun ordered() = c.packStore.list().sortedByDescending { it.manifest.creationSource == com.foldmotion.core.pack.FoldPackManifest.SOURCE_PHOTO }.map { it.id }
+        if (c.packStore.list().size >= 3 && c.packStore.list().any { it.manifest.creationSource == com.foldmotion.core.pack.FoldPackManifest.SOURCE_PHOTO }) return ordered()
         val fold7 = DeviceProfileRegistry.fold7
-        return runBlocking {
-            listOf("aurora_peaks", "golden_dunes", "neon_skyline").mapIndexed { i, idea ->
+        // A photo of your own first (it takes a chosen motion), then two catalogue scenes.
+        val photo = Bitmap.createBitmap(1200, 1000, Bitmap.Config.ARGB_8888).also {
+            android.graphics.Canvas(it).drawPaint(android.graphics.Paint().apply {
+                shader = android.graphics.LinearGradient(0f, 0f, 1200f, 1000f, 0xFF2A1B4D.toInt(), 0xFFF2A65A.toInt(), android.graphics.Shader.TileMode.CLAMP)
+            })
+        }
+        val own = c.depthBuilder.build(
+            photo, com.foldmotion.wallpapers.generator.depth.PhotoRequest(style = com.foldmotion.core.motion.FoldStyle.UNFOLD, seed = 7L),
+            fold7, com.foldmotion.wallpapers.generator.depth.SubjectMasker { null },
+        ).pack.id
+        runBlocking {
+            listOf("aurora_peaks", "golden_dunes").mapIndexed { i, idea ->
                 c.generator.generate(
-                    GenerationRequest("seed$i", fold7.id, GenerationMode.RANDOM, ideaId = idea, seed = 40L + i, motionIntensity = MotionIntensity.LOW),
+                    GenerationRequest("seed$i", fold7.id, GenerationMode.RANDOM, ideaId = idea, seed = 40L + i, motionIntensity = MotionIntensity.LOW, motionStyle = com.foldmotion.core.motion.FoldStyle.NATURAL),
                     fold7,
                 ) {}.pack.id
             }
         }
+        return ordered().also { check(it.first() == own) }
     }
 
     private fun settle() {
@@ -111,36 +124,33 @@ class UiScreenshotTest {
         shoot("${prefix}_01b_discover_detail")
         rule.runOnUiThread { nav.popBackStack() }
         settle()
+        rule.runOnUiThread { nav.navigate(Routes.discover("glass_daybreak")) }
+        Thread.sleep(800)
+        shoot("${prefix}_01c_discover_glass")
+        rule.runOnUiThread { nav.popBackStack() }
+        settle()
+        rule.runOnUiThread { nav.navigate(Routes.ADD) }
+        shoot("${prefix}_02_add")
+        // A picked photo (a synthetic one: there is no gallery in unit tests).
         rule.runOnUiThread {
-            val photo = IntArray(4000) { i -> if (i < 2400) 0xFF46144A.toInt() else if (i < 3400) 0xFF1E0A28.toInt() else 0xFFFA8C3C.toInt() }
-            vm.updateForm {
-                it.copy(
-                    prompt = if (prefix.contains("ar")) "جبال ليلية تحت هلال ونجوم" else "Night mountains under a crescent moon with stars",
-                    reference = com.foldmotion.core.scene.ReferencePalette.extract(photo),
-                )
-            }
-            nav.navigate(Routes.CREATE)
+            // A landscape picture standing in for a gallery photo.
+            val thumb = app.assets.open("discover/sunset_sea_main.webp").use { android.graphics.BitmapFactory.decodeStream(it) }
+            vm.updateForm { it.copy(photo = com.foldmotion.wallpapers.ui.PhotoPick(android.net.Uri.parse("content://x/photo.jpg"), thumb.width, thumb.height, thumb)) }
         }
-        shoot("${prefix}_02_create")
-        rule.onNodeWithTag("generate_button").performScrollTo()
-        shoot("${prefix}_02b_create_style")
-        rule.runOnUiThread { vm.startRandom("golden_dunes") }
-        shoot("${prefix}_03_create_random")
-        // "My video": a picked clip (synthetic first frame; there is no decoder in unit tests).
+        shoot("${prefix}_02b_add_photo")
+        rule.onNodeWithTag("add_make").performScrollTo()
+        shoot("${prefix}_02c_add_photo_motion")
+        // A picked clip (synthetic first frame; there is no decoder in unit tests).
         rule.runOnUiThread {
             val thumb = Bitmap.createBitmap(480, 270, Bitmap.Config.ARGB_8888).also {
                 android.graphics.Canvas(it).drawPaint(android.graphics.Paint().apply {
                     shader = android.graphics.LinearGradient(0f, 0f, 480f, 270f, 0xFF0B1E3A.toInt(), 0xFF2DE1C2.toInt(), android.graphics.Shader.TileMode.CLAMP)
                 })
             }
-            vm.updateForm { it.copy(videoMode = true, video = com.foldmotion.wallpapers.ui.VideoPick(android.net.Uri.parse("content://x/clip.mp4"), 24_000, 1920, 1080, thumb, 2_000, 12_000)) }
+            vm.updateForm { it.copy(photo = null, video = com.foldmotion.wallpapers.ui.VideoPick(android.net.Uri.parse("content://x/clip.mp4"), 24_000, 1920, 1080, thumb, 2_000, 12_000)) }
         }
-        shoot("${prefix}_03b_create_video")
-        rule.runOnUiThread { vm.updateForm { it.copy(videoMode = false, liquidMode = true, liquidLook = "aurora") } }
-        settle()
-        rule.onNodeWithTag("liquid_gold").performScrollTo()
-        shoot("${prefix}_03c_create_liquid")
-        rule.runOnUiThread { vm.updateForm { it.copy(liquidMode = false) } }
+        shoot("${prefix}_03_add_video")
+        rule.runOnUiThread { vm.updateForm { it.copy(video = null) } }
         rule.runOnUiThread { nav.navigate(Routes.preview(ids.first())) }
         Thread.sleep(1500)
         shoot("${prefix}_04_preview")
@@ -171,13 +181,11 @@ class UiScreenshotTest {
         shoot("${prefix}_06_settings")
         rule.runOnUiThread { nav.navigate(Routes.LAB) }
         shoot("${prefix}_07_lab")
-        rule.runOnUiThread {
-            vm.startRandom("aurora_peaks")
-            vm.generate()
-            nav.navigate(Routes.GENERATING)
-        }
-        Thread.sleep(4000)
-        shoot("${prefix}_08_generated")
+        // A catalogue wallpaper of your own: its motion is built in, no picker.
+        rule.runOnUiThread { nav.navigate(Routes.preview(ids[1])) }
+        Thread.sleep(1500)
+        shoot("${prefix}_08_preview_builtin")
+        org.junit.Assert.assertTrue(rule.onAllNodesWithTag("style_book").fetchSemanticsNodes().isEmpty())
     }
 
     @Test

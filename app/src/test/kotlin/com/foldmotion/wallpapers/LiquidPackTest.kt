@@ -52,7 +52,7 @@ class LiquidPackTest {
 
     @Test
     fun `a liquid pack is built, validated, drawn live and as a poster, and restyled`() {
-        val spec = LiquidSpec.PRESETS.getValue("emerald")
+        val spec = LiquidSpec.METAL.getValue("emerald")
         val pack = container.liquidBuilder.build(LiquidRequest(spec, FoldStyle.GLASS, seed = 5L), fold7)
         val m = pack.manifest
         assertEquals(FoldPackManifest.SOURCE_LIQUID, m.creationSource)

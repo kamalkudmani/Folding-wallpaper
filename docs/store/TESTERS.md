@@ -31,11 +31,10 @@ Ask 15 to 20 people: some always drop out.
 
 > **Looking for Galaxy Z Fold testers: live wallpapers that move when you fold**
 >
-> I'm building Fold Motion, a live wallpaper app made for foldables: open the phone and the scene
-> unfolds from exactly what the cover screen showed; close it and the cover comes alive. It has
-> liquid wallpapers (molten gold, liquid chrome, deep ocean...), ten fold animations including
-> liquid ripple, flow and glass effects, and you can make wallpapers from your own photos and
-> videos.
+> I'm building Fold Motion, a live wallpaper app made for foldables where the motion is in the
+> picture itself: liquid glass drops that gather on the closed phone and flow apart as you open
+> it, and scenes whose own layers glide into place. You can also turn your own photos and videos
+> into moving wallpapers.
 >
 > Private by design: no internet permission, no account, no ads.
 >
@@ -47,10 +46,9 @@ Ask 15 to 20 people: some always drop out.
 
 > **أبحث عن مختبِرين لهواتف Galaxy Z Fold: خلفيات حيّة تتحرك عند الطيّ**
 >
-> أعمل على تطبيق Fold Motion، خلفيات حيّة مصممة للهواتف القابلة للطي: افتح الهاتف فيتفتّح المشهد
-> من الجزء نفسه الذي كانت تعرضه الشاشة الخارجية، وأغلقه فتنبض الشاشة الخارجية بالحياة. فيه خلفيات
-> سائلة (ذهب منصهر، كروم سائل، أعماق المحيط...) وعشر حركات طيّ منها تموّج وانسياب وزجاج، ويمكنك صنع
-> خلفيات من صورك وفيديوهاتك.
+> أعمل على تطبيق Fold Motion، خلفيات حيّة مصممة للهواتف القابلة للطي تكون فيها الحركة داخل الصورة
+> نفسها: قطرات زجاج سائل تتجمع على الهاتف المغلق وتنساب متفرقة عند فتحه، ومشاهد تنزلق طبقاتها إلى
+> مكانها. ويمكنك أيضاً تحويل صورك وفيديوهاتك إلى خلفيات متحركة.
 >
 > خصوصية تامة: لا صلاحية إنترنت، لا حساب، لا إعلانات.
 >

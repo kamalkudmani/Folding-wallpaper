@@ -99,145 +99,10 @@ import com.foldmotion.wallpapers.ui.components.errorLabel
 import com.foldmotion.wallpapers.ui.components.intensityLabel
 import com.foldmotion.wallpapers.ui.components.profileName
 import com.foldmotion.wallpapers.ui.components.rememberPackScenes
-import com.foldmotion.wallpapers.ui.components.stageLabel
 import com.foldmotion.wallpapers.ui.components.staggerIn
 import com.foldmotion.wallpapers.ui.theme.FmColors
 import kotlin.math.cos
 import kotlin.math.sin
-
-@Composable
-fun GeneratingScreen(vm: MainViewModel, onReady: (String) -> Unit, onEdit: () -> Unit, onClose: () -> Unit) {
-    val job by vm.job.collectAsStateWithLifecycle()
-    val j = job
-    val doneCount = when {
-        j == null -> 0
-        j.status == JobStatus.READY -> PipelineStage.entries.size
-        else -> j.completed.distinct().size
-    }
-    val fraction by animateFloatAsState(doneCount / PipelineStage.entries.size.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow), label = "progress")
-
-    ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 18.dp, bottom = NavClearance)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.gen_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            GlassIconButton(Icons.Filled.Close, stringResource(R.string.action_close), onClose)
-        }
-        Spacer(Modifier.height(18.dp))
-        Box(Modifier.fillMaxWidth().height(230.dp), contentAlignment = Alignment.Center) {
-            FormingOrb(fraction, running = j?.isRunning == true, ready = j?.status == JobStatus.READY)
-        }
-        Spacer(Modifier.height(10.dp))
-        GlassCard(Modifier.fillMaxWidth()) {
-            // Each line is a real pipeline stage, ticked when it finishes. No invented percentages.
-            for ((i, stage) in PipelineStage.entries.withIndex()) {
-                val done = j != null && (stage in j.completed || j.status == JobStatus.READY)
-                val current = j?.stage == stage && j.isRunning
-                val stateText = stringResource(
-                    when {
-                        done -> R.string.a11y_stage_done
-                        current -> R.string.a11y_stage_running
-                        else -> R.string.a11y_stage_waiting
-                    },
-                )
-                Row(
-                    Modifier.padding(vertical = 8.dp).semantics(mergeDescendants = true) { stateDescription = stateText },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    StageDot(done, current)
-                    Spacer(Modifier.width(14.dp))
-                    Text(
-                        stringResource(stageLabel(stage)),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (done || current) FmColors.Text else FmColors.TextMuted.copy(alpha = 0.55f),
-                        modifier = Modifier.staggerIn(i),
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(18.dp))
-        AnimatedContent(j?.status, transitionSpec = { (fadeIn(tween(260)) + scaleIn(initialScale = 0.96f)) togetherWith fadeOut(tween(150)) }, label = "outcome") { status ->
-            Column {
-                when {
-                    j == null -> Unit
-                    status != null && j.isRunning -> {
-                        Text(stringResource(R.string.gen_background_note), style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted)
-                        Spacer(Modifier.height(14.dp))
-                        GlassButton(stringResource(R.string.action_cancel), vm::cancelGeneration, Modifier.fillMaxWidth(), enabled = j.status != JobStatus.CANCEL_REQUESTED)
-                    }
-                    status == JobStatus.READY && j.packId != null -> {
-                        Text(stringResource(R.string.gen_ready, j.durationMs / 1000f), color = FmColors.Aurora, style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(14.dp))
-                        GradientButton(stringResource(R.string.action_view_pack), { onReady(j.packId) }, Modifier.fillMaxWidth(), leading = Icons.Filled.PlayArrow)
-                    }
-                    status == JobStatus.CANCELLED -> {
-                        Text(stringResource(R.string.gen_cancelled))
-                        Spacer(Modifier.height(14.dp))
-                        GlassButton(stringResource(R.string.action_edit_prompt), onEdit, Modifier.fillMaxWidth())
-                    }
-                    else -> {
-                        GlassCard(Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.gen_failed), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.height(4.dp))
-                            Text(stringResource(errorLabel(j.error), j.validationCodes.joinToString()))
-                        }
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            GradientButton(stringResource(R.string.action_retry), { vm.generate() }, Modifier.weight(1f), leading = Icons.Filled.Refresh)
-                            GlassButton(stringResource(R.string.action_edit_prompt), onEdit, Modifier.weight(1f), height = 56.dp)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** Orbiting light that fills its ring as real stages complete, and blooms when the pack is ready. */
-@Composable
-private fun FormingOrb(fraction: Float, running: Boolean, ready: Boolean) {
-    val t = rememberInfiniteTransition(label = "orb")
-    val spin by t.animateFloat(0f, 6.2832f, infiniteRepeatable(tween(2_600, easing = LinearEasing)), label = "spin")
-    val breath by t.animateFloat(0.85f, 1.1f, infiniteRepeatable(tween(1_400), RepeatMode.Reverse), label = "breath")
-    val bloom by animateFloatAsState(if (ready) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow), label = "bloom")
-    Canvas(Modifier.size(220.dp)) {
-        val c = Offset(size.width / 2, size.height / 2)
-        val r = size.minDimension * 0.36f
-        drawCircle(Brush.radialGradient(listOf(FmColors.Aurora.copy(alpha = 0.35f + 0.3f * bloom), FmColors.Violet.copy(alpha = 0.12f), Color.Transparent), center = c, radius = r * (1.6f + 0.6f * bloom)), r * (1.6f + 0.6f * bloom), c)
-        drawCircle(Color.White.copy(alpha = 0.08f), r, c, style = Stroke(width = 6.dp.toPx()))
-        drawArc(
-            Brush.sweepGradient(listOf(FmColors.Aurora, FmColors.Violet, FmColors.Gold, FmColors.Aurora), center = c),
-            startAngle = -90f, sweepAngle = 360f * fraction, useCenter = false,
-            topLeft = Offset(c.x - r, c.y - r), size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
-            style = Stroke(width = 6.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
-        )
-        val coreR = r * 0.32f * (if (running) breath else 1f) * (1f + 0.4f * bloom)
-        drawCircle(Brush.radialGradient(listOf(Color.White, FmColors.Aurora, FmColors.Aurora.copy(alpha = 0f)), center = c, radius = coreR * 2.2f), coreR * 2.2f, c)
-        if (running || ready) {
-            for (i in 0 until 14) {
-                val a = spin * (if (i % 2 == 0) 1f else -0.7f) + i * 0.449f
-                val rr = r * (0.55f + 0.5f * ((i * 37) % 10) / 10f)
-                val p = Offset(c.x + cos(a) * rr, c.y + sin(a) * rr)
-                drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.9f), Color.Transparent), center = p, radius = 7.dp.toPx()), 7.dp.toPx(), p)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StageDot(done: Boolean, current: Boolean) {
-    val t = rememberInfiniteTransition(label = "dot")
-    val pulse by t.animateFloat(0.7f, 1.25f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
-    val scale by animateFloatAsState(if (done) 1f else 0.9f, spring(dampingRatio = 0.45f), label = "done")
-    Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
-        when {
-            done -> Box(
-                Modifier.size(24.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape).background(FmColors.primaryGradient),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF04131A), modifier = Modifier.size(16.dp)) }
-            current -> Box(Modifier.size(14.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }.clip(CircleShape).background(FmColors.Aurora))
-            else -> Box(Modifier.size(10.dp).clip(CircleShape).background(FmColors.GlassStrong))
-        }
-    }
-}
 
 private enum class PreviewMode { DEMO, COVER, MAIN, BOTH }
 
@@ -364,20 +229,35 @@ fun PreviewScreen(vm: MainViewModel, packId: String, onBack: () -> Unit) {
             }
         }
 
-        SectionTitle(stringResource(R.string.style_title))
-        Text(
-            stringResource(if (restyling == pack.id) R.string.style_working else R.string.style_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (restyling == pack.id) FmColors.Aurora else FmColors.TextMuted,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
-        StylePicker(
-            styles = FoldStyle.CONCRETE,
-            selected = style,
-            onSelect = { if (it != style) vm.restyle(pack.id, it) },
-            animate = !reduced,
-            enabled = restyling == null,
-        )
+        // Only your own photos take a chosen motion; every other wallpaper moves by itself.
+        if (pack.manifest.creationSource == com.foldmotion.core.pack.FoldPackManifest.SOURCE_PHOTO) {
+            SectionTitle(stringResource(R.string.style_title))
+            Text(
+                stringResource(if (restyling == pack.id) R.string.style_working else R.string.style_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (restyling == pack.id) FmColors.Aurora else FmColors.TextMuted,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+            StylePicker(
+                styles = FoldStyle.CONCRETE,
+                selected = style,
+                onSelect = { if (it != style) vm.restyle(pack.id, it) },
+                animate = !reduced,
+                enabled = restyling == null,
+            )
+        } else {
+            SectionTitle(stringResource(R.string.discover_motion_title))
+            Text(
+                stringResource(
+                    when {
+                        pack.manifest.liquid?.isGlass == true -> R.string.discover_glass_body
+                        pack.manifest.video != null -> R.string.add_video_motion
+                        else -> R.string.discover_motion_drawn
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium, color = FmColors.TextMuted,
+            )
+        }
 
         SectionTitle(stringResource(R.string.preview_details))
         GlassCard(Modifier.fillMaxWidth().testTag("preview_details")) {

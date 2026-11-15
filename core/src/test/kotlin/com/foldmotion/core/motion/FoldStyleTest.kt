@@ -89,7 +89,8 @@ class FoldStyleTest {
         }
         for ((family, styles) in picked) assertEquals("$family $styles", 2, styles.size)
         val all = picked.values.flatten().toSet()
-        assertEquals(FoldStyle.CONCRETE.toSet(), all)
+        // NATURAL is chosen, never picked by AUTO.
+        assertEquals(FoldStyle.CONCRETE.toSet() - FoldStyle.NATURAL, all)
         assertNotEquals(picked[SceneFamily.SPACE], picked[SceneFamily.CITY])
     }
 

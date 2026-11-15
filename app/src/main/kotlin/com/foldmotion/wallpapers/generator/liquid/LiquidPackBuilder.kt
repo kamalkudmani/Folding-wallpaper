@@ -75,10 +75,10 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
             val scenes = HashMap<ScreenKind, SceneEntry>()
             for (kind in listOf(ScreenKind.COVER, ScreenKind.MAIN)) {
                 val window = if (kind == ScreenKind.MAIN) geometry.main else geometry.cover
-                scenes[kind] = writePoster(staging, kind, profile, request.spec, window)
+                scenes[kind] = writePoster(staging, kind, profile, request.spec, window, geometry.main)
             }
-            writePreview(staging, "previews/main.webp", request.spec, geometry.main, PREVIEW_MAIN_WIDTH, profile.screen(ScreenKind.MAIN).aspect)
-            writePreview(staging, "previews/cover.webp", request.spec, geometry.cover, PREVIEW_COVER_WIDTH, profile.screen(ScreenKind.COVER).aspect)
+            writePreview(staging, "previews/main.webp", request.spec, ScreenKind.MAIN, geometry, PREVIEW_MAIN_WIDTH, profile.screen(ScreenKind.MAIN).aspect)
+            writePreview(staging, "previews/cover.webp", request.spec, ScreenKind.COVER, geometry, PREVIEW_COVER_WIDTH, profile.screen(ScreenKind.COVER).aspect)
 
             val colors = request.spec.palette.map { Color.parseColor(it) }
             val glow = colors[3]
@@ -98,8 +98,10 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
                     glow = glow,
                     accent = accent,
                     seed = request.seed,
+                    intrinsic = request.spec.isGlass,
                 ),
-                request.style,
+                // Liquid glass carries its fold motion in the picture: its drops move.
+                if (request.spec.isGlass) FoldStyle.NATURAL else request.style,
             )
             File(staging, "motion").mkdirs()
             File(staging, "motion/open.json").writeText(CoreInfo.json.encodeToString(MotionSpec.serializer(), choreo.open))
@@ -113,7 +115,7 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
                 createdAt = now.toString(),
                 creationSource = FoldPackManifest.SOURCE_LIQUID,
                 profileIds = listOf(profile.id),
-                rendererVersion = VersionRange(CoreInfo.minRendererFor(video = false, style = choreo.style.name, liquid = true), CoreInfo.RENDERER_VERSION),
+                rendererVersion = VersionRange(CoreInfo.minRendererFor(video = false, style = choreo.style.name, liquid = true, glass = request.spec.isGlass), CoreInfo.RENDERER_VERSION),
                 motionIntensity = request.intensity,
                 scenes = Scenes(
                     cover = scenes.getValue(ScreenKind.COVER).copy(world = rect(frames.cover)),
@@ -128,7 +130,7 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
                 liquid = request.spec,
                 colors = PackColors(hex(glow), hex(accent), hex(colors[1]), hex(colors[0])),
                 generation = GenerationRecipe(provider = PROVIDER, providerVersion = "1.0.0", seed = request.seed, mode = "CUSTOM"),
-                tags = listOf("liquid"),
+                tags = if (request.spec.isGlass) listOf("liquid", "glass") else listOf("liquid"),
             )
             File(staging, FoldPackManifest.FILE_NAME).writeText(CoreInfo.json.encodeToString(FoldPackManifest.serializer(), manifest))
             Checksums.write(staging)
@@ -170,12 +172,16 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
             return Geometry(world(crops.main), world(crops.cover))
         }
 
-        /** The liquid at time 0 over [window], [w] x [h] pixels; a palette gradient if the GPU path is unavailable. */
-        fun still(spec: LiquidSpec, window: WorldRect, w: Int, h: Int): Bitmap {
+        /**
+         * The liquid at time 0 over [window], [w] x [h] pixels, at rest on [kind] (glass drops
+         * spread on the main screen, gathered on the cover); a palette gradient if the GPU path is
+         * unavailable.
+         */
+        fun still(spec: LiquidSpec, window: WorldRect, w: Int, h: Int, kind: ScreenKind = ScreenKind.MAIN, main: WorldRect? = null): Bitmap {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 GpuSnapshot.render(w, h) { c ->
-                    val shader = RuntimeShader(LiquidField.AGSL)
-                    LiquidField.configure(shader, spec, window, w, h, LiquidFrame(0))
+                    val shader = RuntimeShader(LiquidField.agslFor(spec))
+                    LiquidField.configure(shader, spec, window, w, h, LiquidFrame(0, kind = kind, mainWorld = main))
                     c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { this.shader = shader })
                 }?.let { return it }
             }
@@ -197,13 +203,13 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
         private fun round4(v: Float) = (v * 10000f).roundToInt() / 10000f
     }
 
-    private fun writePoster(dir: File, kind: ScreenKind, profile: DeviceProfile, spec: LiquidSpec, window: WorldRect): SceneEntry {
+    private fun writePoster(dir: File, kind: ScreenKind, profile: DeviceProfile, spec: LiquidSpec, window: WorldRect, main: WorldRect): SceneEntry {
         val screen = profile.screen(kind)
         val layerWorld = expand(window, OVERSCAN)
         val scale = POSTER_LONG_SIDE / max(screen.widthPx, screen.heightPx) / (1f + 2f * OVERSCAN)
         val w = (screen.widthPx * (1f + 2f * OVERSCAN) * scale).roundToInt().coerceIn(16, 4096)
         val h = (screen.heightPx * (1f + 2f * OVERSCAN) * scale).roundToInt().coerceIn(16, 4096)
-        val bitmap = still(spec, layerWorld, w, h)
+        val bitmap = still(spec, layerWorld, w, h, kind, main)
         val name = if (kind == ScreenKind.MAIN) "main" else "cover"
         val entry = LayerEntry(
             id = "far",
@@ -219,9 +225,10 @@ class LiquidPackBuilder(private val store: PackStore, private val validator: Fol
         return SceneEntry(baseWidth = screen.widthPx, baseHeight = screen.heightPx, focus = listOf(0.5f, 0.5f), layers = listOf(entry))
     }
 
-    private fun writePreview(dir: File, path: String, spec: LiquidSpec, window: WorldRect, width: Int, aspect: Float) {
+    private fun writePreview(dir: File, path: String, spec: LiquidSpec, kind: ScreenKind, geometry: Geometry, width: Int, aspect: Float) {
         val height = (width / aspect).roundToInt()
-        val bitmap = still(spec, window, width, height)
+        val window = if (kind == ScreenKind.MAIN) geometry.main else geometry.cover
+        val bitmap = still(spec, window, width, height, kind, geometry.main)
         File(dir, path).apply { parentFile?.mkdirs() }.outputStream().use { bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 85, it) }
         bitmap.recycle()
     }

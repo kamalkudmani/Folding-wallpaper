@@ -15,7 +15,6 @@ import com.foldmotion.core.motion.FoldStyle
 import com.foldmotion.core.pack.LiquidSpec
 import com.foldmotion.wallpapers.generator.liquid.LiquidRequest
 import com.foldmotion.wallpapers.render.FrameState
-import com.foldmotion.wallpapers.render.LiquidMotion
 import com.foldmotion.wallpapers.render.LoadedScene
 import com.foldmotion.wallpapers.render.SceneDrawer
 import com.foldmotion.wallpapers.render.SceneLoader
@@ -28,10 +27,10 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /**
- * Asset build step, not a check: films a vertical promo (1080x1920, 30 fps) of live liquid
- * wallpapers on a drawn Fold, through the app's own renderer on the hardware pipeline: the closed
- * phone, unfolding with Flow, Glass and Ripple, taps, the half-open hinge. Captions are added by
- * tools/promo/promo.py. Runs only with -Dfoldmotion.promoOut=<folder>.
+ * Asset build step, not a check: films a vertical promo (1080x1920, 30 fps) of the liquid glass
+ * wallpapers on a drawn Fold, through the app's own renderer on the hardware pipeline: drops
+ * gathered on the closed phone flow apart as it opens, ripple under taps, gather again as it
+ * closes. Captions are added by tools/promo/promo.py. Runs only with -Dfoldmotion.promoOut=<folder>.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -46,8 +45,8 @@ class PromoRender {
 
     private class Shot(val cover: LoadedScene, val main: LoadedScene)
 
-    private fun shot(look: String, style: FoldStyle): Shot {
-        val pack = container.liquidBuilder.build(LiquidRequest(LiquidSpec.PRESETS.getValue(look), style, seed = 9L), fold7)
+    private fun shot(look: String): Shot {
+        val pack = container.liquidBuilder.build(LiquidRequest(LiquidSpec.PRESETS.getValue(look), FoldStyle.NATURAL, seed = 9L), fold7)
         return Shot(SceneLoader.load(pack.dir, ScreenKind.COVER)!!, SceneLoader.load(pack.dir, ScreenKind.MAIN)!!)
     }
 
@@ -58,10 +57,10 @@ class PromoRender {
         out!!.mkdirs()
         out.listFiles()?.forEach { if (it.name.endsWith(".png")) it.delete() }
         val drawer = SceneDrawer()
-        val gold = shot("gold", FoldStyle.FLOW)
-        val aurora = shot("aurora", FoldStyle.GLASS)
-        val abyss = shot("abyss", FoldStyle.RIPPLE)
-        val neon = shot("neon", FoldStyle.FLOW)
+        val daybreak = shot("daybreak")
+        val lagoon = shot("lagoon")
+        val orchid = shot("orchid")
+        val midnight = shot("midnight")
         var index = 0
         var clock = 20_000L
 
@@ -113,39 +112,37 @@ class PromoRender {
 
         fun seconds(s: Float) = (s * fps).toInt()
 
-        // 1. Closed: gold flowing on the cover screen.
-        repeat(seconds(3f)) { emit(gold.cover.glow) { c, st -> phone(c, gold.cover, coverW, coverH, H * 0.52f, null, st, false) } }
-        // 2. Unfold with Flow.
-        val flowMs = gold.main.entryMotion!!.durationMs
-        for (i in 0 until seconds(flowMs / 1000f)) emit(gold.main.glow) { c, st -> phone(c, gold.main, mainW, mainH, H * 0.52f, i / (flowMs / 1000f * fps), st, true) }
-        repeat(seconds(1.6f)) { emit(gold.main.glow) { c, st -> phone(c, gold.main, mainW, mainH, H * 0.52f, null, st, true) } }
-        // 3. Aurora through Glass, then two taps send out ripples.
-        val glassMs = aurora.main.entryMotion!!.durationMs
-        for (i in 0 until seconds(glassMs / 1000f)) emit(aurora.main.glow) { c, st -> phone(c, aurora.main, mainW, mainH, H * 0.52f, i / (glassMs / 1000f * fps), st, true) }
-        val world = aurora.main.world!!
-        aurora.main.liquidMotion.tap(world.left + world.width * 0.3f, world.top + world.height * 0.4f, clock + 200)
-        aurora.main.liquidMotion.tap(world.left + world.width * 0.7f, world.top + world.height * 0.62f, clock + 1_100)
-        repeat(seconds(2.6f)) { emit(aurora.main.glow) { c, st -> phone(c, aurora.main, mainW, mainH, H * 0.52f, null, st, true) } }
-        // 4. Deep ocean through Ripple.
-        val rippleMs = abyss.main.entryMotion!!.durationMs
-        for (i in 0 until seconds(rippleMs / 1000f)) emit(abyss.main.glow) { c, st -> phone(c, abyss.main, mainW, mainH, H * 0.52f, i / (rippleMs / 1000f * fps), st, true) }
-        repeat(seconds(1.2f)) { emit(abyss.main.glow) { c, st -> phone(c, abyss.main, mainW, mainH, H * 0.52f, null, st, true) } }
-        // 5. Neon: the phone half opens and the liquid pools along the fold.
-        val n = seconds(3.4f)
-        for (i in 0 until n) {
-            val t = i / (n - 1f)
-            LiquidMotion.hingeAngle = 180f - 90f * kotlin.math.sin(Math.PI * t).toFloat()
-            emit(neon.main.glow) { c, st -> phone(c, neon.main, mainW, mainH, H * 0.52f, null, st, true) }
+        /** The main screen opening: the drops flow apart, then rest. */
+        fun unfold(s: Shot, rest: Float) {
+            val ms = s.main.entryMotion!!.durationMs
+            for (i in 0 until seconds(ms / 1000f)) emit(s.main.glow) { c, st -> phone(c, s.main, mainW, mainH, H * 0.52f, i / (ms / 1000f * fps), st, true) }
+            repeat(seconds(rest)) { emit(s.main.glow) { c, st -> phone(c, s.main, mainW, mainH, H * 0.52f, null, st, true) } }
         }
-        LiquidMotion.hingeAngle = Float.NaN
-        // 6. End card over flowing gold, dimmed.
+
+        // 1. Closed: the drops gathered on the cover screen, drifting.
+        repeat(seconds(2.6f)) { emit(daybreak.cover.glow) { c, st -> phone(c, daybreak.cover, coverW, coverH, H * 0.52f, null, st, false) } }
+        // 2. It opens: they flow apart across the main screen.
+        unfold(daybreak, 1.6f)
+        // 3. Lagoon opens, then two taps make the glass ripple.
+        unfold(lagoon, 0.4f)
+        val world = lagoon.main.world!!
+        lagoon.main.liquidMotion.tap(world.left + world.width * 0.3f, world.top + world.height * 0.45f, clock + 200)
+        lagoon.main.liquidMotion.tap(world.left + world.width * 0.68f, world.top + world.height * 0.6f, clock + 1_100)
+        repeat(seconds(2.6f)) { emit(lagoon.main.glow) { c, st -> phone(c, lagoon.main, mainW, mainH, H * 0.52f, null, st, true) } }
+        // 4. Orchid closes: the pills gather onto the cover.
+        val closeMs = orchid.cover.entryMotion!!.durationMs
+        for (i in 0 until seconds(closeMs / 1000f)) emit(orchid.cover.glow) { c, st -> phone(c, orchid.cover, coverW, coverH, H * 0.52f, i / (closeMs / 1000f * fps), st, false) }
+        repeat(seconds(1.2f)) { emit(orchid.cover.glow) { c, st -> phone(c, orchid.cover, coverW, coverH, H * 0.52f, null, st, false) } }
+        // 5. Midnight opens.
+        unfold(midnight, 1.4f)
+        // 6. End card over the open daybreak, dimmed.
         repeat(seconds(3f)) {
-            emit(gold.main.glow) { c, st ->
-                phone(c, gold.main, mainW, mainH, H * 0.52f, null, st, true)
+            emit(daybreak.main.glow) { c, st ->
+                phone(c, daybreak.main, mainW, mainH, H * 0.52f, null, st, true)
                 c.drawColor(Color.argb(150, 4, 5, 8))
             }
         }
-        for (s in listOf(gold, aurora, abyss, neon)) {
+        for (s in listOf(daybreak, lagoon, orchid, midnight)) {
             s.cover.recycle()
             s.main.recycle()
         }

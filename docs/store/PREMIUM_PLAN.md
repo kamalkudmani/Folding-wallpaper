@@ -13,17 +13,16 @@ details that only the owner can set. This is the plan to agree on first.
 
 ## Free
 
-- All 20 drawn scenes, the Liquid light video, 3 of the 8 live liquids (Molten gold, Aurora silk,
-  Deep ocean).
-- All 10 fold animations.
-- Create: describe a scene, random ideas, My video, 3D photo.
+- All 20 drawn scenes with their built-in motion, 3 of the 8 liquid glass wallpapers (Daybreak,
+  Lagoon, Midnight glass).
+- Add your own: photos (every motion, 3D) and videos.
 
 ## Fold Motion Pro (one-time purchase)
 
 Suggested price: **US$3.99** (local prices set by Play). Optionally a launch price of $2.99.
 
-- All live liquids, and every new liquid look added later.
-- **Create > Liquid** with every look, pace and wave size, plus "colours from my photo".
+- All liquid glass wallpapers, and every new glass set added later.
+- A glass wallpaper in the colours of your own photo (planned).
 - Future premium packs (seasonal sets, new effects).
 - A small badge in Settings and the warm feeling of supporting a small developer.
 
@@ -50,6 +49,6 @@ shows demand.
 
 - Google Play Billing Library: one non-consumable product `pro`, purchase flow, restore on
   reinstall, acknowledgement; works offline after purchase (Play caches entitlement).
-- Lock icon on Pro items in Discover and Create, a clean paywall sheet in English and Arabic.
+- Lock icon on Pro items in Discover, a clean paywall sheet in English and Arabic.
 - Data safety stays "no data collected": Play Billing is handled by Google Play itself.
 - Tests with Play Billing's test cards on the closed track.

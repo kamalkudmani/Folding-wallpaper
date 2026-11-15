@@ -19,6 +19,11 @@ data class ChoreoInput(
     val glow: Int,
     val accent: Int,
     val seed: Long,
+    /**
+     * The content moves by itself through a fold (liquid glass drops): NATURAL then keeps the
+     * layers still and lets the content carry the motion.
+     */
+    val intrinsic: Boolean = false,
 )
 
 data class Choreography(val open: MotionSpec, val close: MotionSpec, val ambient: AmbientSpec, val style: FoldStyle)
@@ -88,6 +93,7 @@ object ChoreographyComposer {
             FoldStyle.RIPPLE -> ripple(c)
             FoldStyle.FLOW -> flow(c)
             FoldStyle.GLASS -> glass(c)
+            FoldStyle.NATURAL -> natural(c)
             FoldStyle.AUTO -> error("resolved above")
         }
         return spec.copy(schemaVersion = MOTION_SCHEMA, style = concrete.name)
@@ -118,6 +124,41 @@ object ChoreographyComposer {
         reveal = reveal,
         particles = particles.take(MotionSpec.MAX_BURSTS),
     )
+
+    // ------------------------------------------------------------------ NATURAL
+
+    /**
+     * Nothing on top, no darkness, no light: the picture moves. Opening, the backdrop settles
+     * from a slight zoom on the part the cover was showing and the layers in front glide in from
+     * the right, nearer ones further and a moment later, like the front panel swinging open;
+     * closing, they glide in from the left. Content that moves by itself (liquid glass) keeps
+     * its layers still and carries the motion alone, over [GlassLayout]'s length.
+     */
+    private fun natural(c: Ctx): MotionSpec {
+        if (c.input.intrinsic) {
+            val duration = if (c.main) GlassLayout.OPEN_MS else GlassLayout.CLOSE_MS
+            return spec(c, duration, c.layers.map { layer(it, TrackPose.REST) }, null, null, emptyList())
+        }
+        val duration = c.ms(1_300, 1_150, 200)
+        val dir = if (c.main) 1f else -1f
+        val tracks = ArrayList<MotionTrack>()
+        for (l in c.layers) {
+            val from = if (l.opaque) {
+                TrackPose(scale = 1f + (0.045f + 0.05f * l.depth) * c.gain)
+            } else {
+                // The same distance on both screens (world units over the frame's width), but
+                // never further than the layer's hidden margin on the side it comes from, so its
+                // edge never shows.
+                val travel = (0.02f + 0.07f * l.depth) * c.gain / c.aspect.coerceAtLeast(0.4f)
+                val scale = 1f + 0.03f * l.depth
+                val margin = if (dir > 0) -l.left + (scale - 1f) * (c.fx - l.left) else (l.right - 1f) + (scale - 1f) * (l.right - c.fx)
+                TrackPose(scale = scale, tx = dir * minOf(travel, 0.9f * margin.coerceAtLeast(0f)), ty = 0.035f * l.depth)
+            }
+            val delay = 0.1f * l.depth
+            tracks += layer(l, from, delay = delay, span = 1f - delay)
+        }
+        return spec(c, duration, tracks, SpringSpec.settlingIn(duration, if (c.lively) 0.74f else 0.84f), null, emptyList())
+    }
 
     // ------------------------------------------------------------------ UNFOLD
 

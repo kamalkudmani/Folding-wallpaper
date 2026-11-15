@@ -376,24 +376,6 @@ fun PremiumBackground(modifier: Modifier = Modifier) {
     )
 }
 
-/** Small glass chip. */
-@Composable
-fun GlassChip(text: String, modifier: Modifier = Modifier, selected: Boolean = false, onClick: (() -> Unit)? = null) {
-    val shape = RoundedCornerShape(50)
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier
-            .pressScale(interaction, 0.95f)
-            .clip(shape)
-            .background(if (selected) Color.White else FmColors.Surface2)
-            .border(1.dp, if (selected) Color.White else FmColors.Hairline, shape)
-            .let { if (onClick != null) it.clickable(interaction, indication = null, onClick = onClick) else it }
-            .padding(horizontal = 15.dp, vertical = 9.dp),
-    ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, color = if (selected) FmColors.Night else FmColors.Text, maxLines = 2)
-    }
-}
-
 /** Large screen title with an optional trailing slot. */
 @Composable
 fun ScreenTitle(text: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {

@@ -205,7 +205,7 @@ class FoldPackValidatorTest {
 
     @Test
     fun `live liquid packs need renderer 6, world rects, sane settings and no video`() {
-        val spec = LiquidSpec.PRESETS.getValue("gold")
+        val spec = LiquidSpec.METAL.getValue("gold")
         fun liquidPack(
             l: LiquidSpec = spec,
             min: Int = CoreInfo.LIVE_LIQUID_RENDERER_VERSION,
@@ -221,7 +221,7 @@ class FoldPackValidatorTest {
             )
         }, ambient = goodAmbient)
         assertTrue(validator.validate(liquidPack()).codes.toString(), validator.validate(liquidPack()).passed)
-        for (preset in LiquidSpec.PRESETS.values) assertTrue(preset.isWellFormed())
+        for (preset in LiquidSpec.PRESETS.values + LiquidSpec.METAL.values) assertTrue(preset.isWellFormed())
         assertTrue(validator.validate(liquidPack(min = CoreInfo.VIDEO_RENDERER_VERSION)).codes.contains(ValidationCode.INVALID_MANIFEST))
         assertTrue(validator.validate(liquidPack(world = false)).codes.contains(ValidationCode.INVALID_MANIFEST))
         for (bad in listOf(

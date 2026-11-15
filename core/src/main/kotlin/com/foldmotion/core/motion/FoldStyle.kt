@@ -22,9 +22,14 @@ import com.foldmotion.core.scene.SceneFamily
  *  - RIPPLE: a drop falls on the focal point and the scene spreads out with the rings.
  *  - FLOW: the scene pours in across the screen as a thick liquid with a wavy, glossy front.
  *  - GLASS: the scene comes into focus through melting glass that refracts and clears.
+ *
+ * NATURAL (renderer 7) adds nothing on top: the picture itself moves. A drawn scene's layers
+ * glide into place in depth (right to left when the phone opens, left to right when it closes)
+ * while its backdrop settles from the part the cover showed; a liquid glass wallpaper's drops
+ * flow apart and back together. Every wallpaper in the catalogue moves this way (0.9).
  */
 enum class FoldStyle {
-    AUTO, UNFOLD, BOOK, RISE, WARP, TILES, SWEEP, IRIS, RIPPLE, FLOW, GLASS;
+    AUTO, UNFOLD, BOOK, RISE, WARP, TILES, SWEEP, IRIS, RIPPLE, FLOW, GLASS, NATURAL;
 
     /** Styles drawn with a liquid shader (they need renderer 5). */
     val isLiquid: Boolean get() = this in LIQUID

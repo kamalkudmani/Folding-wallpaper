@@ -110,6 +110,7 @@ object SceneLoader {
             video = video,
             videoFile = video?.let { File(packDir, it.file) },
             liquid = manifest.liquid,
+            mainWorld = manifest.scenes.main.world?.takeIf { it.size == 4 }?.let { WorldRect(it[0], it[1], it[2], it[3]) },
         )
     }
 
