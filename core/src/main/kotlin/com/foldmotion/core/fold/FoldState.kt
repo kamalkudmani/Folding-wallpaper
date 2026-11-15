@@ -47,12 +47,21 @@ data class MotionPolicy(
      * animation is not over before it can be seen.
      */
     val liveSwitchHoldMs: Long = DEFAULT_LIVE_SWITCH_HOLD_MS,
+    /**
+     * Like Samsung's own wallpapers: while the lock screen shows, the wallpaper stays still, and
+     * the animation of the screen in use plays once the phone is unlocked. Folding or unfolding
+     * an unlocked phone plays it straight away.
+     */
+    val waitForUnlock: Boolean = true,
 ) {
     val motionAllowed: Boolean get() = !reducedMotion && !powerSave
 
     companion object {
         const val DEFAULT_FRESHNESS_MS = 3_000L
         const val DEFAULT_LIVE_SWITCH_HOLD_MS = 250L
+
+        /** An unlock still plays the animation if the wallpaper becomes visible this soon after. */
+        const val UNLOCK_WINDOW_MS = 2_000L
         val LIVE_SWITCH_HOLD_CHOICES = listOf(0L, 150L, 250L, 400L, 600L)
     }
 }
@@ -81,6 +90,10 @@ data class FoldState(
     /** The panels switched while the screen was on; the next transition holds its first frame. */
     val liveSwitch: Boolean = false,
     val policy: MotionPolicy = MotionPolicy(),
+    /** The lock screen (keyguard) is showing. */
+    val locked: Boolean = false,
+    /** When the user last unlocked, until the animation that unlock owes has played. */
+    val unlockedAtMs: Long? = null,
     /** System wallpaper picker preview: plays the entry motion once as a demonstration. */
     val isPreview: Boolean = false,
     val previewDemoPlayed: Boolean = false,
@@ -116,6 +129,12 @@ sealed interface FoldEvent {
     data class SceneFailed(override val atMs: Long, val kind: ScreenKind) : FoldEvent
     data class TransitionFinished(override val atMs: Long) : FoldEvent
     data class PolicyChanged(override val atMs: Long, val policy: MotionPolicy) : FoldEvent
+
+    /** The lock screen appeared or went ([locked]); only keeps the state current. */
+    data class KeyguardChanged(override val atMs: Long, val locked: Boolean) : FoldEvent
+
+    /** The user unlocked the phone (the lock screen was dismissed): the screen in use animates. */
+    data class Unlocked(override val atMs: Long) : FoldEvent
     data class PackChanged(override val atMs: Long) : FoldEvent
 
     /**

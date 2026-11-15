@@ -144,6 +144,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         .map { settings.reducedMotion }
         .stateIn(viewModelScope, SharingStarted.Eagerly, settings.reducedMotion)
 
+    val waitForUnlock: StateFlow<Boolean> = settingsChanges
+        .filter { it.isEmpty() || it == AppSettings.KEY_WAIT_UNLOCK }
+        .map { settings.waitForUnlock }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, settings.waitForUnlock)
+
     val livingMotion: StateFlow<LivingMotion> = settingsChanges
         .filter { it.isEmpty() || it == AppSettings.KEY_LIVING }
         .map { settings.livingMotion }
@@ -619,6 +624,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setReducedMotion(on: Boolean) {
         settings.reducedMotion = on
+    }
+
+    fun setWaitForUnlock(on: Boolean) {
+        settings.waitForUnlock = on
     }
 
     fun setProfileOverride(id: String?) {

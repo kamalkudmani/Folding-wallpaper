@@ -11,6 +11,8 @@ import com.foldmotion.core.device.ScreenKind
  *  - A transition is tied to the fold moment; when the new panel is first seen too late, or
  *    motion is not allowed, the end state is drawn directly.
  *  - Losing the surface or visibility cuts motion and frees the frame loop at once.
+ *  - With [MotionPolicy.waitForUnlock], nothing plays on the lock screen; unlocking plays the
+ *    animation of the screen in use, and folding an unlocked phone plays as usual.
  */
 object FoldStateReducer {
 
@@ -27,6 +29,8 @@ object FoldStateReducer {
             is FoldEvent.PolicyChanged -> onPolicyChanged(prev, event, out)
             is FoldEvent.PackChanged -> onPackChanged(prev, event, out)
             is FoldEvent.PostureChanged -> onPosture(prev, event, out)
+            is FoldEvent.KeyguardChanged -> onKeyguard(prev, event)
+            is FoldEvent.Unlocked -> onUnlocked(prev, event, out)
         }
         return Reduction(next, out)
     }
@@ -162,6 +166,22 @@ object FoldStateReducer {
         return present(st, e.atMs, out)
     }
 
+    private fun onKeyguard(s: FoldState, e: FoldEvent.KeyguardChanged): FoldState =
+        // Locking forgets an unlock that had not played yet.
+        if (e.locked) s.copy(locked = true, unlockedAtMs = null) else s.copy(locked = false)
+
+    /**
+     * The user unlocked: the screen in use owes its animation. It plays now if the wallpaper is
+     * on screen and ready, or as soon as it is (within [MotionPolicy.UNLOCK_WINDOW_MS]); never
+     * twice when an animation is already running.
+     */
+    private fun onUnlocked(s: FoldState, e: FoldEvent.Unlocked, out: MutableList<FoldCommand>): FoldState {
+        val st = s.copy(locked = false, unlockedAtMs = if (s.policy.waitForUnlock) e.atMs else null)
+        if (!st.policy.waitForUnlock || st.activeTransition != null) return st.copy(unlockedAtMs = null)
+        if (!st.visible || st.surface == null) return st
+        return present(st, e.atMs, out)
+    }
+
     private fun onPolicyChanged(
         s: FoldState,
         e: FoldEvent.PolicyChanged,
@@ -220,7 +240,10 @@ object FoldStateReducer {
         if (!s.visible) return s.copy(phase = hiddenPhase(s))
         if (s.activeTransition != null) return s
 
-        return if (shouldAnimate(s, kind, atMs)) {
+        val animate = shouldAnimate(s, kind, atMs)
+        // On the lock screen the debt stays: the animation plays when the user unlocks.
+        val keepUnlock = s.unlockedAtMs != null && !animate && s.locked
+        return if (animate) {
             val transition = if (kind == ScreenKind.MAIN) TransitionKind.OPEN else TransitionKind.CLOSE
             out += FoldCommand.StartTransition(transition, kind, s.liveSwitch)
             out += FoldCommand.MarkShown(kind)
@@ -231,17 +254,27 @@ object FoldStateReducer {
                 phase = if (kind == ScreenKind.MAIN) FoldPhase.MAIN_ENTER else FoldPhase.COVER_ENTER,
                 lastShown = kind,
                 previewDemoPlayed = true,
+                unlockedAtMs = null,
             )
         } else {
             out += FoldCommand.DrawStatic(kind)
             out += FoldCommand.MarkShown(kind)
-            s.copy(phase = stablePhase(kind), lastShown = kind, previewDemoPlayed = true, liveSwitch = false)
+            s.copy(
+                phase = stablePhase(kind), lastShown = kind, previewDemoPlayed = true, liveSwitch = false,
+                unlockedAtMs = if (keepUnlock) s.unlockedAtMs else null,
+            )
         }
     }
 
     private fun shouldAnimate(s: FoldState, kind: ScreenKind, atMs: Long): Boolean {
         if (!s.policy.motionAllowed) return false
         if (s.isPreview && !s.previewDemoPlayed) return true
+        if (s.policy.waitForUnlock && !s.isPreview) {
+            // The lock screen keeps the wallpaper still; an unlock plays it.
+            if (s.locked) return false
+            val unlocked = s.unlockedAtMs
+            if (unlocked != null && atMs - unlocked <= MotionPolicy.UNLOCK_WINDOW_MS) return true
+        }
         val last = s.lastShown ?: return false
         if (last == kind) return false
         val changedAt = s.postureChangedAtMs ?: return true

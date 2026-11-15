@@ -38,6 +38,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_REDUCED_MOTION, false)
         set(v) = prefs.edit().putBoolean(KEY_REDUCED_MOTION, v).apply()
 
+    /** Like Samsung's wallpapers: the fold animation waits for the unlock (on by default). */
+    var waitForUnlock: Boolean
+        get() = prefs.getBoolean(KEY_WAIT_UNLOCK, true)
+        set(v) = prefs.edit().putBoolean(KEY_WAIT_UNLOCK, v).apply()
+
     /** Motion between folds: FULL, SUBTLE (fewer particles, 20 fps, no tilt) or OFF. */
     var livingMotion: LivingMotion
         get() = LivingMotion.entries.firstOrNull { it.name == prefs.getString(KEY_LIVING, null) } ?: LivingMotion.FULL
@@ -117,5 +122,6 @@ class AppSettings(context: Context) {
         const val KEY_TILT = "tilt_parallax"
         const val KEY_UPDATED = "pack_updated"
         const val KEY_SWITCH_HOLD = "live_switch_hold_ms"
+        const val KEY_WAIT_UNLOCK = "wait_for_unlock"
     }
 }

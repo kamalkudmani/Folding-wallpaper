@@ -174,6 +174,8 @@
     <string name="settings_device_note">Previews and new packs use this model. The wallpaper itself always uses this phone\'s real screens.</string>
     <string name="settings_reduced_motion">Reduce motion</string>
     <string name="settings_reduced_motion_body">Show the end state without the open and close animation. The system setting Remove animations does the same.</string>
+    <string name="settings_wait_unlock">Play after unlocking</string>
+    <string name="settings_wait_unlock_body">Like Samsung\'s own wallpapers: the fold animation waits while the lock screen shows and plays once you unlock. Folding or unfolding an unlocked phone plays it straight away. Off: it plays as soon as the screen turns on.</string>
     <string name="settings_language">Language</string>
     <string name="lang_system">System default</string>
     <string name="settings_lab">Fold Lab</string>

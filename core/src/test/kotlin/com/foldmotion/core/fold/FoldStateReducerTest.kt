@@ -359,4 +359,103 @@ class FoldStateReducerTest {
         val ready = h.send(FoldEvent.SceneReady(5_050, main))
         assertTrue(ready.contains(FoldCommand.DrawStatic(main)))
     }
+
+    // ------------------------------------------------------------------ lock screen (0.8.2)
+
+    private fun starts(out: List<FoldCommand>) = out.filterIsInstance<FoldCommand.StartTransition>()
+
+    @Test
+    fun `on the lock screen nothing plays, and unlocking plays the screen in use`() {
+        val h = Harness()
+        boot(h, cover)
+        // Screen off, then on with the lock screen showing.
+        h.send(FoldEvent.VisibilityChanged(1_000, false))
+        h.send(FoldEvent.KeyguardChanged(5_000, locked = true))
+        val on = h.sendAndLoad(FoldEvent.VisibilityChanged(5_000, true))
+        assertTrue(starts(on).isEmpty())
+        assertTrue(on.contains(FoldCommand.DrawStatic(cover)))
+        // Unlock: the cover's own animation plays, even though no fold happened.
+        val unlock = h.send(FoldEvent.Unlocked(7_000))
+        assertEquals(listOf(FoldCommand.StartTransition(TransitionKind.CLOSE, cover)), starts(unlock))
+        assertNull(h.state.unlockedAtMs)
+    }
+
+    @Test
+    fun `unfolding a locked phone waits, and the open animation plays on unlock`() {
+        val h = Harness()
+        boot(h, cover)
+        h.send(FoldEvent.KeyguardChanged(1_000, locked = true))
+        val unfold = h.sendAndLoad(FoldEvent.SurfaceChanged(2_000, 1968, 2184, main))
+        assertTrue("no animation behind the lock screen", starts(unfold).isEmpty())
+        assertEquals(main, h.state.lastShown)
+        val unlock = h.send(FoldEvent.Unlocked(4_000))
+        assertEquals(listOf(FoldCommand.StartTransition(TransitionKind.OPEN, main)), starts(unlock))
+    }
+
+    @Test
+    fun `folding or unfolding an unlocked phone plays straight away`() {
+        val h = Harness()
+        boot(h, cover)
+        h.send(FoldEvent.KeyguardChanged(500, locked = false))
+        val unfold = h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        assertEquals(TransitionKind.OPEN, starts(unfold).single().kind)
+        h.send(FoldEvent.TransitionFinished(2_000))
+        val fold = h.sendAndLoad(FoldEvent.SurfaceChanged(5_000, 1080, 2520, cover))
+        assertEquals(TransitionKind.CLOSE, starts(fold).single().kind)
+    }
+
+    @Test
+    fun `an unlock that comes before the wallpaper is visible plays when it shows, once`() {
+        val h = Harness()
+        boot(h, main)
+        h.send(FoldEvent.VisibilityChanged(1_000, false))
+        h.send(FoldEvent.Unlocked(3_000))
+        val shown = h.sendAndLoad(FoldEvent.VisibilityChanged(3_400, true))
+        assertEquals(TransitionKind.OPEN, starts(shown).single().kind)
+        h.send(FoldEvent.TransitionFinished(4_600))
+        // Hidden and shown again without a new unlock: still, nothing replays.
+        h.send(FoldEvent.VisibilityChanged(5_000, false))
+        assertTrue(starts(h.sendAndLoad(FoldEvent.VisibilityChanged(5_200, true))).isEmpty())
+        // Too late after the unlock: the end state, no motion.
+        h.send(FoldEvent.VisibilityChanged(6_000, false))
+        h.send(FoldEvent.Unlocked(7_000))
+        assertTrue(starts(h.sendAndLoad(FoldEvent.VisibilityChanged(7_000 + MotionPolicy.UNLOCK_WINDOW_MS + 1, true))).isEmpty())
+    }
+
+    @Test
+    fun `an unlock during a running animation does not restart it, and locking forgets a pending unlock`() {
+        val h = Harness()
+        boot(h, cover)
+        h.sendAndLoad(FoldEvent.SurfaceChanged(1_000, 1968, 2184, main))
+        assertTrue(h.state.activeTransition != null)
+        assertTrue(starts(h.send(FoldEvent.Unlocked(1_100))).isEmpty())
+        h.send(FoldEvent.TransitionFinished(2_500))
+        h.send(FoldEvent.VisibilityChanged(3_000, false))
+        h.send(FoldEvent.Unlocked(4_000))
+        h.send(FoldEvent.KeyguardChanged(4_100, locked = true))
+        assertNull(h.state.unlockedAtMs)
+        assertTrue(starts(h.sendAndLoad(FoldEvent.VisibilityChanged(4_200, true))).isEmpty())
+    }
+
+    @Test
+    fun `with waiting turned off, the lock screen plays as before`() {
+        val h = Harness(FoldState(policy = MotionPolicy(waitForUnlock = false)))
+        boot(h, cover)
+        h.send(FoldEvent.KeyguardChanged(1_000, locked = true))
+        val unfold = h.sendAndLoad(FoldEvent.SurfaceChanged(2_000, 1968, 2184, main))
+        assertEquals(TransitionKind.OPEN, starts(unfold).single().kind)
+        h.send(FoldEvent.TransitionFinished(3_000))
+        assertTrue(starts(h.send(FoldEvent.Unlocked(4_000))).isEmpty())
+    }
+
+    @Test
+    fun `motion off or the picker preview are not changed by the lock screen`() {
+        val still = Harness(FoldState(policy = MotionPolicy(reducedMotion = true)))
+        boot(still, cover)
+        assertTrue(starts(still.send(FoldEvent.Unlocked(1_000))).isEmpty())
+        val preview = Harness(FoldState(isPreview = true))
+        preview.send(FoldEvent.KeyguardChanged(0, locked = true))
+        boot(preview, cover)
+        assertEquals(1, starts(preview.log).size)
+    }
 }

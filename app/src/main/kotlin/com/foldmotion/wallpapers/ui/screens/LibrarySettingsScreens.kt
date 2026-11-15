@@ -162,6 +162,7 @@ fun SettingsScreen(vm: MainViewModel, onLab: () -> Unit) {
     val reduced by vm.reducedMotion.collectAsStateWithLifecycle()
     val living by vm.livingMotion.collectAsStateWithLifecycle()
     val tilt by vm.tiltParallax.collectAsStateWithLifecycle()
+    val waitUnlock by vm.waitForUnlock.collectAsStateWithLifecycle()
     var language by remember { mutableStateOf(vm.currentLanguageTag()) }
 
     ReadableColumn(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = NavClearance)) {
@@ -179,6 +180,8 @@ fun SettingsScreen(vm: MainViewModel, onLab: () -> Unit) {
             SwitchRow(stringResource(R.string.settings_tilt), stringResource(R.string.settings_tilt_body), tilt && living == LivingMotion.FULL, enabled = living == LivingMotion.FULL) { vm.setTiltParallax(it) }
             HorizontalDivider(color = FmColors.GlassStrong, modifier = Modifier.padding(vertical = 6.dp))
             SwitchRow(stringResource(R.string.settings_reduced_motion), stringResource(R.string.settings_reduced_motion_body), reduced) { vm.setReducedMotion(it) }
+            HorizontalDivider(color = FmColors.GlassStrong, modifier = Modifier.padding(vertical = 6.dp))
+            SwitchRow(stringResource(R.string.settings_wait_unlock), stringResource(R.string.settings_wait_unlock_body), waitUnlock) { vm.setWaitForUnlock(it) }
         }
 
         SectionTitle(stringResource(R.string.settings_device))

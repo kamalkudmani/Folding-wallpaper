@@ -25,8 +25,8 @@ android {
         // WallpaperService.Engine.getDisplayContext. Fold7 ships with Android 16.
         minSdk = 30
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.8.1"
+        versionCode = 11
+        versionName = "0.8.2"
         // LiteRT ships native code: phones are arm64; x86_64 keeps emulators working.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }

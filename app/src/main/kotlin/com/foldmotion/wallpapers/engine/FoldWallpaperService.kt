@@ -163,7 +163,7 @@ class FoldWallpaperService : WallpaperService() {
                         switchPack(next)
                     }
                 }
-                AppSettings.KEY_REDUCED_MOTION, AppSettings.KEY_SWITCH_HOLD -> {
+                AppSettings.KEY_REDUCED_MOTION, AppSettings.KEY_SWITCH_HOLD, AppSettings.KEY_WAIT_UNLOCK -> {
                     dispatch(FoldEvent.PolicyChanged(now(), currentPolicy()))
                     refreshAmbient()
                     updateVideoPlayback()
@@ -188,6 +188,35 @@ class FoldWallpaperService : WallpaperService() {
             }
         }
 
+        /**
+         * Lock screen: the fold animation waits while it shows and plays when the user unlocks
+         * (USER_PRESENT), like Samsung's own wallpapers. Screen on/off only refresh the state.
+         */
+        private val lockReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_USER_PRESENT -> {
+                        trace("UNLOCKED", PocEvents.detail(PocEvents.VISIBLE to state.visible))
+                        dispatch(FoldEvent.Unlocked(now()))
+                    }
+                    else -> syncKeyguard()
+                }
+            }
+        }
+
+        /** Tells the state machine whether the lock screen is showing right now. */
+        private fun syncKeyguard() {
+            val locked = try {
+                getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+            } catch (e: Exception) {
+                false
+            }
+            if (locked != state.locked) {
+                trace("KEYGUARD", PocEvents.detail("locked" to locked))
+                dispatch(FoldEvent.KeyguardChanged(now(), locked))
+            }
+        }
+
         private val frameCallback = Choreographer.FrameCallback { frameTimeNanos ->
             frameScheduled = false
             onFrame(frameTimeNanos)
@@ -207,6 +236,16 @@ class FoldWallpaperService : WallpaperService() {
                 this@FoldWallpaperService, powerReceiver,
                 IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED,
             )
+            ContextCompat.registerReceiver(
+                this@FoldWallpaperService, lockReceiver,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_USER_PRESENT)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                },
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            syncKeyguard()
             engines += this
             hinge.acquire()
             tilt = TiltTracker(getSystemService(SensorManager::class.java))
@@ -226,6 +265,10 @@ class FoldWallpaperService : WallpaperService() {
             settings.prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
             try {
                 unregisterReceiver(powerReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
+            try {
+                unregisterReceiver(lockReceiver)
             } catch (_: IllegalArgumentException) {
             }
             hinge.release()
@@ -267,6 +310,8 @@ class FoldWallpaperService : WallpaperService() {
             } else {
                 FoldSession.inferSwitch(id, kind)
             }
+            // A fold may bring up the lock screen on the new panel: know before deciding.
+            syncKeyguard()
             dispatch(
                 FoldEvent.SurfaceChanged(
                     now(), width, height, kind,
@@ -293,6 +338,7 @@ class FoldWallpaperService : WallpaperService() {
             super.onVisibilityChanged(visible)
             trace(PocEvents.VISIBILITY, PocEvents.detail(PocEvents.VISIBLE to visible))
             if (visible) state.surface?.kind?.let { FoldSession.inferSwitch(id, it) }
+            if (visible) syncKeyguard()
             dispatch(
                 FoldEvent.VisibilityChanged(
                     now(), visible,
@@ -779,6 +825,7 @@ class FoldWallpaperService : WallpaperService() {
                 reducedMotion = settings.reducedMotion || animatorScale == 0f,
                 powerSave = power?.isPowerSaveMode == true,
                 liveSwitchHoldMs = settings.liveSwitchHoldMs,
+                waitForUnlock = settings.waitForUnlock,
             )
         }
 

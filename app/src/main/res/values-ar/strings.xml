@@ -164,6 +164,8 @@
     <string name="settings_device_note">تستخدم المعاينات والحزم الجديدة هذا الموديل. أما الخلفية نفسها فتستخدم دائماً شاشات هذا الهاتف الحقيقية.</string>
     <string name="settings_reduced_motion">تقليل الحركة</string>
     <string name="settings_reduced_motion_body">عرض الحالة النهائية دون حركة الفتح والإغلاق. إعداد النظام «إزالة الرسوم المتحركة» يفعل الشيء نفسه.</string>
+    <string name="settings_wait_unlock">التشغيل بعد فتح القفل</string>
+    <string name="settings_wait_unlock_body">مثل خلفيات سامسونج الأصلية: تنتظر حركة الطيّ ما دامت شاشة القفل ظاهرة، وتعمل بمجرد فتح القفل. وعند طيّ الهاتف أو فتحه وهو غير مقفل تعمل فوراً. عند الإيقاف: تعمل بمجرد تشغيل الشاشة.</string>
     <string name="settings_language">اللغة</string>
     <string name="lang_system">لغة النظام</string>
     <string name="settings_lab">مختبر الطي</string>

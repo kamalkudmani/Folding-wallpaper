@@ -14,7 +14,14 @@ Before you start: Settings > Fold Lab > **Clear**, so the trace only holds this 
       wallpaper is set on the home screen (and lock screen if you choose both).
 - [ ] The app shows it as Active in the Library.
 
-## 2. Fold with the screen OFF
+## 2. Lock screen (0.8.2: plays after unlock, like Samsung)
+
+- [ ] Screen off, then on: the lock screen shows the wallpaper still (no animation).
+- [ ] Unlock: the animation of the screen in use plays right after the lock screen goes.
+- [ ] Unfold while still on the lock screen: no animation; unlock: the open animation plays.
+- [ ] Settings > Play after unlocking off: the animation plays as soon as the screen turns on.
+
+## 2b. Fold with the screen OFF
 
 - [ ] Lock the phone open, fold it, press power: the cover screen plays the fold animation.
 - [ ] Lock it folded, unfold it, unlock: the main screen plays the unfold animation.
